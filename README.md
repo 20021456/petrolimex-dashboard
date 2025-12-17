@@ -173,9 +173,13 @@ docker-compose -f docker-compose.local.yml down
    - Nhập thông tin: Tên, Danh mục, Số lượng
    - Tự động tạo QR code
 
-3. **Quét QR Code**
-   - Bật camera để quét mã QR
-   - Tự động cập nhật số lượng
+3. **🆕 QR Code với Link Web (v6.9.0)**
+   - Tạo QR code chứa link web unique
+   - Khi khách hàng quét QR sẽ mở trang xác nhận
+   - Hiển thị thông tin: Tên khách hàng, Sản phẩm, Số lượng
+   - Nút "Đồng ý" để xác nhận đã nhận hàng
+   - Hiển thị thông báo "Cảm ơn Quý khách" sau khi xác nhận
+   - Link: `/xacnhan/[token]`
 
 4. **Quản lý giá**
    - Click vào giá sản phẩm để chỉnh sửa
@@ -184,6 +188,34 @@ docker-compose -f docker-compose.local.yml down
 5. **Tìm kiếm và Lọc**
    - Tìm theo tên sản phẩm
    - Lọc theo danh mục (Nhiên liệu, Dầu nhớt, Phụ kiện)
+
+---
+
+### 📱 Trang xác nhận QR (/xacnhan/[token])
+
+**Truy cập:** Quét QR code từ trang Quản lý kho
+
+**Luồng hoạt động:**
+
+1. Nhân viên tạo QR code trong trang `/kho` với thông tin:
+   - Tên khách hàng
+   - Sản phẩm (chọn từ danh sách)
+   - Số lượng
+
+2. Hệ thống tự động tạo:
+   - Link web unique (ví dụ: `/xacnhan/abc123def456...`)
+   - QR code chứa link đó
+   - Lưu thông tin vào database
+
+3. Khách hàng quét QR code:
+   - Mở trang web hiển thị thông tin đơn hàng
+   - Xem chi tiết: Tên, Sản phẩm, Số lượng
+   - Bấm nút "Đồng ý" để xác nhận
+
+4. Sau khi xác nhận:
+   - Hiển thị thông báo "Cảm ơn Quý khách!"
+   - Lưu trạng thái xác nhận vào database
+   - QR code chỉ có thể xác nhận 1 lần
 
 ---
 

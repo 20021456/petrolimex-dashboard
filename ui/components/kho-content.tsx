@@ -62,6 +62,7 @@ export function KhoContent() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [generatedQR, setGeneratedQR] = useState<string | null>(null)
+  const [qrInfo, setQrInfo] = useState<{customer_name: string, item_name: string, quantity: number} | null>(null)
 
   // Load danh sách sản phẩm từ bảng giá
   const loadProducts = async () => {
@@ -164,6 +165,7 @@ export function KhoContent() {
         loadInventory()
         resetForm()
         setGeneratedQR(null)
+        setQrInfo(null)
       } else {
         toast.error(result.error || 'Có lỗi xảy ra')
       }
@@ -184,6 +186,7 @@ export function KhoContent() {
     })
     setEditingId(null)
     setGeneratedQR(null)
+    setQrInfo(null)
   }
 
   // Sửa
@@ -196,6 +199,7 @@ export function KhoContent() {
     })
     setEditingId(item.id)
     setGeneratedQR(null)
+    setQrInfo(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -221,7 +225,7 @@ export function KhoContent() {
     }
   }
 
-  // Tạo QR code và lưu vào database
+  // Tạo QR code với link web và lưu vào database
   const handleGenerateQR = async () => {
     if (!formData.customer_name.trim()) {
       toast.error('Vui lòng nhập tên khách hàng')
@@ -238,17 +242,14 @@ export function KhoContent() {
 
     setIsSubmitting(true)
     try {
-      // Lưu vào database
-      const response = await fetch('/api/inventory', {
+      // Gọi API tạo QR code với link web
+      const response = await fetch('/api/qr/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_name: formData.customer_name,
           item_name: formData.item_name,
-          category: 'fuel',
           quantity: formData.quantity,
-          unit: 'lít',
-          sale_time: getLocalDateTime(),
           payment_status: formData.payment_status
         })
       })
@@ -256,14 +257,13 @@ export function KhoContent() {
       const result = await response.json()
 
       if (result.success) {
-        // Tạo QR code
-        const qrData = JSON.stringify({
+        // Set URL làm data cho QR code
+        setGeneratedQR(result.data.url)
+        setQrInfo({
           customer_name: formData.customer_name,
           item_name: formData.item_name,
-          quantity: formData.quantity,
-          created_at: getLocalDateTime()
+          quantity: formData.quantity
         })
-        setGeneratedQR(qrData)
         toast.success('Đã tạo QR code và lưu vào kho!')
         
         // Reload danh sách
@@ -422,32 +422,48 @@ export function KhoContent() {
           </form>
 
           {/* Hiển thị QR Code */}
-          {generatedQR && (
-            <div className="mt-6 p-6 border rounded-lg bg-muted/50">
+          {generatedQR && qrInfo && (
+            <div className="mt-6 p-6 border rounded-lg bg-gradient-to-br from-orange-50 to-red-50">
               <div className="text-center">
-                <p className="text-lg font-medium mb-4">QR Code</p>
+                <p className="text-lg font-medium mb-2">QR Code</p>
+                <p className="text-xs text-muted-foreground mb-4">Quét mã để xác nhận đơn hàng</p>
                 <QRCodeGenerator data={generatedQR} size={256} />
-                <div className="mt-4 space-y-2 text-sm text-left">
-                  <p><strong>Khách hàng:</strong> {formData.customer_name}</p>
-                  <p><strong>Sản phẩm:</strong> {formData.item_name}</p>
-                  <p><strong>Số lượng:</strong> {formData.quantity}</p>
+                <div className="mt-4 space-y-2 text-sm text-left bg-white rounded-lg p-4">
+                  <p><strong>Khách hàng:</strong> {qrInfo.customer_name}</p>
+                  <p><strong>Sản phẩm:</strong> {qrInfo.item_name}</p>
+                  <p><strong>Số lượng:</strong> {qrInfo.quantity} lít</p>
                 </div>
-                <Button 
-                  onClick={() => {
-                    const canvas = document.querySelector('canvas')
-                    if (canvas) {
-                      const url = canvas.toDataURL('image/png')
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = `qr-${formData.customer_name.replace(/\s+/g, '-')}.png`
-                      a.click()
-                      toast.success('Đã tải QR code!')
-                    }
-                  }}
-                  className="w-full mt-4"
-                >
-                  Tải QR Code
-                </Button>
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-xs text-blue-600 break-all">{generatedQR}</p>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button 
+                    onClick={() => {
+                      const canvas = document.querySelector('canvas')
+                      if (canvas) {
+                        const url = canvas.toDataURL('image/png')
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `qr-${qrInfo.customer_name.replace(/\s+/g, '-')}.png`
+                        a.click()
+                        toast.success('Đã tải QR code!')
+                      }
+                    }}
+                    className="flex-1"
+                  >
+                    Tải QR Code
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedQR)
+                      toast.success('Đã copy link!')
+                    }}
+                    className="flex-1"
+                  >
+                    Copy Link
+                  </Button>
+                </div>
               </div>
             </div>
           )}

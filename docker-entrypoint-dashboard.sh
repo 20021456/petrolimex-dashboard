@@ -74,10 +74,18 @@ CREATE TABLE IF NOT EXISTS inventory_items (
     id VARCHAR(50) PRIMARY KEY,
     customer_name VARCHAR(255),
     item_name VARCHAR(255) NOT NULL,
-    category VARCHAR(50) NOT NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'fuel',
     quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
     unit VARCHAR(20) NOT NULL DEFAULT 'lít',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    sale_time DATETIME,
+    payment_status ENUM('unpaid', 'paid') NOT NULL DEFAULT 'unpaid',
+    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_category (category),
+    INDEX idx_item_name (item_name),
+    INDEX idx_customer_name (customer_name),
+    INDEX idx_created_at (created_at),
+    INDEX idx_payment_status (payment_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 EOF
         
@@ -99,6 +107,26 @@ INSERT IGNORE INTO fuel_prices (fuel_name, price, unit) VALUES
     ('Dầu FO', 18000, 'lít'),
     ('Dầu nhớt động cơ', 150000, 'chai'),
     ('Dầu nhớt xe máy', 50000, 'chai');
+EOF
+
+        # Create qr_codes table (v6.9.0 - QR with web link)
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" <<'EOF'
+CREATE TABLE IF NOT EXISTS qr_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    token VARCHAR(64) UNIQUE NOT NULL,
+    customer_name VARCHAR(255) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    quantity DECIMAL(10, 2) NOT NULL,
+    unit VARCHAR(20) NOT NULL DEFAULT 'lít',
+    payment_status ENUM('unpaid', 'paid') NOT NULL DEFAULT 'unpaid',
+    is_confirmed BOOLEAN DEFAULT FALSE,
+    confirmed_at DATETIME,
+    inventory_id VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_token (token),
+    INDEX idx_inventory_id (inventory_id),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 EOF
         
         echo "✅ Database tables created successfully!"
