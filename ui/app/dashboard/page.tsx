@@ -7,7 +7,7 @@ import { SectionCards } from "@/components/section-cards"
 import { ChartSection } from "@/components/chart-section"
 import { ChiTietContent } from "@/components/chitiet-content"
 import { KhoContent } from "@/components/kho-content"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { DashboardSection } from "@/components/dashboard-section"
 import { DateRangePicker } from "@/components/date-range-picker"
 import { SearchInput } from "@/components/search-input"
@@ -34,6 +34,28 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+
+// Component toggle sidebar hoạt động cả desktop và mobile
+function SidebarToggleButton() {
+  const { toggleSidebar, open, isMobile, openMobile } = useSidebar()
+  const isOpen = isMobile ? openMobile : open
+  
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggleSidebar}
+      className="-ml-1 h-8 w-8 shrink-0"
+    >
+      {isOpen ? (
+        <PanelLeftClose className="h-4 w-4" />
+      ) : (
+        <PanelLeftOpen className="h-4 w-4" />
+      )}
+      <span className="sr-only">Toggle sidebar</span>
+    </Button>
+  )
+}
 
 // Component sortable cho từng section
 function SortableSection({
@@ -81,7 +103,6 @@ export default function Page() {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>()
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false)
   const [activeView, setActiveView] = React.useState("dashboard")
 
@@ -228,33 +249,19 @@ export default function Page() {
   }
 
   return (
-    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
-      {sidebarOpen && (
-        <AppSidebar 
-          variant="inset" 
-          activeView={activeView}
-          onViewChange={setActiveView}
-          onPriceClick={openPriceDialog}
-        />
-      )}
+    <SidebarProvider defaultOpen={true}>
+      <AppSidebar 
+        variant="inset" 
+        activeView={activeView}
+        onViewChange={setActiveView}
+        onPriceClick={openPriceDialog}
+      />
       <SidebarInset>
         {/* Header with filters - Mobile Responsive */}
         <header className="flex shrink-0 flex-col border-b overflow-hidden">
           {/* Top row - Always visible */}
           <div className="flex h-12 items-center gap-1 px-3 sm:gap-2 sm:px-4 lg:px-6">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="-ml-1 h-8 w-8 shrink-0"
-            >
-              {sidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
-              )}
-              <span className="sr-only">Toggle sidebar</span>
-            </Button>
+            <SidebarToggleButton />
             <Separator orientation="vertical" className="mx-1 h-4 sm:mx-2" />
             <h1 className="truncate text-sm font-medium sm:text-base">
               {viewTitles[activeView] || "Fuel Dashboard"}
