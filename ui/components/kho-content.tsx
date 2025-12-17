@@ -471,8 +471,8 @@ export function KhoContent() {
       </Card>
 
       {/* Danh sách */}
-      <Card>
-        <CardHeader>
+      <Card className="min-h-[400px] flex flex-col">
+        <CardHeader className="pb-3">
           <CardTitle>Danh sách ({filteredItems.length})</CardTitle>
           <CardDescription>Toàn bộ đơn hàng đã tạo</CardDescription>
           
@@ -486,17 +486,17 @@ export function KhoContent() {
             />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
+        <CardContent className="flex-1 overflow-hidden pb-4">
+          <div className="rounded-md border h-full max-h-[60vh] overflow-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
-                  <TableHead>Tên khách hàng</TableHead>
-                  <TableHead>Tên sản phẩm</TableHead>
-                  <TableHead className="text-right">Số lượng</TableHead>
-                  <TableHead>Thời gian bán</TableHead>
-                  <TableHead>Thanh toán</TableHead>
-                  <TableHead className="text-right">Thao tác</TableHead>
+                  <TableHead className="min-w-[120px]">Tên khách hàng</TableHead>
+                  <TableHead className="min-w-[100px]">Tên sản phẩm</TableHead>
+                  <TableHead className="text-right min-w-[80px]">Số lượng</TableHead>
+                  <TableHead className="min-w-[140px]">Thời gian bán</TableHead>
+                  <TableHead className="min-w-[90px]">Thanh toán</TableHead>
+                  <TableHead className="text-right min-w-[100px]">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -516,14 +516,14 @@ export function KhoContent() {
                       <TableCell className="text-right">
                         {item.quantity}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {item.sale_time 
                           ? new Date(item.sale_time).toLocaleString('vi-VN')
                           : '-'
                         }
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
                           item.payment_status === 'paid' 
                             ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
                             : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
