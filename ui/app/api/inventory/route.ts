@@ -7,7 +7,6 @@ interface InventoryItem {
   category: string;
   quantity: number;
   unit: string;
-  min_stock: number;
   price: number;
   supplier: string;
   sale_time?: string;
@@ -54,11 +53,11 @@ export async function POST(request: NextRequest) {
     // sale_time đã được gửi đúng format từ frontend (YYYY-MM-DD HH:MM:SS)
     const saleTime = data.sale_time || null;
 
-    // Insert vào database
+    // Insert vào database (không dùng min_stock để tương thích với schema cũ)
     await query(`
       INSERT INTO inventory_items 
-      (id, customer_name, item_name, category, quantity, unit, min_stock, price, supplier, sale_time, payment_status, last_updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      (id, customer_name, item_name, category, quantity, unit, price, supplier, sale_time, payment_status, last_updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `, [
       id,
       data.customer_name || '',
@@ -66,7 +65,6 @@ export async function POST(request: NextRequest) {
       data.category,
       data.quantity,
       data.unit || 'lít',
-      data.min_stock || 0,
       data.price || 0,
       data.supplier || '',
       saleTime,
