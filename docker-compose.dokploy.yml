@@ -14,7 +14,8 @@
 # 🔧 ENVIRONMENT VARIABLES CẦN CẤU HÌNH:
 # =====================================================
 # MYSQL_HOST=<internal-hostname-mysql>    # Lấy từ Dokploy MySQL service
-# MYSQL_ROOT_PASSWORD=<your-password>     # Password đã đặt cho MySQL
+# MYSQL_USER=<database-user>              # Username của MySQL (email hoặc root)
+# MYSQL_PASSWORD=<your-password>          # Password của MySQL user
 # MYSQL_DATABASE=petrolimex               # Tên database
 # FUEL_USERNAME=<your-fuel-username>      # Username scrape data
 # FUEL_PASSWORD=<your-fuel-password>      # Password scrape data
@@ -30,8 +31,8 @@ services:
     environment:
       # MySQL Config - sử dụng external database từ Dokploy
       MYSQL_HOST: ${MYSQL_HOST}
-      MYSQL_USER: root
-      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-petrolimex}
       MYSQL_PORT: 3306
       # Fuel Credentials
@@ -55,13 +56,13 @@ services:
     restart: unless-stopped
     environment:
       # MySQL Config - sử dụng external database từ Dokploy
-      DB_HOST: ${MYSQL_HOST}
-      DB_USER: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      DB_NAME: ${MYSQL_DATABASE:-petrolimex}
-      DB_PORT: 3306
+      DB_HOST: ${DB_HOST:-${MYSQL_HOST}}
+      DB_USER: ${DB_USER:-${MYSQL_USER:-root}}
+      DB_PASSWORD: ${DB_PASSWORD:-${MYSQL_PASSWORD}}
+      DB_NAME: ${DB_NAME:-${MYSQL_DATABASE:-petrolimex}}
+      DB_PORT: ${DB_PORT:-3306}
       # MySQL client config
-      MYSQL_PWD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_PWD: ${DB_PASSWORD:-${MYSQL_PASSWORD}}
       # Node.js
       NODE_ENV: production
       TZ: Asia/Ho_Chi_Minh
