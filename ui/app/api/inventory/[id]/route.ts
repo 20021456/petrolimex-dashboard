@@ -7,9 +7,6 @@ interface InventoryItem {
   category: string;
   quantity: number;
   unit: string;
-  min_stock: number;
-  price: number;
-  supplier: string;
   sale_time?: string;
   payment_status?: 'unpaid' | 'paid';
 }
@@ -43,9 +40,6 @@ export async function PUT(
         category = ?,
         quantity = ?,
         unit = ?,
-        min_stock = ?,
-        price = ?,
-        supplier = ?,
         sale_time = ?,
         payment_status = ?,
         last_updated = NOW()
@@ -56,9 +50,6 @@ export async function PUT(
       data.category,
       data.quantity,
       data.unit || 'lít',
-      data.min_stock || 0,
-      data.price || 0,
-      data.supplier || '',
       saleTime,
       data.payment_status || 'unpaid',
       id
