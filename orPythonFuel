@@ -1,0 +1,74 @@
+[1mdiff --git a/ui/lib/db.ts b/ui/lib/db.ts[m
+[1mindex 0088c21..7f533dd 100644[m
+[1m--- a/ui/lib/db.ts[m
+[1m+++ b/ui/lib/db.ts[m
+[36m@@ -1,15 +1,39 @@[m
+ import mysql from 'mysql2/promise';[m
+ [m
+[31m-export async function getConnection() {[m
+[31m-  const connection = await mysql.createConnection({[m
+[31m-    host: process.env.DB_HOST || 'localhost',[m
+[31m-    user: process.env.DB_USER || 'root',[m
+[31m-    password: process.env.DB_PASSWORD || '',[m
+[31m-    database: process.env.DB_NAME || 'petrolimex',[m
+[31m-    port: parseInt(process.env.DB_PORT || '3306'),[m
+[31m-  });[m
+[32m+[m[32m// Create connection pool for better performance and connection management[m
+[32m+[m[32mconst pool = mysql.createPool({[m
+[32m+[m[32m  host: process.env.DB_HOST || 'localhost',[m
+[32m+[m[32m  user: process.env.DB_USER || 'root',[m
+[32m+[m[32m  password: process.env.DB_PASSWORD || '',[m
+[32m+[m[32m  database: process.env.DB_NAME || 'petrolimex',[m
+[32m+[m[32m  port: parseInt(process.env.DB_PORT || '3306'),[m
+[32m+[m[32m  waitForConnections: true,[m
+[32m+[m[32m  connectionLimit: 10,[m
+[32m+[m[32m  queueLimit: 0,[m
+[32m+[m[32m  enableKeepAlive: true,[m
+[32m+[m[32m  keepAliveInitialDelay: 0,[m
+[32m+[m[32m  connectTimeout: 60000, // 60 seconds[m
+[32m+[m[32m});[m
+ [m
+[31m-  return connection;[m
+[32m+[m[32mexport async function getConnection() {[m
+[32m+[m[32m  let retries = 3;[m
+[32m+[m[32m  let lastError: any;[m
+[32m+[m[41m  [m
+[32m+[m[32m  while (retries > 0) {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const connection = await pool.getConnection();[m
+[32m+[m[32m      return connection;[m
+[32m+[m[32m    } catch (error: any) {[m
+[32m+[m[32m      console.error(`Database connection attempt failed (${4 - retries}/3):`, error.message);[m
+[32m+[m[32m      lastError = error;[m
+[32m+[m[32m      retries--;[m
+[32m+[m[32m      if (retries > 0) {[m
+[32m+[m[32m        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry[m
+[32m+[m[32m      }[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m[41m  [m
+[32m+[m[32m  throw new Error(`Failed to connect to database after 3 attempts: ${lastError?.message}`);[m
+ }[m
+ [m
+ export async function query<T = any>(sql: string, params?: any[]): Promise<T> {[m
+[36m@@ -18,7 +42,19 @@[m [mexport async function query<T = any>(sql: string, params?: any[]): Promise<T> {[m
+     const [results] = await connection.execute(sql, params);[m
+     return results as T;[m
+   } finally {[m
+[31m-    await connection.end();[m
+[32m+[m[32m    connection.release();[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m// Test connection on startup[m
+[32m+[m[32mexport async function testConnection() {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    await query('SELECT 1');[m
+[32m+[m[32m    console.log('✅ Database connection test successful');[m
+[32m+[m[32m    return true;[m
+[32m+[m[32m  } catch (error: any) {[m
+[32m+[m[32m    console.error('❌ Database connection test failed:', error.message);[m
+[32m+[m[32m    return false;[m
+   }[m
+ }[m
+ [m

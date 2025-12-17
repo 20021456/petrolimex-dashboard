@@ -1,0 +1,34 @@
+# Dockerfile cho Python service (scraping & auto-update)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Cài đặt dependencies hệ thống
+RUN apt-get update && apt-get install -y \
+    gcc \
+    default-libmysqlclient-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements và cài đặt Python packages
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Cài đặt Playwright browsers
+RUN playwright install chromium
+RUN playwright install-deps chromium
+
+# Copy source code
+COPY database/ ./database/
+COPY scripts/ ./scripts/
+
+# Tạo thư mục output
+RUN mkdir -p output
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Wait for MySQL to be ready, then run auto-update
+CMD ["sh", "-c", "sleep 15 && python scripts/demo_auto_update.py"]
+

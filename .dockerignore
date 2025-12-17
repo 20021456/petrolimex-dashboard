@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+
+# Node
+ui/node_modules/
+ui/.next/
+ui/out/
+ui/.env*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output
+output/*.xlsx
+output/*.csv
+
+# Logs
+*.log
+
+# Bat files (Windows scripts)
+*.bat
+
+# Documentation
+README.md
+

@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Docker
+.env
+.env.local
+.env.*.local
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Node.js
+node_modules/
+.next/
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Output files
+output/
+*.csv
+*.log
+# Ignore json files except package files
+*.json
+!package*.json
+!tsconfig.json
+!components.json
+
+# MySQL Backups
+mysql_backups/
+*.sql
+*.sql.gz
+
+# Sensitive config (IMPORTANT!)
+# database/config.py - ĐÃ SỬ DỤNG ENV VARIABLES - AN TOÀN ĐỂ PUSH
+
+# Streamlit cache
+.streamlit/

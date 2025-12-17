@@ -1,0 +1,75 @@
+# Docker Compose for Dokploy Deployment
+# Sử dụng với external MySQL database từ Dokploy
+# 
+# =====================================================
+# 📝 HƯỚNG DẪN SỬ DỤNG TRÊN DOKPLOY:
+# =====================================================
+# 1. Tạo MySQL database trong cùng Project trên Dokploy
+# 2. Lấy "Internal Host" từ tab Connection của MySQL service
+# 3. Cấu hình Environment Variables trong Dokploy (xem bên dưới)
+# 4. Trong "Compose File Path", chọn: docker-compose.dokploy.yml
+# 5. Deploy
+#
+# =====================================================
+# 🔧 ENVIRONMENT VARIABLES CẦN CẤU HÌNH:
+# =====================================================
+# MYSQL_HOST=<internal-hostname-mysql>    # Lấy từ Dokploy MySQL service
+# MYSQL_ROOT_PASSWORD=<your-password>     # Password đã đặt cho MySQL
+# MYSQL_DATABASE=petrolimex               # Tên database
+# FUEL_USERNAME=<your-fuel-username>      # Username scrape data
+# FUEL_PASSWORD=<your-fuel-password>      # Password scrape data
+# =====================================================
+
+services:
+  # Python Service (Auto-update & Scraping)
+  python:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    restart: unless-stopped
+    environment:
+      # MySQL Config - sử dụng external database từ Dokploy
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-petrolimex}
+      MYSQL_PORT: 3306
+      # Fuel Credentials
+      FUEL_USERNAME: ${FUEL_USERNAME}
+      FUEL_PASSWORD: ${FUEL_PASSWORD}
+      # Timezone
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - ./output:/app/output
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Next.js Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.nextjs
+    restart: unless-stopped
+    environment:
+      # MySQL Config - sử dụng external database từ Dokploy
+      DB_HOST: ${MYSQL_HOST}
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE:-petrolimex}
+      DB_PORT: 3306
+      # MySQL client config
+      MYSQL_PWD: ${MYSQL_ROOT_PASSWORD}
+      # Node.js
+      NODE_ENV: production
+      TZ: Asia/Ho_Chi_Minh
+    # Dokploy sử dụng Traefik để routing, chỉ cần expose port 3000
+    expose:
+      - "3000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
