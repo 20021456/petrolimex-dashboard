@@ -152,8 +152,6 @@ export function KhoContent() {
           category: 'fuel',
           quantity: formData.quantity,
           unit: 'lít',
-          price: 0,
-          supplier: '',
           sale_time: getLocalDateTime(),
           payment_status: formData.payment_status
         })
@@ -250,8 +248,6 @@ export function KhoContent() {
           category: 'fuel',
           quantity: formData.quantity,
           unit: 'lít',
-          price: 0,
-          supplier: '',
           sale_time: getLocalDateTime(),
           payment_status: formData.payment_status
         })

@@ -6,18 +6,42 @@ interface InventoryItem {
   item_name: string;
   category: string;
   quantity: number;
-  unit: string;
-  price: number;
-  supplier: string;
+  unit?: string;
   sale_time?: string;
   payment_status?: 'unpaid' | 'paid';
+}
+
+// Đảm bảo bảng tồn tại với schema đúng
+async function ensureTableExists() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS inventory_items (
+        id VARCHAR(50) PRIMARY KEY,
+        customer_name VARCHAR(255),
+        item_name VARCHAR(255) NOT NULL,
+        category VARCHAR(50) NOT NULL DEFAULT 'fuel',
+        quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
+        unit VARCHAR(20) NOT NULL DEFAULT 'lít',
+        sale_time DATETIME,
+        payment_status ENUM('unpaid', 'paid') NOT NULL DEFAULT 'unpaid',
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } catch (error) {
+    console.error('Error ensuring table exists:', error);
+  }
 }
 
 // GET - Lấy danh sách vật tư
 export async function GET() {
   try {
+    await ensureTableExists();
+    
     const items = await query<any[]>(`
-      SELECT * FROM inventory_items 
+      SELECT id, customer_name, item_name, category, quantity, unit, 
+             sale_time, payment_status, created_at 
+      FROM inventory_items 
       ORDER BY created_at DESC
     `);
 
@@ -37,10 +61,12 @@ export async function GET() {
 // POST - Thêm vật tư mới
 export async function POST(request: NextRequest) {
   try {
+    await ensureTableExists();
+    
     const data: InventoryItem = await request.json();
 
     // Validate
-    if (!data.item_name || !data.category || data.quantity === undefined) {
+    if (!data.item_name || data.quantity === undefined) {
       return NextResponse.json({
         success: false,
         error: 'Thiếu thông tin bắt buộc'
@@ -53,20 +79,18 @@ export async function POST(request: NextRequest) {
     // sale_time đã được gửi đúng format từ frontend (YYYY-MM-DD HH:MM:SS)
     const saleTime = data.sale_time || null;
 
-    // Insert vào database (không dùng min_stock để tương thích với schema cũ)
+    // Insert vào database với schema đơn giản
     await query(`
       INSERT INTO inventory_items 
-      (id, customer_name, item_name, category, quantity, unit, price, supplier, sale_time, payment_status, last_updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      (id, customer_name, item_name, category, quantity, unit, sale_time, payment_status, last_updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `, [
       id,
       data.customer_name || '',
       data.item_name,
-      data.category,
+      data.category || 'fuel',
       data.quantity,
       data.unit || 'lít',
-      data.price || 0,
-      data.supplier || '',
       saleTime,
       data.payment_status || 'unpaid'
     ]);
@@ -84,4 +108,3 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
-
