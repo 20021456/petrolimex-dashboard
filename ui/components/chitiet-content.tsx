@@ -104,6 +104,19 @@ export function ChiTietContent() {
     }).format(value)
   }
 
+  // Format số cho bồn bể - giữ nguyên số thập phân từ nguồn
+  const formatTankNumber = (value: number) => {
+    // Lấy phần thập phân từ số gốc
+    const decimalStr = value.toString()
+    const decimalPart = decimalStr.includes('.') ? decimalStr.split('.')[1] : ''
+    const decimalPlaces = decimalPart.length
+    
+    return new Intl.NumberFormat('vi-VN', {
+      minimumFractionDigits: Math.min(decimalPlaces, 2),
+      maximumFractionDigits: Math.max(decimalPlaces, 2)
+    }).format(value)
+  }
+
   const parseVietnameseNumber = (value: string): number => {
     if (!value) return 0
     const cleaned = value.replace(/\./g, '').replace(',', '.')
@@ -214,31 +227,24 @@ export function ChiTietContent() {
                       <CardTitle className="text-sm font-medium">
                         {tank.ten_bon}
                       </CardTitle>
-                      <Badge variant="secondary">{tank.ty_le}</Badge>
+                      <Badge variant="secondary">{tank.nhien_lieu || 'N/A'}</Badge>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
-                        <Badge variant="outline">{tank.nhien_lieu}</Badge>
+                      <div className="space-y-3">
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Tồn kho:</span>
-                          <span className="font-semibold">
-                            {formatNumber(tank.ton_kho)} lít
+                          <span className="text-muted-foreground">Tồn kho ước tính:</span>
+                          <span className="font-semibold text-green-600">
+                            {formatTankNumber(Math.abs(tank.ton_kho))} lít
                           </span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Dung tích:</span>
-                          <span className="font-medium">
-                            {formatNumber(tank.dung_tich)} lít
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div
-                            className="bg-blue-600 h-2.5 rounded-full"
-                            style={{
-                              width: tank.ty_le
-                            }}
-                          ></div>
-                        </div>
+                        {tank.dung_tich > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Dung tích:</span>
+                            <span className="font-medium">
+                              {formatTankNumber(tank.dung_tich)} lít
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
