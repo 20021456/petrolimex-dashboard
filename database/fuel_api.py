@@ -1324,55 +1324,28 @@ class FuelAPI:
                                 tank_data['ton_kho'] = self.clean_tank_number(ton_value)
                     
                     # Lấy danh sách cột bơm kết nối với bồn
+                    # Cột bơm được hiển thị dưới dạng hình ảnh với tên file như: petrol-pump-03.png
                     import re
                     cot_bom_list = []
                     
-                    # Tìm tất cả các element có thể chứa số cột bơm
-                    # Thử nhiều cách khác nhau
+                    # Tìm tất cả thẻ <img> trong tank_div và parent
+                    # Lấy số cột bơm từ tên file ảnh (ví dụ: petrol-pump-03.png → 03)
+                    search_areas = [tank_div]
                     
-                    # Cách 1: Tìm theo class chứa 'cot', 'pump', 'bom'
-                    pump_elements = tank_div.find_all(['div', 'span', 'p'], 
-                        class_=lambda x: x and any(k in str(x).lower() for k in ['cot', 'pump', 'bom', 'dispenser']))
-                    for elem in pump_elements:
-                        text = elem.get_text(strip=True)
-                        if text and len(text) <= 3:
-                            # Tìm số trong text
-                            nums = re.findall(r'(\d{1,2})', text)
-                            for n in nums:
-                                if 1 <= int(n) <= 20:  # Giới hạn hợp lý cho số cột bơm
-                                    cot_bom_list.append(n.zfill(2))
+                    # Thêm parent vào vùng tìm kiếm
+                    if tank_div.parent:
+                        search_areas.append(tank_div.parent)
                     
-                    # Cách 2: Tìm các div/span chỉ chứa số 1-2 chữ số
-                    if not cot_bom_list:
-                        for elem in tank_div.find_all(['div', 'span', 'p']):
-                            text = elem.get_text(strip=True)
-                            # Chỉ lấy element có nội dung là số 1-2 chữ số
-                            if text and re.match(r'^0?[1-9]$|^1[0-9]$|^20$', text):
-                                cot_bom_list.append(text.zfill(2))
-                    
-                    # Cách 3: Tìm trong HTML các pattern như ">01<", ">02<"
-                    if not cot_bom_list:
-                        tank_html = str(tank_div)
-                        # Tìm các số đứng riêng trong tag
-                        pump_matches = re.findall(r'>(\s*0?[1-9]\s*)<|>(\s*1[0-9]\s*)<|>(\s*20\s*)<', tank_html)
-                        for match in pump_matches:
-                            for m in match:
-                                if m and m.strip():
-                                    num = m.strip().zfill(2)
-                                    if num not in cot_bom_list:
-                                        cot_bom_list.append(num)
-                    
-                    # Cách 4: Tìm trong parent hoặc sibling elements (cột bơm có thể nằm ngoài boxBon)
-                    if not cot_bom_list:
-                        parent = tank_div.parent
-                        if parent:
-                            # Tìm trong tất cả siblings
-                            for sibling in parent.find_all(['div', 'span']):
-                                text = sibling.get_text(strip=True)
-                                if text and re.match(r'^0?[1-9]$|^1[0-9]$|^20$', text):
-                                    num = text.zfill(2)
-                                    if num not in cot_bom_list:
-                                        cot_bom_list.append(num)
+                    for area in search_areas:
+                        for img in area.find_all('img'):
+                            src = img.get('src', '')
+                            # Tìm số trong tên file ảnh pump
+                            # Pattern: petrol-pump-03.png, pump-01.png, pump_02.png, etc.
+                            pump_match = re.search(r'pump[_-]?(\d{1,2})', src, re.IGNORECASE)
+                            if pump_match:
+                                num = pump_match.group(1).zfill(2)
+                                if num not in cot_bom_list:
+                                    cot_bom_list.append(num)
                     
                     # Loại bỏ trùng lặp và sắp xếp
                     cot_bom_list = sorted(list(set(cot_bom_list)))
