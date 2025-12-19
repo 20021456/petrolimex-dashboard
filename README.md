@@ -92,9 +92,29 @@ TZ=Asia/Ho_Chi_Minh
 2. Theo dõi logs để đảm bảo kết nối MySQL thành công
 3. Truy cập: `https://fuel.yourdomain.com`
 
+#### Bước 7: Cấu hình Schedule Task (Cập nhật định kỳ)
+
+Để Python service cập nhật dữ liệu định kỳ (thay vì chạy liên tục), sử dụng **Dokploy Schedule Tasks**:
+
+1. Trong Dokploy, vào Compose service của bạn
+2. Click tab **Schedules**
+3. Click **Add Schedule** và cấu hình:
+   - **Name**: `auto-update-fuel`
+   - **Cron Expression**: `0 */6 * * *` (mỗi 6 giờ) hoặc:
+     - `0 0 * * *` = Mỗi ngày lúc 00:00
+     - `0 */4 * * *` = Mỗi 4 giờ
+     - `0 8,14,20 * * *` = Lúc 8h, 14h, 20h hàng ngày
+   - **Command**: `restart` (restart container Python để trigger update)
+4. Click **Save**
+
+**Cách hoạt động:**
+- Container Python chạy script cập nhật 1 lần khi khởi động, sau đó sleep
+- Dokploy Schedule Task restart container theo lịch đã đặt
+- Mỗi lần restart = 1 lần cập nhật dữ liệu mới
+
 **Lưu ý:**
 - Dashboard tự động khởi tạo database tables lần đầu
-- Python service tự động scraping data mỗi 6 giờ
+- Python service cập nhật data theo schedule đã cấu hình
 - Dokploy tự động routing qua Traefik (không cần config ports)
 
 ---

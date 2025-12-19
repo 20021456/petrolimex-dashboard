@@ -29,6 +29,7 @@ RUN mkdir -p output
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Wait for MySQL to be ready, then run auto-update
-CMD ["sh", "-c", "sleep 15 && python scripts/demo_auto_update.py"]
+# Chạy auto-update 1 lần khi container start, sau đó sleep để giữ container alive
+# Dokploy Schedule Task sẽ restart container định kỳ để trigger update
+CMD ["sh", "-c", "sleep 15 && python scripts/demo_auto_update.py --mode 1 && echo '✅ Update complete. Container sleeping...' && tail -f /dev/null"]
 

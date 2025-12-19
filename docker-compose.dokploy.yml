@@ -23,6 +23,7 @@
 
 services:
   # Python Service (Auto-update & Scraping)
+  # Sử dụng Dokploy Schedule Task để restart container định kỳ
   python:
     build:
       context: .
