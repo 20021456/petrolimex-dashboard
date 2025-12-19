@@ -1324,29 +1324,62 @@ class FuelAPI:
                                 tank_data['ton_kho'] = self.clean_tank_number(ton_value)
                     
                     # Lấy danh sách cột bơm kết nối với bồn
-                    # Tìm các div chứa số cột bơm (thường có class như 'cotBom' hoặc chứa số 01, 02, ...)
+                    import re
                     cot_bom_list = []
                     
-                    # Tìm tất cả các element chứa số cột bơm trong tank_div
-                    # Có thể là div với class chứa 'cot' hoặc các span/p chứa số
-                    pump_elements = tank_div.find_all(['div', 'span', 'p'], class_=lambda x: x and ('cot' in x.lower() if x else False))
+                    # Tìm tất cả các element có thể chứa số cột bơm
+                    # Thử nhiều cách khác nhau
+                    
+                    # Cách 1: Tìm theo class chứa 'cot', 'pump', 'bom'
+                    pump_elements = tank_div.find_all(['div', 'span', 'p'], 
+                        class_=lambda x: x and any(k in str(x).lower() for k in ['cot', 'pump', 'bom', 'dispenser']))
                     for elem in pump_elements:
                         text = elem.get_text(strip=True)
-                        # Lấy số cột bơm (01, 02, 03, 04, ...)
-                        if text.isdigit() or (len(text) == 2 and text.isdigit()):
-                            cot_bom_list.append(text)
+                        if text and len(text) <= 3:
+                            # Tìm số trong text
+                            nums = re.findall(r'(\d{1,2})', text)
+                            for n in nums:
+                                if 1 <= int(n) <= 20:  # Giới hạn hợp lý cho số cột bơm
+                                    cot_bom_list.append(n.zfill(2))
                     
-                    # Nếu không tìm thấy qua class, thử tìm qua pattern số 2 chữ số
+                    # Cách 2: Tìm các div/span chỉ chứa số 1-2 chữ số
                     if not cot_bom_list:
-                        import re
-                        # Tìm tất cả text trong tank_div
-                        all_text = tank_div.get_text()
-                        # Tìm các số 2 chữ số đứng riêng (01, 02, 03, 04)
-                        pump_numbers = re.findall(r'\b(0[1-9])\b', all_text)
-                        cot_bom_list = list(set(pump_numbers))  # Loại bỏ trùng lặp
-                        cot_bom_list.sort()  # Sắp xếp theo thứ tự
+                        for elem in tank_div.find_all(['div', 'span', 'p']):
+                            text = elem.get_text(strip=True)
+                            # Chỉ lấy element có nội dung là số 1-2 chữ số
+                            if text and re.match(r'^0?[1-9]$|^1[0-9]$|^20$', text):
+                                cot_bom_list.append(text.zfill(2))
                     
+                    # Cách 3: Tìm trong HTML các pattern như ">01<", ">02<"
+                    if not cot_bom_list:
+                        tank_html = str(tank_div)
+                        # Tìm các số đứng riêng trong tag
+                        pump_matches = re.findall(r'>(\s*0?[1-9]\s*)<|>(\s*1[0-9]\s*)<|>(\s*20\s*)<', tank_html)
+                        for match in pump_matches:
+                            for m in match:
+                                if m and m.strip():
+                                    num = m.strip().zfill(2)
+                                    if num not in cot_bom_list:
+                                        cot_bom_list.append(num)
+                    
+                    # Cách 4: Tìm trong parent hoặc sibling elements (cột bơm có thể nằm ngoài boxBon)
+                    if not cot_bom_list:
+                        parent = tank_div.parent
+                        if parent:
+                            # Tìm trong tất cả siblings
+                            for sibling in parent.find_all(['div', 'span']):
+                                text = sibling.get_text(strip=True)
+                                if text and re.match(r'^0?[1-9]$|^1[0-9]$|^20$', text):
+                                    num = text.zfill(2)
+                                    if num not in cot_bom_list:
+                                        cot_bom_list.append(num)
+                    
+                    # Loại bỏ trùng lặp và sắp xếp
+                    cot_bom_list = sorted(list(set(cot_bom_list)))
                     tank_data['cot_bom'] = ', '.join(cot_bom_list) if cot_bom_list else ''
+                    
+                    # Debug log
+                    print(f"   → Bồn {tank_data['ten_bon']}: nhien_lieu={tank_data['nhien_lieu']}, ton_kho={tank_data['ton_kho']}, cot_bom={tank_data['cot_bom']}")
                     
                     # Tính tỷ lệ nếu có dung tích (giả sử dung tích không có trong UI này)
                     # Tạm thời để ty_le = "N/A" vì không có thông tin dung tích trên trang
