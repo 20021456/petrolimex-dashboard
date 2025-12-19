@@ -5,17 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { FuelIcon, DollarSignIcon, DatabaseIcon, ActivityIcon, TrendingUpIcon, BarChart3Icon } from "lucide-react"
+import { FuelIcon, DollarSignIcon, ActivityIcon, TrendingUpIcon, BarChart3Icon } from "lucide-react"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell, LabelList, CartesianGrid } from "recharts"
-
-interface OnlineData {
-  ten_cot: string
-  nhien_lieu: string
-  tien: string
-  lit: string
-  gia: string
-  total: string
-}
 
 interface PriceData {
   nhien_lieu: string
@@ -33,13 +24,11 @@ interface TankData {
 }
 
 export function ChiTietContent() {
-  const [onlineData, setOnlineData] = React.useState<OnlineData[]>([])
   const [priceData, setPriceData] = React.useState<PriceData[]>([])
   const [tankData, setTankData] = React.useState<TankData[]>([])
   const [dashboardStats, setDashboardStats] = React.useState<any>(null)
   
   const [loading, setLoading] = React.useState({
-    online: false,
     prices: false,
     tanks: false,
     stats: false
@@ -47,7 +36,7 @@ export function ChiTietContent() {
 
   const fetchAllData = async () => {
     // Set tất cả loading = true
-    setLoading({ online: true, prices: true, tanks: true, stats: true })
+    setLoading({ prices: true, tanks: true, stats: true })
 
     // Chuẩn bị params cho stats
     const today = new Date()
@@ -59,30 +48,17 @@ export function ChiTietContent() {
       to: todayStr + ' 23:59:59'
     })
 
-    // ⚡ GỌI TẤT CẢ API SONG SONG (PARALLEL) - NHANH GẤP 4 LẦN
-    const [onlineResult, priceResult, tankResult, statsResult] = await Promise.allSettled([
-      fetch('/api/fuel/online').then(res => res.json()),
+    // ⚡ GỌI TẤT CẢ API SONG SONG (PARALLEL)
+    const [priceResult, tankResult, statsResult] = await Promise.allSettled([
       fetch('/api/fuel/prices').then(res => res.json()),
       fetch('/api/fuel/tanks').then(res => res.json()),
       fetch(`/api/stats?${statsParams.toString()}`).then(res => res.json())
     ])
 
-    // Xử lý kết quả online data
-    if (onlineResult.status === 'fulfilled' && onlineResult.value.success) {
-      setOnlineData(onlineResult.value.data)
-    } else if (onlineResult.status === 'fulfilled' && onlineResult.value.error) {
-      // API trả về 501 trong Docker - bỏ qua, không log error
-      console.log('Online data API not available:', onlineResult.value.message)
-    } else {
-      console.error('Lỗi khi lấy dữ liệu online:', onlineResult.status === 'rejected' ? onlineResult.reason : 'Không thành công')
-    }
-    setLoading(prev => ({ ...prev, online: false }))
-
     // Xử lý kết quả price data
     if (priceResult.status === 'fulfilled' && priceResult.value.success) {
       setPriceData(priceResult.value.data)
     } else if (priceResult.status === 'fulfilled' && priceResult.value.error) {
-      // API trả về 501 trong Docker - bỏ qua, không log error
       console.log('Price data API not available:', priceResult.value.message)
     } else {
       console.error('Lỗi khi lấy dữ liệu giá:', priceResult.status === 'rejected' ? priceResult.reason : 'Không thành công')
@@ -93,7 +69,6 @@ export function ChiTietContent() {
     if (tankResult.status === 'fulfilled' && tankResult.value.success) {
       setTankData(tankResult.value.data)
     } else if (tankResult.status === 'fulfilled' && tankResult.value.error) {
-      // API trả về 501 trong Docker - bỏ qua, không log error
       console.log('Tank data API not available:', tankResult.value.message)
     } else {
       console.error('Lỗi khi lấy dữ liệu bồn bể:', tankResult.status === 'rejected' ? tankResult.reason : 'Không thành công')
@@ -170,53 +145,8 @@ export function ChiTietContent() {
 
   return (
     <div className="space-y-4" suppressHydrationWarning>
-      {/* Theo Dõi Online - Tất cả thông tin */}
-        {loading.online ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-40 w-full" />
-            ))}
-          </div>
-        ) : onlineData.length > 0 ? (
-          <>
-            {/* 4 Cards cho cột bơm */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {onlineData.map((pump, index) => (
-                <Card key={index}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      {pump.ten_cot}
-                    </CardTitle>
-                    <FuelIcon className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <Badge variant="outline">{pump.nhien_lieu}</Badge>
-                      <div className="text-2xl font-bold">
-                        {pump.tien} đ
-                      </div>
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        <div className="flex justify-between">
-                          <span>Lít:</span>
-                          <span className="font-medium">{pump.lit}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Giá:</span>
-                          <span className="font-medium">{pump.gia} đ/lít</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Total:</span>
-                          <span className="font-medium">{pump.total} lít</span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Bảng Giá Nhiên Liệu */}
-            <Card>
+      {/* Bảng Giá Nhiên Liệu - Luôn hiển thị */}
+      <Card>
           <CardHeader>
             <CardTitle>Bảng Giá Nhiên Liệu</CardTitle>
             <CardDescription>
@@ -265,8 +195,8 @@ export function ChiTietContent() {
           </CardContent>
         </Card>
 
-            {/* Bồn Bể */}
-            <Card>
+      {/* Bồn Bể - Luôn hiển thị */}
+      <Card>
           <CardHeader>
             <CardTitle>Tình Trạng Bồn Bể</CardTitle>
             <CardDescription>
@@ -322,8 +252,8 @@ export function ChiTietContent() {
           </CardContent>
         </Card>
 
-            {/* Thống kê chi tiết ngày hôm nay */}
-            {loading.stats ? (
+      {/* Thống kê chi tiết ngày hôm nay */}
+      {loading.stats ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {[1, 2, 3].map((i) => (
                   <Skeleton key={i} className="h-32 w-full" />
@@ -580,18 +510,6 @@ export function ChiTietContent() {
                 </CardContent>
               </Card>
             )}
-          </>
-        ) : (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-12 text-muted-foreground">
-                <ActivityIcon className="mx-auto h-12 w-12 opacity-50 mb-4" />
-                <p className="text-lg font-medium">Chưa có dữ liệu</p>
-                <p className="text-sm">Đang tải dữ liệu...</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
     </div>
   )
 }

@@ -7,8 +7,11 @@ const execAsync = promisify(exec)
 
 export async function GET() {
   try {
-    // Detect Docker environment
-    const isDocker = process.env.DB_HOST === 'mysql'
+    // Detect Docker/Production environment
+    // In Docker: DB_HOST is set to internal hostname (not localhost)
+    // Also check NODE_ENV for production builds
+    const isDocker = process.env.NODE_ENV === 'production' || 
+                     (process.env.DB_HOST && process.env.DB_HOST !== 'localhost' && process.env.DB_HOST !== '127.0.0.1')
     
     // This endpoint only works in local development
     // In Docker, data is fetched by Python container automatically
@@ -16,7 +19,7 @@ export async function GET() {
       return NextResponse.json({
         success: false,
         error: 'API này chỉ hoạt động trong môi trường local development',
-        message: 'Trong Docker, dữ liệu được tự động cập nhật bởi Python container mỗi 6 giờ',
+        message: 'Trong Docker/Production, dữ liệu được tự động cập nhật bởi Python container theo schedule',
         data: null
       }, { status: 501 }) // 501 Not Implemented
     }

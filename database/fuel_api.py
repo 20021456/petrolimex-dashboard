@@ -423,6 +423,108 @@ class FuelAPI:
             print(f"✗ Lỗi khi tạo bảng: {e}")
             return False
     
+    def create_tanks_table(self) -> bool:
+        """
+        Tạo bảng fuel_tanks trong MySQL nếu chưa tồn tại
+        
+        Returns:
+            True nếu tạo thành công
+        """
+        if not self.mysql_connection or not self.mysql_connection.is_connected():
+            print("✗ Chưa kết nối MySQL")
+            return False
+        
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS fuel_tanks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ten_bon VARCHAR(100) NOT NULL,
+            nhien_lieu VARCHAR(50),
+            ton_kho DECIMAL(15, 2) DEFAULT 0,
+            dung_tich DECIMAL(15, 2) DEFAULT 0,
+            ty_le VARCHAR(10) DEFAULT 'N/A',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_ten_bon (ten_bon)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        """
+        
+        try:
+            cursor = self.mysql_connection.cursor()
+            cursor.execute(create_table_query)
+            self.mysql_connection.commit()
+            print("✓ Tạo/kiểm tra bảng 'fuel_tanks' thành công")
+            cursor.close()
+            return True
+            
+        except Error as e:
+            print(f"✗ Lỗi khi tạo bảng fuel_tanks: {e}")
+            return False
+    
+    def insert_tanks_to_mysql(self, data: List[Dict]) -> int:
+        """
+        Insert/Update dữ liệu bồn bể vào MySQL
+        
+        Args:
+            data: List các dictionary chứa dữ liệu bồn bể
+        
+        Returns:
+            Số bản ghi được insert/update thành công
+        """
+        if not self.mysql_connection or not self.mysql_connection.is_connected():
+            print("✗ Chưa kết nối MySQL")
+            return 0
+        
+        if not data:
+            print("✗ Không có dữ liệu bồn bể để insert")
+            return 0
+        
+        insert_query = """
+        INSERT INTO fuel_tanks 
+        (ten_bon, nhien_lieu, ton_kho, dung_tich, ty_le)
+        VALUES (%s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            nhien_lieu = VALUES(nhien_lieu),
+            ton_kho = VALUES(ton_kho),
+            dung_tich = VALUES(dung_tich),
+            ty_le = VALUES(ty_le),
+            updated_at = CURRENT_TIMESTAMP
+        """
+        
+        success_count = 0
+        error_count = 0
+        
+        try:
+            cursor = self.mysql_connection.cursor()
+            
+            for record in data:
+                try:
+                    values = (
+                        record['ten_bon'],
+                        record.get('nhien_lieu', ''),
+                        record.get('ton_kho', 0),
+                        record.get('dung_tich', 0),
+                        record.get('ty_le', 'N/A')
+                    )
+                    
+                    cursor.execute(insert_query, values)
+                    success_count += 1
+                    
+                except Error as e:
+                    error_count += 1
+                    print(f"✗ Lỗi khi insert bồn {record.get('ten_bon', 'unknown')}: {e}")
+            
+            self.mysql_connection.commit()
+            cursor.close()
+            
+            print(f"✓ Insert/Update thành công {success_count}/{len(data)} bồn bể")
+            if error_count > 0:
+                print(f"⚠️  Có {error_count} bản ghi lỗi")
+            
+            return success_count
+            
+        except Error as e:
+            print(f"✗ Lỗi khi insert dữ liệu bồn bể: {e}")
+            return 0
+    
     def insert_to_mysql(self, data: List[Dict]) -> int:
         """
         Insert dữ liệu vào MySQL

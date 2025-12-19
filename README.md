@@ -245,16 +245,33 @@ docker-compose -f docker-compose.local.yml down
 
 **Chức năng:**
 
-1. **Xem dữ liệu chi tiết**
-   - Bảng giao dịch đầy đủ với phân trang
-   - Thông tin: Mã bơm, Loại nhiên liệu, Số lít, Giá, Thành tiền, Thời gian
+1. **Bảng giá nhiên liệu**
+   - Hiển thị giá bán và giá nhập các loại nhiên liệu
+   - Ngày áp dụng giá
 
-2. **Export báo cáo**
-   - Xuất CSV cho phân tích
+2. **Tình trạng bồn bể**
+   - Hiển thị tồn kho các bồn chứa nhiên liệu
+   - Dung tích và tỷ lệ sử dụng
+   - Dữ liệu được lưu trong database và cập nhật định kỳ
+
+3. **Thống kê bán hàng hôm nay**
+   - Tổng doanh thu, tổng lượng bán
+   - Biểu đồ doanh thu theo loại nhiên liệu
+   - Biểu đồ giờ cao điểm trong ngày
 
 ---
 
 ## 🔐 MySQL Data Management
+
+### Database Tables
+
+| Table | Mô tả |
+|-------|-------|
+| `fuel_pump` | Lưu dữ liệu giao dịch bơm nhiên liệu |
+| `fuel_prices` | Lưu thông tin giá nhiên liệu |
+| `fuel_tanks` | Lưu thông tin tồn kho bồn bể |
+| `inventory` | Lưu thông tin sản phẩm kho |
+| `qr_confirmations` | Lưu thông tin xác nhận QR |
 
 ### Backup Database
 
@@ -420,8 +437,15 @@ Python/Fuel/
 
 ---
 
-**Version**: 6.9.4  
-**Last updated**: 2025-11-23
+**Version**: 6.9.5  
+**Last updated**: 2025-12-19
+
+### 🔧 Phiên bản 6.9.5 - Tank Data Storage + Remove Real-time Pump
+- ✅ **NEW**: Thêm bảng `fuel_tanks` để lưu thông tin bồn bể vào MySQL
+- ✅ **NEW**: Python script tự động cập nhật dữ liệu bồn bể khi chạy auto-update
+- ✅ **NEW**: API `/api/fuel/tanks` lấy dữ liệu từ MySQL trong môi trường Docker
+- ✅ **REMOVE**: Xóa phần hiển thị "Cột bơm Real-time" trên giao diện Chi tiết
+- ✅ **IMPROVE**: Dữ liệu bồn bể giờ được lưu trữ và hiển thị từ database
 
 ### 🔧 Phiên bản 6.9.4 - Use Real MySQL Client (Not MariaDB)
 - ✅ **REFACTOR**: Đổi base image từ `node:20-alpine` → `node:20-slim` (Debian)

@@ -2,23 +2,69 @@ import { NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
+import { query } from '@/lib/db'
 
 const execAsync = promisify(exec)
 
+interface TankData {
+  ten_bon: string
+  nhien_lieu: string
+  ton_kho: number
+  dung_tich: number
+  ty_le: string
+}
+
 export async function GET() {
   try {
-    // Detect Docker environment
-    const isDocker = process.env.DB_HOST === 'mysql'
+    // Detect Docker/Production environment
+    // In Docker: DB_HOST is set to internal hostname (not localhost)
+    // Also check NODE_ENV for production builds
+    const isDocker = process.env.NODE_ENV === 'production' || 
+                     (process.env.DB_HOST && process.env.DB_HOST !== 'localhost' && process.env.DB_HOST !== '127.0.0.1')
     
     if (isDocker) {
-      return NextResponse.json({
-        success: false,
-        error: 'API này chỉ hoạt động trong môi trường local development',
-        message: 'Trong Docker, dữ liệu bồn bể được quản lý qua database',
-        data: null
-      }, { status: 501 })
+      // Trong Docker/Production: Lấy dữ liệu từ MySQL database
+      try {
+        const rows = await query<any[]>(`
+          SELECT 
+            ten_bon,
+            nhien_lieu,
+            ton_kho,
+            dung_tich,
+            ty_le,
+            updated_at
+          FROM fuel_tanks
+          ORDER BY ten_bon ASC
+        `)
+        
+        // Map dữ liệu sang format chuẩn
+        const tankData: TankData[] = rows.map((row: any) => ({
+          ten_bon: row.ten_bon || '',
+          nhien_lieu: row.nhien_lieu || '',
+          ton_kho: parseFloat(row.ton_kho) || 0,
+          dung_tich: parseFloat(row.dung_tich) || 0,
+          ty_le: row.ty_le || 'N/A'
+        }))
+        
+        return NextResponse.json({
+          success: true,
+          data: tankData,
+          count: tankData.length,
+          source: 'database'
+        })
+        
+      } catch (dbError: any) {
+        console.error('Lỗi khi lấy dữ liệu bồn bể từ MySQL:', dbError)
+        return NextResponse.json({
+          success: false,
+          error: 'Không thể lấy dữ liệu bồn bể từ database',
+          message: dbError.message,
+          data: []
+        }, { status: 500 })
+      }
     }
     
+    // Local development: Gọi Python script
     const databasePath = 'D:\\Cursor\\Python\\Fuel\\database'
     const scriptPath = path.join(databasePath, 'get_fuel_data.py')
     
