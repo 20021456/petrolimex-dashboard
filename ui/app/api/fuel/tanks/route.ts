@@ -12,6 +12,7 @@ interface TankData {
   ton_kho: number
   dung_tich: number
   ty_le: string
+  cot_bom: string
 }
 
 export async function GET() {
@@ -32,6 +33,7 @@ export async function GET() {
             ton_kho,
             dung_tich,
             ty_le,
+            cot_bom,
             updated_at
           FROM fuel_tanks
           ORDER BY ten_bon ASC
@@ -43,7 +45,8 @@ export async function GET() {
           nhien_lieu: row.nhien_lieu || '',
           ton_kho: parseFloat(row.ton_kho) || 0,
           dung_tich: parseFloat(row.dung_tich) || 0,
-          ty_le: row.ty_le || 'N/A'
+          ty_le: row.ty_le || 'N/A',
+          cot_bom: row.cot_bom || ''
         }))
         
         return NextResponse.json({

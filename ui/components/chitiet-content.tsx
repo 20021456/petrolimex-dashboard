@@ -21,6 +21,7 @@ interface TankData {
   ton_kho: number
   dung_tich: number
   ty_le: string
+  cot_bom: string
 }
 
 export function ChiTietContent() {
@@ -105,16 +106,20 @@ export function ChiTietContent() {
   }
 
   // Format số cho bồn bể - giữ nguyên số thập phân từ nguồn
+  // Dùng dấu chấm (.) làm phân cách hàng nghìn, dấu phẩy (,) làm thập phân
   const formatTankNumber = (value: number) => {
     // Lấy phần thập phân từ số gốc
     const decimalStr = value.toString()
     const decimalPart = decimalStr.includes('.') ? decimalStr.split('.')[1] : ''
     const decimalPlaces = decimalPart.length
     
-    return new Intl.NumberFormat('vi-VN', {
-      minimumFractionDigits: Math.min(decimalPlaces, 2),
-      maximumFractionDigits: Math.max(decimalPlaces, 2)
+    // Format với số thập phân gốc
+    const formatted = new Intl.NumberFormat('de-DE', {
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces
     }).format(value)
+    
+    return formatted
   }
 
   const parseVietnameseNumber = (value: string): number => {
@@ -243,6 +248,18 @@ export function ChiTietContent() {
                             <span className="font-medium">
                               {formatTankNumber(tank.dung_tich)} lít
                             </span>
+                          </div>
+                        )}
+                        {tank.cot_bom && (
+                          <div className="flex justify-between text-sm items-center">
+                            <span className="text-muted-foreground">Cột bơm:</span>
+                            <div className="flex gap-1">
+                              {tank.cot_bom.split(',').map((cb, i) => (
+                                <Badge key={i} variant="outline" className="text-xs">
+                                  {cb.trim()}
+                                </Badge>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>

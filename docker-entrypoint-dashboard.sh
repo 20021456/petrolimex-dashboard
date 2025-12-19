@@ -161,11 +161,20 @@ CREATE TABLE IF NOT EXISTS fuel_tanks (
     ton_kho DECIMAL(15, 2) DEFAULT 0,
     dung_tich DECIMAL(15, 2) DEFAULT 0,
     ty_le VARCHAR(10) DEFAULT 'N/A',
+    cot_bom VARCHAR(100) DEFAULT '',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY unique_ten_bon (ten_bon)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 EOF
         echo "✅ fuel_tanks table created!"
+    else
+        # Thêm cột cot_bom nếu chưa có (v6.9.6)
+        COT_BOM_EXISTS=$(mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${DB_NAME}' AND table_name='fuel_tanks' AND column_name='cot_bom';" 2>/dev/null || echo "0")
+        if [ "$COT_BOM_EXISTS" = "0" ]; then
+            echo "🔧 Adding cot_bom column to fuel_tanks..."
+            mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" -e "ALTER TABLE fuel_tanks ADD COLUMN cot_bom VARCHAR(100) DEFAULT '';" 2>/dev/null || true
+            echo "✅ cot_bom column added!"
+        fi
     fi
     
     # Show tables

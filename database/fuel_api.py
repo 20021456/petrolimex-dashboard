@@ -212,6 +212,62 @@ class FuelAPI:
         except:
             return 0.0
     
+    def clean_tank_number(self, text):
+        """
+        Làm sạch số cho bồn bể - tự động phát hiện định dạng
+        
+        Có thể nhận các định dạng:
+        - "-69120.46" (dấu chấm là thập phân, không có phân cách hàng nghìn)
+        - "-69.120,46" (dấu chấm là hàng nghìn, dấu phẩy là thập phân - VN)
+        - "-69,120.46" (dấu phẩy là hàng nghìn, dấu chấm là thập phân - EN)
+        """
+        if not text:
+            return 0.0
+        
+        # Xóa khoảng trắng và dấu nháy
+        text = text.replace('"', '').replace(' ', '').strip()
+        
+        # Đếm số dấu chấm và dấu phẩy
+        dot_count = text.count('.')
+        comma_count = text.count(',')
+        
+        try:
+            # Trường hợp 1: Không có dấu phân cách → số nguyên
+            if dot_count == 0 and comma_count == 0:
+                return float(text)
+            
+            # Trường hợp 2: Chỉ có 1 dấu chấm, không có dấu phẩy
+            # → Dấu chấm là thập phân (format tiếng Anh đơn giản)
+            # Ví dụ: -69120.46
+            if dot_count == 1 and comma_count == 0:
+                return float(text)
+            
+            # Trường hợp 3: Chỉ có 1 dấu phẩy, không có dấu chấm
+            # → Dấu phẩy là thập phân (format VN đơn giản)
+            # Ví dụ: -69120,46
+            if comma_count == 1 and dot_count == 0:
+                return float(text.replace(',', '.'))
+            
+            # Trường hợp 4: Có cả dấu chấm và dấu phẩy
+            # Xác định dựa vào vị trí cuối cùng
+            last_dot = text.rfind('.')
+            last_comma = text.rfind(',')
+            
+            if last_comma > last_dot:
+                # Dấu phẩy ở sau → phẩy là thập phân, chấm là hàng nghìn (VN)
+                # Ví dụ: -69.120,46
+                text = text.replace('.', '').replace(',', '.')
+            else:
+                # Dấu chấm ở sau → chấm là thập phân, phẩy là hàng nghìn (EN)
+                # Ví dụ: -69,120.46
+                text = text.replace(',', '')
+            
+            return float(text)
+            
+        except Exception as e:
+            print(f"⚠️  Không thể parse số bồn bể: {text} - {e}")
+            return 0.0
+    
     def _parse_html(self, html: str) -> List[Dict]:
         """
         Parse HTML để extract dữ liệu bảng
@@ -442,6 +498,7 @@ class FuelAPI:
             ton_kho DECIMAL(15, 2) DEFAULT 0,
             dung_tich DECIMAL(15, 2) DEFAULT 0,
             ty_le VARCHAR(10) DEFAULT 'N/A',
+            cot_bom VARCHAR(100) DEFAULT '',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY unique_ten_bon (ten_bon)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -451,6 +508,17 @@ class FuelAPI:
             cursor = self.mysql_connection.cursor()
             cursor.execute(create_table_query)
             self.mysql_connection.commit()
+            
+            # Thêm cột cot_bom nếu chưa có (cho bảng đã tồn tại)
+            try:
+                cursor.execute("""
+                    ALTER TABLE fuel_tanks 
+                    ADD COLUMN IF NOT EXISTS cot_bom VARCHAR(100) DEFAULT ''
+                """)
+                self.mysql_connection.commit()
+            except:
+                pass  # Cột đã tồn tại
+            
             print("✓ Tạo/kiểm tra bảng 'fuel_tanks' thành công")
             cursor.close()
             return True
@@ -479,13 +547,14 @@ class FuelAPI:
         
         insert_query = """
         INSERT INTO fuel_tanks 
-        (ten_bon, nhien_lieu, ton_kho, dung_tich, ty_le)
-        VALUES (%s, %s, %s, %s, %s)
+        (ten_bon, nhien_lieu, ton_kho, dung_tich, ty_le, cot_bom)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             nhien_lieu = VALUES(nhien_lieu),
             ton_kho = VALUES(ton_kho),
             dung_tich = VALUES(dung_tich),
             ty_le = VALUES(ty_le),
+            cot_bom = VALUES(cot_bom),
             updated_at = CURRENT_TIMESTAMP
         """
         
@@ -502,7 +571,8 @@ class FuelAPI:
                         record.get('nhien_lieu', ''),
                         record.get('ton_kho', 0),
                         record.get('dung_tich', 0),
-                        record.get('ty_le', 'N/A')
+                        record.get('ty_le', 'N/A'),
+                        record.get('cot_bom', '')
                     )
                     
                     cursor.execute(insert_query, values)
@@ -1210,7 +1280,8 @@ class FuelAPI:
                         'nhien_lieu': '',
                         'ton_kho': 0.0,
                         'dung_tich': 0.0,
-                        'ty_le': '0%'
+                        'ty_le': '0%',
+                        'cot_bom': ''  # Danh sách các cột bơm kết nối với bồn
                     }
                     
                     # Lấy tên bồn
@@ -1219,11 +1290,23 @@ class FuelAPI:
                         ten_p = ten_bon_div.find('p')
                         if ten_p:
                             ten_full = ten_p.get_text(strip=True)
-                            # Tách tên và nhiên liệu (ví dụ: "BỒN 1 - RON95-III")
+                            # Tách tên và nhiên liệu
+                            # Format 1: "BỒN 1 - RON95-III" (dùng " - ")
+                            # Format 2: "Bể số 3 (E5)" (dùng ngoặc đơn)
                             if ' - ' in ten_full:
-                                parts = ten_full.split(' - ')
+                                parts = ten_full.split(' - ', 1)
                                 tank_data['ten_bon'] = parts[0].strip()
                                 tank_data['nhien_lieu'] = parts[1].strip() if len(parts) > 1 else ''
+                            elif '(' in ten_full and ')' in ten_full:
+                                # Tách tên và nhiên liệu từ ngoặc đơn
+                                import re
+                                match = re.match(r'^(.+?)\s*\((.+?)\)\s*$', ten_full)
+                                if match:
+                                    tank_data['ten_bon'] = match.group(1).strip()
+                                    tank_data['nhien_lieu'] = match.group(2).strip()
+                                else:
+                                    tank_data['ten_bon'] = ten_full
+                                    tank_data['nhien_lieu'] = ''
                             else:
                                 tank_data['ten_bon'] = ten_full
                                 tank_data['nhien_lieu'] = ''
@@ -1235,9 +1318,35 @@ class FuelAPI:
                         if ton_p:
                             ton_text = ton_p.get_text(strip=True)
                             # Parse "Tồn kho ước tính: -114484.67 lít"
+                            # Dữ liệu dùng dấu chấm (.) làm thập phân
                             if ':' in ton_text:
                                 ton_value = ton_text.split(':')[1].replace('lít', '').strip()
-                                tank_data['ton_kho'] = self.clean_number(ton_value)
+                                tank_data['ton_kho'] = self.clean_tank_number(ton_value)
+                    
+                    # Lấy danh sách cột bơm kết nối với bồn
+                    # Tìm các div chứa số cột bơm (thường có class như 'cotBom' hoặc chứa số 01, 02, ...)
+                    cot_bom_list = []
+                    
+                    # Tìm tất cả các element chứa số cột bơm trong tank_div
+                    # Có thể là div với class chứa 'cot' hoặc các span/p chứa số
+                    pump_elements = tank_div.find_all(['div', 'span', 'p'], class_=lambda x: x and ('cot' in x.lower() if x else False))
+                    for elem in pump_elements:
+                        text = elem.get_text(strip=True)
+                        # Lấy số cột bơm (01, 02, 03, 04, ...)
+                        if text.isdigit() or (len(text) == 2 and text.isdigit()):
+                            cot_bom_list.append(text)
+                    
+                    # Nếu không tìm thấy qua class, thử tìm qua pattern số 2 chữ số
+                    if not cot_bom_list:
+                        import re
+                        # Tìm tất cả text trong tank_div
+                        all_text = tank_div.get_text()
+                        # Tìm các số 2 chữ số đứng riêng (01, 02, 03, 04)
+                        pump_numbers = re.findall(r'\b(0[1-9])\b', all_text)
+                        cot_bom_list = list(set(pump_numbers))  # Loại bỏ trùng lặp
+                        cot_bom_list.sort()  # Sắp xếp theo thứ tự
+                    
+                    tank_data['cot_bom'] = ', '.join(cot_bom_list) if cot_bom_list else ''
                     
                     # Tính tỷ lệ nếu có dung tích (giả sử dung tích không có trong UI này)
                     # Tạm thời để ty_le = "N/A" vì không có thông tin dung tích trên trang
