@@ -54,6 +54,18 @@ export async function GET() {
         })
         
       } catch (dbError: any) {
+        // Nếu bảng chưa tồn tại, trả về mảng rỗng thay vì lỗi
+        if (dbError.code === 'ER_NO_SUCH_TABLE') {
+          console.log('Bảng fuel_tanks chưa tồn tại, trả về dữ liệu rỗng')
+          return NextResponse.json({
+            success: true,
+            data: [],
+            count: 0,
+            source: 'database',
+            message: 'Bảng fuel_tanks chưa được tạo. Dữ liệu sẽ có sau khi chạy Schedule Task.'
+          })
+        }
+        
         console.error('Lỗi khi lấy dữ liệu bồn bể từ MySQL:', dbError)
         return NextResponse.json({
           success: false,

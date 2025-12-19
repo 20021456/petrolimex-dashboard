@@ -246,7 +246,8 @@ export function ChiTietContent() {
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Đang tải dữ liệu bồn bể...
+                <p>Chưa có dữ liệu bồn bể.</p>
+                <p className="text-sm mt-2">Dữ liệu sẽ được cập nhật sau khi Schedule Task chạy.</p>
               </div>
             )}
           </CardContent>

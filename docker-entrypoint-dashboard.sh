@@ -128,10 +128,44 @@ CREATE TABLE IF NOT EXISTS qr_codes (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 EOF
+
+        # Create fuel_tanks table (v6.9.5 - Tank storage data)
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" <<'EOF'
+CREATE TABLE IF NOT EXISTS fuel_tanks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ten_bon VARCHAR(100) NOT NULL,
+    nhien_lieu VARCHAR(50),
+    ton_kho DECIMAL(15, 2) DEFAULT 0,
+    dung_tich DECIMAL(15, 2) DEFAULT 0,
+    ty_le VARCHAR(10) DEFAULT 'N/A',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_ten_bon (ten_bon)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+EOF
         
         echo "✅ Database tables created successfully!"
     else
         echo "✅ Database tables already exist"
+    fi
+    
+    # Always ensure fuel_tanks table exists (v6.9.5)
+    TANKS_EXISTS=$(mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}' AND table_name='fuel_tanks';" 2>/dev/null || echo "0")
+    
+    if [ "$TANKS_EXISTS" = "0" ]; then
+        echo "🔧 Creating fuel_tanks table..."
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" <<'EOF'
+CREATE TABLE IF NOT EXISTS fuel_tanks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ten_bon VARCHAR(100) NOT NULL,
+    nhien_lieu VARCHAR(50),
+    ton_kho DECIMAL(15, 2) DEFAULT 0,
+    dung_tich DECIMAL(15, 2) DEFAULT 0,
+    ty_le VARCHAR(10) DEFAULT 'N/A',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_ten_bon (ten_bon)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+EOF
+        echo "✅ fuel_tanks table created!"
     fi
     
     # Show tables
