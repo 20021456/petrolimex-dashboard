@@ -1328,24 +1328,28 @@ class FuelAPI:
                     import re
                     cot_bom_list = []
                     
-                    # Tìm tất cả thẻ <img> trong tank_div và parent
-                    # Lấy số cột bơm từ tên file ảnh (ví dụ: petrol-pump-03.png → 03)
-                    search_areas = [tank_div]
+                    # Chỉ tìm trong tank_div (boxBon) - KHÔNG tìm trong parent
+                    for img in tank_div.find_all('img'):
+                        src = img.get('src', '')
+                        # Tìm số trong tên file ảnh pump
+                        pump_match = re.search(r'pump[_-]?(\d{1,2})', src, re.IGNORECASE)
+                        if pump_match:
+                            num = pump_match.group(1).zfill(2)
+                            if num not in cot_bom_list:
+                                cot_bom_list.append(num)
                     
-                    # Thêm parent vào vùng tìm kiếm
-                    if tank_div.parent:
-                        search_areas.append(tank_div.parent)
-                    
-                    for area in search_areas:
-                        for img in area.find_all('img'):
-                            src = img.get('src', '')
-                            # Tìm số trong tên file ảnh pump
-                            # Pattern: petrol-pump-03.png, pump-01.png, pump_02.png, etc.
-                            pump_match = re.search(r'pump[_-]?(\d{1,2})', src, re.IGNORECASE)
-                            if pump_match:
-                                num = pump_match.group(1).zfill(2)
-                                if num not in cot_bom_list:
-                                    cot_bom_list.append(num)
+                    # Nếu không tìm thấy trong boxBon, thử tìm trong sibling trực tiếp (boxView)
+                    if not cot_bom_list:
+                        # Tìm sibling element tiếp theo (có thể chứa pump images)
+                        next_sibling = tank_div.find_next_sibling()
+                        if next_sibling:
+                            for img in next_sibling.find_all('img'):
+                                src = img.get('src', '')
+                                pump_match = re.search(r'pump[_-]?(\d{1,2})', src, re.IGNORECASE)
+                                if pump_match:
+                                    num = pump_match.group(1).zfill(2)
+                                    if num not in cot_bom_list:
+                                        cot_bom_list.append(num)
                     
                     # Loại bỏ trùng lặp và sắp xếp
                     cot_bom_list = sorted(list(set(cot_bom_list)))
