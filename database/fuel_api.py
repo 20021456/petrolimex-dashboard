@@ -320,8 +320,16 @@ class FuelAPI:
                 
                 # Validate và clean data
                 if ma_bom and nhien_lieu and ma_bom.startswith('CB'):
+                    # Extract cot_bom từ ma_bom (CB03-73-02451 → cot_bom = 3)
+                    cot_bom = 0
+                    import re
+                    cot_match = re.match(r'^CB(\d{2})', ma_bom)
+                    if cot_match:
+                        cot_bom = int(cot_match.group(1))  # "03" → 3, "02" → 2
+                    
                     transaction = {
                         'ma_bom': ma_bom,
+                        'cot_bom': cot_bom,
                         'nhien_lieu': nhien_lieu,
                         'gia': self.clean_number(gia),
                         'lit': self.clean_number(lit),
@@ -455,6 +463,7 @@ class FuelAPI:
         CREATE TABLE IF NOT EXISTS fuel_pump (
             id INT AUTO_INCREMENT PRIMARY KEY,
             ma_bom VARCHAR(50) NOT NULL,
+            cot_bom INT DEFAULT 0,
             nhien_lieu VARCHAR(50),
             gia DECIMAL(10, 2),
             lit DECIMAL(10, 2),
@@ -471,6 +480,17 @@ class FuelAPI:
             cursor = self.mysql_connection.cursor()
             cursor.execute(create_table_query)
             self.mysql_connection.commit()
+            
+            # Thêm cột cot_bom nếu chưa có (cho bảng đã tồn tại)
+            try:
+                cursor.execute("""
+                    ALTER TABLE fuel_pump 
+                    ADD COLUMN IF NOT EXISTS cot_bom INT DEFAULT 0 AFTER ma_bom
+                """)
+                self.mysql_connection.commit()
+            except:
+                pass  # Cột đã tồn tại hoặc không hỗ trợ IF NOT EXISTS
+            
             print("✓ Tạo/kiểm tra bảng 'fuel_pump' thành công")
             cursor.close()
             return True
@@ -615,9 +635,10 @@ class FuelAPI:
         
         insert_query = """
         INSERT INTO fuel_pump 
-        (ma_bom, nhien_lieu, gia, lit, tien, ket_thuc_bom, khach_hang, hoa_don)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        (ma_bom, cot_bom, nhien_lieu, gia, lit, tien, ket_thuc_bom, khach_hang, hoa_don)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
+            cot_bom = VALUES(cot_bom),
             nhien_lieu = VALUES(nhien_lieu),
             gia = VALUES(gia),
             lit = VALUES(lit),
@@ -637,6 +658,7 @@ class FuelAPI:
                 try:
                     values = (
                         record['ma_bom'],
+                        record.get('cot_bom', 0),
                         record['nhien_lieu'],
                         record['gia'],
                         record['lit'],
