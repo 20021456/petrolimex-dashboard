@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS qr_codes (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 EOF
-
+        
         # Create fuel_tanks table (v6.9.5 - Tank storage data)
         mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" <<'EOF'
 CREATE TABLE IF NOT EXISTS fuel_tanks (
@@ -175,6 +175,14 @@ EOF
             mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" -e "ALTER TABLE fuel_tanks ADD COLUMN cot_bom VARCHAR(100) DEFAULT '';" 2>/dev/null || true
             echo "✅ cot_bom column added!"
         fi
+    fi
+
+    # Thêm cột cot_bom cho fuel_pump nếu chưa có (v6.9.7)
+    PUMP_COT_BOM_EXISTS=$(mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${DB_NAME}' AND table_name='fuel_pump' AND column_name='cot_bom';" 2>/dev/null || echo "0")
+    if [ "$PUMP_COT_BOM_EXISTS" = "0" ]; then
+        echo "🔧 Adding cot_bom column to fuel_pump..."
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" -e "ALTER TABLE fuel_pump ADD COLUMN cot_bom INT DEFAULT 0;" 2>/dev/null || true
+        echo "✅ cot_bom column added to fuel_pump!"
     fi
     
     # Show tables

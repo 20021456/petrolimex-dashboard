@@ -164,7 +164,7 @@ export function ChiTietContent() {
   return (
     <div className="space-y-4" suppressHydrationWarning>
       {/* Bảng Giá Nhiên Liệu - Luôn hiển thị */}
-      <Card>
+            <Card>
           <CardHeader>
             <CardTitle>Bảng Giá Nhiên Liệu</CardTitle>
             <CardDescription>
@@ -214,7 +214,7 @@ export function ChiTietContent() {
         </Card>
 
       {/* Bồn Bể - Luôn hiển thị */}
-      <Card>
+            <Card>
           <CardHeader>
             <CardTitle>Tình Trạng Bồn Bể</CardTitle>
             <CardDescription>
@@ -243,12 +243,12 @@ export function ChiTietContent() {
                           </span>
                         </div>
                         {tank.dung_tich > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Dung tích:</span>
-                            <span className="font-medium">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Dung tích:</span>
+                          <span className="font-medium">
                               {formatTankNumber(tank.dung_tich)} lít
-                            </span>
-                          </div>
+                          </span>
+                        </div>
                         )}
                         {tank.cot_bom && (
                           <div className="flex justify-between text-sm items-center">
@@ -260,7 +260,7 @@ export function ChiTietContent() {
                                 </Badge>
                               ))}
                             </div>
-                          </div>
+                        </div>
                         )}
                       </div>
                     </CardContent>
@@ -276,8 +276,8 @@ export function ChiTietContent() {
           </CardContent>
         </Card>
 
-      {/* Thống kê chi tiết ngày hôm nay */}
-      {loading.stats ? (
+            {/* Thống kê chi tiết ngày hôm nay */}
+            {loading.stats ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {[1, 2, 3].map((i) => (
                   <Skeleton key={i} className="h-32 w-full" />
@@ -532,10 +532,10 @@ export function ChiTietContent() {
                     <ActivityIcon className="mx-auto h-12 w-12 opacity-50 mb-4" />
                     <p className="text-lg font-medium">Chưa có dữ liệu thống kê</p>
                     <p className="text-sm">Dữ liệu dashboard sẽ hiển thị khi có giao dịch</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
     </div>
   )
 }
