@@ -1310,6 +1310,12 @@ class FuelAPI:
                             else:
                                 tank_data['ten_bon'] = ten_full
                                 tank_data['nhien_lieu'] = ''
+                        
+                        # Chuẩn hóa tên bồn: "Bể số X" → "BỒN X"
+                        import re
+                        be_match = re.match(r'^Bể\s+số\s+(\d+)$', tank_data['ten_bon'], re.IGNORECASE)
+                        if be_match:
+                            tank_data['ten_bon'] = f"BỒN {be_match.group(1)}"
                     
                     # Lấy tồn kho
                     ton_kho_div = tank_div.find('div', class_='tonKho')
