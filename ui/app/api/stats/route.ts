@@ -117,17 +117,19 @@ export async function GET(request: Request) {
     `);
 
     // Doanh thu theo giờ trong ngày - ⚡ FIX: Dùng chartFullWhere thay vì fullWhere
+    // Thêm cot_bom để phân biệt theo cột bơm
     const byHourOfDay = await query<any[]>(`
       SELECT 
         HOUR(ket_thuc_bom) as hour,
+        COALESCE(cot_bom, 0) as cotBom,
         nhien_lieu as fuelType,
         SUM(tien) as revenue,
         SUM(lit) as liters,
         COUNT(*) as count
       FROM fuel_pump
       ${chartFullWhere}
-      GROUP BY HOUR(ket_thuc_bom), nhien_lieu
-      ORDER BY hour ASC, nhien_lieu ASC
+      GROUP BY HOUR(ket_thuc_bom), cot_bom, nhien_lieu
+      ORDER BY hour ASC, cot_bom ASC, nhien_lieu ASC
     `);
 
     // Count unique days for average calculation - ⚡ FIX: Dùng chartFullWhere

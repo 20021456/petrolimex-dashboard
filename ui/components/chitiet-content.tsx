@@ -133,33 +133,83 @@ export function ChiTietContent() {
     return `hsl(var(--chart-${(index % 5) + 1}))`
   }
 
-  // Tổng hợp dữ liệu theo giờ (gom nhóm theo giờ, tổng tất cả loại nhiên liệu)
+  // Màu cho từng cột bơm
+  const PUMP_COLORS: Record<number, string> = {
+    1: '#3b82f6',  // blue-500
+    2: '#22c55e',  // green-500
+    3: '#f59e0b',  // amber-500
+    4: '#ef4444',  // red-500
+    5: '#8b5cf6',  // violet-500
+    6: '#06b6d4',  // cyan-500
+    7: '#ec4899',  // pink-500
+    8: '#84cc16',  // lime-500
+  }
+
+  // Màu cho từng loại nhiên liệu  
+  const FUEL_COLORS: Record<string, string> = {
+    'DO 0.05S': '#22c55e',     // green-500
+    'E5 RON 92-II': '#3b82f6', // blue-500
+    'RON 95-III': '#f59e0b',   // amber-500
+    'RON 95-IV': '#ef4444',    // red-500
+    'RON 95-V': '#8b5cf6',     // violet-500
+  }
+
+  // Lấy danh sách cột bơm và nhiên liệu
+  const { pumpColumns, fuelTypes } = React.useMemo(() => {
+    const pumps = new Set<number>()
+    const fuels = new Set<string>()
+    
+    if (dashboardStats?.chartData?.byHourOfDay) {
+      dashboardStats.chartData.byHourOfDay.forEach((item: any) => {
+        if (item.cotBom && item.cotBom > 0) pumps.add(item.cotBom)
+        if (item.fuelType) fuels.add(item.fuelType)
+      })
+    }
+    
+    return {
+      pumpColumns: Array.from(pumps).sort((a, b) => a - b),
+      fuelTypes: Array.from(fuels).sort()
+    }
+  }, [dashboardStats?.chartData?.byHourOfDay])
+
+  // Tổng hợp dữ liệu theo giờ và cột bơm
   const aggregatedHourData = React.useMemo(() => {
     if (!dashboardStats?.chartData?.byHourOfDay || !Array.isArray(dashboardStats.chartData.byHourOfDay)) {
       return []
     }
     
-    const hourMap = new Map<number, { hour: number; revenue: number; count: number }>()
+    const hourMap = new Map<number, any>()
     
     dashboardStats.chartData.byHourOfDay.forEach((item: any) => {
       const hourValue = Number(item.hour)
+      const cotBom = Number(item.cotBom) || 0
       if (isNaN(hourValue)) return
       
-      const existing = hourMap.get(hourValue)
-      if (existing) {
-        existing.revenue += Number(item.revenue) || 0
-        existing.count += Number(item.count) || 0
-      } else {
+      if (!hourMap.has(hourValue)) {
         hourMap.set(hourValue, {
           hour: hourValue,
-          revenue: Number(item.revenue) || 0,
-          count: Number(item.count) || 0
+          revenue: 0,
+          count: 0,
         })
+        // Initialize pump columns
+        pumpColumns.forEach(pump => {
+          hourMap.get(hourValue)[`pump_${pump}`] = 0
+        })
+      }
+      
+      const existing = hourMap.get(hourValue)
+      existing.revenue += Number(item.revenue) || 0
+      existing.count += Number(item.count) || 0
+      
+      if (cotBom > 0) {
+        existing[`pump_${cotBom}`] = (existing[`pump_${cotBom}`] || 0) + (Number(item.revenue) || 0)
       }
     })
     
-    return Array.from(hourMap.values()).sort((a, b) => a.hour - b.hour)
-  }, [dashboardStats?.chartData?.byHourOfDay])
+    return Array.from(hourMap.values())
+      .filter(item => item.revenue > 0)
+      .sort((a, b) => a.hour - b.hour)
+  }, [dashboardStats?.chartData?.byHourOfDay, pumpColumns])
 
   return (
     <div className="space-y-4" suppressHydrationWarning>
@@ -454,55 +504,115 @@ export function ChiTietContent() {
                     {loading.stats ? (
                       <Skeleton className="h-[350px] w-full" />
                     ) : aggregatedHourData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={350}>
-                        <BarChart data={aggregatedHourData}>
-                          <XAxis
-                            dataKey="hour"
-                            stroke="#888888"
-                            fontSize={12}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(value) => `${value}h`}
-                          />
-                          <YAxis
-                            stroke="#888888"
-                            fontSize={12}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
-                          />
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <div className="rounded-lg border bg-background p-2 shadow-sm">
-                                    <div className="flex flex-col gap-1">
-                                      <span className="text-sm font-semibold">
-                                        Giờ {payload[0].payload.hour}:00
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        Doanh thu: {formatCurrency(payload[0].value as number)}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {payload[0].payload.count} giao dịch
-                                      </span>
-                                    </div>
-                                  </div>
-                                )
-                              }
-                              return null
-                            }}
-                          />
-                          <Bar dataKey="revenue" fill={getChartColor(0)} radius={[8, 8, 0, 0]}>
-                            <LabelList 
-                              dataKey="revenue" 
-                              position="top"
-                              formatter={(value: number) => new Intl.NumberFormat('vi-VN').format(value)}
-                              style={{ fill: 'hsl(var(--foreground))', fontSize: '11px', fontWeight: 'bold' }}
+                      <>
+                        <ResponsiveContainer width="100%" height={320}>
+                          <BarChart data={aggregatedHourData}>
+                            <XAxis
+                              dataKey="hour"
+                              stroke="#888888"
+                              fontSize={12}
+                              tickLine={false}
+                              axisLine={false}
+                              tickFormatter={(value) => `${value}h`}
                             />
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                            <YAxis
+                              stroke="#888888"
+                              fontSize={12}
+                              tickLine={false}
+                              axisLine={false}
+                              tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
+                            />
+                            <Tooltip
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  return (
+                                    <div className="rounded-lg border bg-background p-2 shadow-sm">
+                                      <div className="flex flex-col gap-1">
+                                        <span className="text-sm font-semibold">
+                                          Giờ {payload[0].payload.hour}:00
+                                        </span>
+                                        {payload.map((entry: any, index: number) => (
+                                          <span key={index} className="text-xs" style={{ color: entry.color }}>
+                                            {entry.name.replace('pump_', 'Cột ')}: {formatCurrency(entry.value as number)}
+                                          </span>
+                                        ))}
+                                        <span className="text-xs text-muted-foreground border-t pt-1 mt-1">
+                                          Tổng: {formatCurrency(payload[0].payload.revenue)}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {payload[0].payload.count} giao dịch
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )
+                                }
+                                return null
+                              }}
+                            />
+                            {pumpColumns.length > 0 ? (
+                              pumpColumns.map((pump, index) => (
+                                <Bar 
+                                  key={`pump_${pump}`}
+                                  dataKey={`pump_${pump}`} 
+                                  stackId="a"
+                                  fill={PUMP_COLORS[pump] || getChartColor(index)} 
+                                  radius={index === pumpColumns.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                                >
+                                  {index === pumpColumns.length - 1 && (
+                                    <LabelList 
+                                      dataKey="revenue" 
+                                      position="top"
+                                      formatter={(value: number) => new Intl.NumberFormat('vi-VN').format(value)}
+                                      style={{ fill: 'hsl(var(--foreground))', fontSize: '10px', fontWeight: 'bold' }}
+                                    />
+                                  )}
+                                </Bar>
+                              ))
+                            ) : (
+                              <Bar dataKey="revenue" fill={getChartColor(0)} radius={[8, 8, 0, 0]}>
+                                <LabelList 
+                                  dataKey="revenue" 
+                                  position="top"
+                                  formatter={(value: number) => new Intl.NumberFormat('vi-VN').format(value)}
+                                  style={{ fill: 'hsl(var(--foreground))', fontSize: '11px', fontWeight: 'bold' }}
+                                />
+                              </Bar>
+                            )}
+                          </BarChart>
+                        </ResponsiveContainer>
+                        
+                        {/* Legend cho cột bơm */}
+                        {pumpColumns.length > 0 && (
+                          <div className="border-t pt-3 mt-2 space-y-2">
+                            <div className="flex flex-wrap gap-3 px-2 justify-center">
+                              <span className="text-xs text-muted-foreground font-medium">Cột bơm:</span>
+                              {pumpColumns.map(pump => (
+                                <div key={pump} className="flex items-center gap-1.5">
+                                  <div 
+                                    className="w-3 h-3 rounded-sm" 
+                                    style={{ backgroundColor: PUMP_COLORS[pump] || '#888' }}
+                                  />
+                                  <span className="text-xs text-muted-foreground">Cột {pump}</span>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {/* Legend cho loại nhiên liệu */}
+                            <div className="flex flex-wrap gap-3 px-2 justify-center">
+                              <span className="text-xs text-muted-foreground font-medium">Nhiên liệu:</span>
+                              {fuelTypes.map(fuel => (
+                                <div key={fuel} className="flex items-center gap-1.5">
+                                  <div 
+                                    className="w-3 h-3 rounded-sm" 
+                                    style={{ backgroundColor: FUEL_COLORS[fuel] || '#888' }}
+                                  />
+                                  <span className="text-xs text-muted-foreground">{fuel}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <div className="flex min-h-[350px] items-center justify-center">
                         <div className="text-center">
