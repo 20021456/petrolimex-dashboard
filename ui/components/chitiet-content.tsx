@@ -359,12 +359,12 @@ export function ChiTietContent() {
                       <CardTitle>Doanh Thu Theo Loại Nhiên Liệu</CardTitle>
                       <CardDescription>Phân bổ doanh thu các loại nhiên liệu hôm nay</CardDescription>
                     </CardHeader>
-                    <CardContent className="pl-2">
-                      <ResponsiveContainer width="100%" height={350}>
+                    <CardContent className="px-2 sm:px-4">
+                      <ResponsiveContainer width="100%" height={280}>
                         <BarChart 
                           data={sortedData} 
                           layout="vertical"
-                          margin={{ top: 10, right: 100, left: 10, bottom: 10 }}
+                          margin={{ top: 5, right: 60, left: 0, bottom: 5 }}
                         >
                           <CartesianGrid 
                             strokeDasharray="3 3" 
@@ -374,21 +374,23 @@ export function ChiTietContent() {
                           <XAxis
                             type="number"
                             stroke="#888888"
-                            fontSize={12}
+                            fontSize={10}
                             tickLine={false}
                             axisLine={false}
                             tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
                             domain={[0, maxRevenue]}
                             allowDataOverflow={false}
+                            height={25}
                           />
                           <YAxis
                             type="category"
                             dataKey="fuelType"
                             stroke="#888888"
-                            fontSize={13}
+                            fontSize={11}
                             tickLine={false}
                             axisLine={false}
-                            width={110}
+                            width={75}
+                            tickMargin={2}
                           />
                           <Tooltip
                             content={({ active, payload }) => {
@@ -412,7 +414,7 @@ export function ChiTietContent() {
                               return null
                             }}
                           />
-                          <Bar dataKey="revenue" radius={[0, 10, 10, 0]} barSize={60}>
+                          <Bar dataKey="revenue" radius={[0, 8, 8, 0]} barSize={45}>
                             {sortedData.map((entry: any, index: number) => (
                               <Cell key={`cell-${index}`} fill={getChartColor(index)} />
                             ))}
@@ -420,7 +422,7 @@ export function ChiTietContent() {
                               dataKey="revenue" 
                               position="right"
                               formatter={(value: number) => `${(value / 1000000).toFixed(2)}M ₫`}
-                              style={{ fill: 'hsl(var(--foreground))', fontSize: '12px', fontWeight: '600' }}
+                              style={{ fill: 'hsl(var(--foreground))', fontSize: '11px', fontWeight: '600' }}
                             />
                           </Bar>
                         </BarChart>
