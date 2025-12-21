@@ -1,10 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+// Đảm bảo bảng tồn tại
+async function ensureTableExists() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS fuel_inventory_import (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        fuel_name VARCHAR(100) NOT NULL,
+        quantity DECIMAL(15, 2) NOT NULL,
+        import_time DATETIME NOT NULL,
+        note VARCHAR(255) DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_fuel_name (fuel_name),
+        INDEX idx_import_time (import_time),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    return true;
+  } catch (error) {
+    console.error('Error ensuring table exists:', error);
+    return false;
+  }
+}
+
 // GET - Tính tồn kho theo từng loại nhiên liệu
 // Công thức: Tồn kho = Tổng nhập (fuel_inventory_import) - Tổng xuất (fuel_pump.lit)
 export async function GET(request: NextRequest) {
   try {
+    // Đảm bảo bảng tồn tại trước khi query
+    await ensureTableExists();
+    
     const { searchParams } = new URL(request.url);
     const fuelName = searchParams.get('fuel_name');
 

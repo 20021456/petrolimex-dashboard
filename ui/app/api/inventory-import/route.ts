@@ -43,25 +43,30 @@ export async function GET(request: NextRequest) {
     
     if (date) {
       // Lấy chi tiết nhập hàng theo ngày cụ thể
+      // Dùng DATE_FORMAT để đảm bảo so sánh đúng format YYYY-MM-DD
+      console.log('🔍 Querying import details for date:', date);
       items = await query<any[]>(`
         SELECT id, fuel_name, quantity, import_time, note, created_at
         FROM fuel_inventory_import
-        WHERE DATE(import_time) = ?
+        WHERE DATE_FORMAT(import_time, '%Y-%m-%d') = ?
         ORDER BY import_time DESC
       `, [date]);
+      console.log('📦 Found items:', items?.length || 0);
     } else if (groupByDate) {
       // Lấy danh sách các ngày có nhập hàng (nhóm theo ngày)
+      // Dùng DATE_FORMAT để đảm bảo format YYYY-MM-DD
       items = await query<any[]>(`
         SELECT 
-          DATE(import_time) as import_date,
+          DATE_FORMAT(import_time, '%Y-%m-%d') as import_date,
           COUNT(*) as import_count,
           SUM(quantity) as total_quantity,
           GROUP_CONCAT(DISTINCT fuel_name) as fuel_types
         FROM fuel_inventory_import
-        GROUP BY DATE(import_time)
+        GROUP BY DATE_FORMAT(import_time, '%Y-%m-%d')
         ORDER BY import_date DESC
         LIMIT 30
       `);
+      console.log('📅 Import history by date:', items);
     } else {
       // Lấy tất cả bản ghi nhập hàng gần nhất
       items = await query<any[]>(`
