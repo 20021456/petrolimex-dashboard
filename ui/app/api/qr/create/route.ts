@@ -2,6 +2,35 @@ import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
 import { randomBytes } from 'crypto'
 
+// Đảm bảo bảng qr_codes tồn tại
+async function ensureQrCodesTableExists() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS qr_codes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        token VARCHAR(64) UNIQUE NOT NULL,
+        customer_name VARCHAR(255) NOT NULL,
+        seller_name VARCHAR(255),
+        item_name VARCHAR(255) NOT NULL,
+        quantity DECIMAL(10, 2) NOT NULL,
+        unit VARCHAR(20) NOT NULL DEFAULT 'lít',
+        payment_status ENUM('unpaid', 'paid') NOT NULL DEFAULT 'unpaid',
+        is_confirmed BOOLEAN DEFAULT FALSE,
+        confirmed_at DATETIME,
+        inventory_id VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_token (token),
+        INDEX idx_inventory_id (inventory_id),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+    return true
+  } catch (error) {
+    console.error('Error creating qr_codes table:', error)
+    return false
+  }
+}
+
 // Tạo unique token
 function generateToken(): string {
   return randomBytes(16).toString('hex')
@@ -39,6 +68,9 @@ export async function POST(request: NextRequest) {
     if (!quantity || quantity <= 0) {
       return NextResponse.json({ success: false, error: 'Số lượng phải lớn hơn 0' }, { status: 400 })
     }
+
+    // Đảm bảo bảng tồn tại
+    await ensureQrCodesTableExists()
 
     // Generate unique token
     const token = generateToken()
