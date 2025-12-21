@@ -13,6 +13,8 @@ import {
   SettingsIcon,
   TrendingUpIcon,
   CalendarIcon,
+  PackageIcon,
+  WarehouseIcon,
 } from "lucide-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -37,28 +39,22 @@ const data = {
   },
   navMain: [
     {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboardIcon,
-      id: "dashboard",
-    },
-    {
-      title: "Chi Tiết",
-      url: "/chitiet",
-      icon: ClipboardListIcon,
-      id: "chitiet",
-    },
-    {
-      title: "Kho",
+      title: "Xuất Kho",
       url: "#",
-      icon: DatabaseIcon,
+      icon: PackageIcon,
       id: "kho",
     },
     {
-      title: "Giá",
+      title: "Đơn Giá",
       url: "#",
       icon: TrendingUpIcon,
       id: "gia",
+    },
+    {
+      title: "Tồn Kho",
+      url: "#",
+      icon: WarehouseIcon,
+      id: "tonkho",
     },
   ],
   navSecondary: [
@@ -83,16 +79,19 @@ const data = {
       name: "Dữ Liệu",
       url: "#",
       icon: DatabaseIcon,
+      id: "dulieu",
     },
     {
       name: "Báo Cáo",
       url: "#",
       icon: ClipboardListIcon,
+      id: "chitiet",
     },
     {
       name: "Tài Liệu",
       url: "#",
       icon: FileTextIcon,
+      id: "dashboard",
     },
   ],
 }
@@ -131,7 +130,11 @@ export function AppSidebar({
           onItemClick={onViewChange}
           onPriceClick={onPriceClick}
         />
-        <NavDocuments items={data.documents} />
+        <NavDocuments 
+          items={data.documents} 
+          activeItem={activeView}
+          onItemClick={onViewChange}
+        />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>

@@ -7,6 +7,7 @@ import { SectionCards } from "@/components/section-cards"
 import { ChartSection } from "@/components/chart-section"
 import { ChiTietContent } from "@/components/chitiet-content"
 import { KhoContent } from "@/components/kho-content"
+import { TonkhoContent } from "@/components/tonkho-content"
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { DashboardSection } from "@/components/dashboard-section"
 import { DateRangePicker } from "@/components/date-range-picker"
@@ -241,7 +242,8 @@ export default function Page() {
   const viewTitles: Record<string, string> = {
     dashboard: "Fuel Dashboard - Tổng Quan",
     chitiet: "Chi Tiết Fuel",
-    kho: "Quản Lý Kho",
+    kho: "Xuất Kho",
+    tonkho: "Quản Lý Tồn Kho",
     revenue: "Doanh Thu",
     statistics: "Thống Kê & Biểu Đồ",
     pumps: "Quản Lý Cột Bơm",
@@ -267,7 +269,7 @@ export default function Page() {
               {viewTitles[activeView] || "Fuel Dashboard"}
             </h1>
 
-            {activeView !== "chitiet" && activeView !== "kho" && (
+            {activeView !== "chitiet" && activeView !== "kho" && activeView !== "tonkho" && (
               <>
                 {/* Desktop filters */}
                 <div className="ml-auto hidden items-center gap-2 lg:flex">
@@ -324,7 +326,7 @@ export default function Page() {
           </div>
 
           {/* Mobile filters row - Collapsible */}
-          {activeView !== "chitiet" && activeView !== "kho" && mobileFiltersOpen && (
+          {activeView !== "chitiet" && activeView !== "kho" && activeView !== "tonkho" && mobileFiltersOpen && (
             <div className="flex flex-col gap-2 border-t bg-muted/30 p-3 lg:hidden">
               <SearchInput 
                 onChange={setSearch} 
@@ -393,6 +395,8 @@ export default function Page() {
             <ChiTietContent />
           ) : activeView === "kho" ? (
             <KhoContent />
+          ) : activeView === "tonkho" ? (
+            <TonkhoContent />
           ) : !stats ? (
             <div className="flex flex-1 items-center justify-center">
               <div className="text-muted-foreground">Đang tải dữ liệu...</div>

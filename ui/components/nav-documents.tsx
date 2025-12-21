@@ -25,14 +25,29 @@ import {
 
 export function NavDocuments({
   items,
+  activeItem,
+  onItemClick,
 }: {
   items: {
     name: string
     url: string
     icon: LucideIcon
+    id?: string
   }[]
+  activeItem?: string
+  onItemClick?: (view: string) => void
 }) {
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  const handleClick = (item: { id?: string; url: string }) => {
+    if (item.id && onItemClick) {
+      onItemClick(item.id)
+      // Đóng sidebar trên mobile sau khi click
+      if (isMobile) {
+        setOpenMobile(false)
+      }
+    }
+  }
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -40,11 +55,13 @@ export function NavDocuments({
       <SidebarMenu>
         {items.map((item) => (
           <SidebarMenuItem key={item.name}>
-            <SidebarMenuButton asChild>
-              <a href={item.url}>
-                <item.icon />
-                <span>{item.name}</span>
-              </a>
+            <SidebarMenuButton 
+              onClick={() => handleClick(item)}
+              isActive={item.id === activeItem}
+              className="cursor-pointer"
+            >
+              <item.icon />
+              <span>{item.name}</span>
             </SidebarMenuButton>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -61,13 +78,13 @@ export function NavDocuments({
                 side={isMobile ? "bottom" : "right"}
                 align={isMobile ? "end" : "start"}
               >
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleClick(item)}>
                   <FolderIcon />
-                  <span>Open</span>
+                  <span>Mở</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <ShareIcon />
-                  <span>Share</span>
+                  <span>Chia sẻ</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

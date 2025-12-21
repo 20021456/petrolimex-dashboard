@@ -184,6 +184,26 @@ EOF
         mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" -e "ALTER TABLE fuel_pump ADD COLUMN cot_bom INT DEFAULT 0;" 2>/dev/null || true
         echo "✅ cot_bom column added to fuel_pump!"
     fi
+
+    # Tạo bảng fuel_inventory_import nếu chưa có (v6.10.0 - Quản lý nhập hàng/tồn kho)
+    INVENTORY_IMPORT_EXISTS=$(mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}' AND table_name='fuel_inventory_import';" 2>/dev/null || echo "0")
+    if [ "$INVENTORY_IMPORT_EXISTS" = "0" ]; then
+        echo "🔧 Creating fuel_inventory_import table..."
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" <<'EOF'
+CREATE TABLE IF NOT EXISTS fuel_inventory_import (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    fuel_name VARCHAR(100) NOT NULL,
+    quantity DECIMAL(15, 2) NOT NULL,
+    import_time DATETIME NOT NULL,
+    note VARCHAR(255) DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fuel_name (fuel_name),
+    INDEX idx_import_time (import_time),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+EOF
+        echo "✅ fuel_inventory_import table created!"
+    fi
     
     # Show tables
     echo ""
