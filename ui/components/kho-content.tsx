@@ -17,6 +17,7 @@ interface InventoryItem {
   category: string
   quantity: number
   customer_name?: string
+  seller_name?: string
   sale_time?: string
   payment_status: 'unpaid' | 'paid'
   created_at: string
@@ -24,6 +25,7 @@ interface InventoryItem {
 
 interface FormData {
   customer_name: string
+  seller_name: string
   item_name: string
   quantity: number
   payment_status: 'unpaid' | 'paid'
@@ -54,6 +56,7 @@ export function KhoContent() {
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     customer_name: '',
+    seller_name: 'Hà Khánh',
     item_name: '',
     quantity: 1,
     payment_status: 'unpaid'
@@ -149,6 +152,7 @@ export function KhoContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_name: formData.customer_name,
+          seller_name: formData.seller_name,
           item_name: formData.item_name,
           category: 'fuel',
           quantity: formData.quantity,
@@ -180,6 +184,7 @@ export function KhoContent() {
   const resetForm = () => {
     setFormData({
       customer_name: '',
+      seller_name: 'Hà Khánh',
       item_name: products[0]?.fuel_name || '',
       quantity: 1,
       payment_status: 'unpaid'
@@ -193,6 +198,7 @@ export function KhoContent() {
   const handleEdit = (item: InventoryItem) => {
     setFormData({
       customer_name: item.customer_name || '',
+      seller_name: item.seller_name || 'Hà Khánh',
       item_name: item.item_name,
       quantity: item.quantity,
       payment_status: item.payment_status || 'unpaid'
@@ -248,6 +254,7 @@ export function KhoContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_name: formData.customer_name,
+          seller_name: formData.seller_name,
           item_name: formData.item_name,
           quantity: formData.quantity,
           payment_status: formData.payment_status
@@ -320,6 +327,22 @@ export function KhoContent() {
                 placeholder="Nhập tên khách hàng"
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="seller_name">Người bán *</Label>
+              <Select
+                value={formData.seller_name}
+                onValueChange={(value) => handleInputChange('seller_name', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn người bán" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hà Khánh">Hà Khánh</SelectItem>
+                  <SelectItem value="Hà Bính">Hà Bính</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -492,6 +515,7 @@ export function KhoContent() {
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
                   <TableHead className="min-w-[120px]">Tên khách hàng</TableHead>
+                  <TableHead className="min-w-[100px]">Người bán</TableHead>
                   <TableHead className="min-w-[100px]">Tên sản phẩm</TableHead>
                   <TableHead className="text-right min-w-[80px]">Số lượng</TableHead>
                   <TableHead className="min-w-[140px]">Thời gian bán</TableHead>
@@ -502,7 +526,7 @@ export function KhoContent() {
               <TableBody>
                 {filteredItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       Chưa có dữ liệu
                     </TableCell>
                   </TableRow>
@@ -512,6 +536,7 @@ export function KhoContent() {
                       <TableCell className="font-medium">
                         {item.customer_name || '-'}
                       </TableCell>
+                      <TableCell>{item.seller_name || '-'}</TableCell>
                       <TableCell>{item.item_name}</TableCell>
                       <TableCell className="text-right">
                         {item.quantity}

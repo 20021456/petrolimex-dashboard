@@ -73,6 +73,7 @@ EOF
 CREATE TABLE IF NOT EXISTS inventory_items (
     id VARCHAR(50) PRIMARY KEY,
     customer_name VARCHAR(255),
+    seller_name VARCHAR(255),
     item_name VARCHAR(255) NOT NULL,
     category VARCHAR(50) NOT NULL DEFAULT 'fuel',
     quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS inventory_items (
     INDEX idx_category (category),
     INDEX idx_item_name (item_name),
     INDEX idx_customer_name (customer_name),
+    INDEX idx_seller_name (seller_name),
     INDEX idx_created_at (created_at),
     INDEX idx_payment_status (payment_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -115,6 +117,7 @@ CREATE TABLE IF NOT EXISTS qr_codes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     token VARCHAR(64) UNIQUE NOT NULL,
     customer_name VARCHAR(255) NOT NULL,
+    seller_name VARCHAR(255),
     item_name VARCHAR(255) NOT NULL,
     quantity DECIMAL(10, 2) NOT NULL,
     unit VARCHAR(20) NOT NULL DEFAULT 'lít',
@@ -124,6 +127,7 @@ CREATE TABLE IF NOT EXISTS qr_codes (
     inventory_id VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_token (token),
+    INDEX idx_seller_name (seller_name),
     INDEX idx_inventory_id (inventory_id),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -203,6 +207,24 @@ CREATE TABLE IF NOT EXISTS fuel_inventory_import (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 EOF
         echo "✅ fuel_inventory_import table created!"
+    fi
+
+    # Thêm cột seller_name cho inventory_items nếu chưa có (v6.10.1 - Người bán)
+    INV_SELLER_EXISTS=$(mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${DB_NAME}' AND table_name='inventory_items' AND column_name='seller_name';" 2>/dev/null || echo "0")
+    if [ "$INV_SELLER_EXISTS" = "0" ]; then
+        echo "🔧 Adding seller_name column to inventory_items..."
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" -e "ALTER TABLE inventory_items ADD COLUMN seller_name VARCHAR(255) AFTER customer_name;" 2>/dev/null || true
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" -e "CREATE INDEX idx_seller_name ON inventory_items (seller_name);" 2>/dev/null || true
+        echo "✅ seller_name column added to inventory_items!"
+    fi
+
+    # Thêm cột seller_name cho qr_codes nếu chưa có (v6.10.1 - Người bán)
+    QR_SELLER_EXISTS=$(mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${DB_NAME}' AND table_name='qr_codes' AND column_name='seller_name';" 2>/dev/null || echo "0")
+    if [ "$QR_SELLER_EXISTS" = "0" ]; then
+        echo "🔧 Adding seller_name column to qr_codes..."
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" -e "ALTER TABLE qr_codes ADD COLUMN seller_name VARCHAR(255) AFTER customer_name;" 2>/dev/null || true
+        mysql -h"${DB_HOST}" -u"${DB_USER}" --skip-ssl "${DB_NAME}" -e "CREATE INDEX idx_seller_name ON qr_codes (seller_name);" 2>/dev/null || true
+        echo "✅ seller_name column added to qr_codes!"
     fi
     
     # Show tables

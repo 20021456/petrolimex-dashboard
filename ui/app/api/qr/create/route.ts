@@ -27,7 +27,7 @@ function generateInventoryId(): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customer_name, item_name, quantity, payment_status = 'unpaid' } = body
+    const { customer_name, seller_name, item_name, quantity, payment_status = 'unpaid' } = body
 
     // Validate
     if (!customer_name?.trim()) {
@@ -47,16 +47,16 @@ export async function POST(request: NextRequest) {
 
     // Lưu vào inventory_items trước
     await query(
-      `INSERT INTO inventory_items (id, customer_name, item_name, category, quantity, unit, sale_time, payment_status, last_updated)
-       VALUES (?, ?, ?, 'fuel', ?, 'lít', ?, ?, NOW())`,
-      [inventoryId, customer_name, item_name, quantity, saleTime, payment_status]
+      `INSERT INTO inventory_items (id, customer_name, seller_name, item_name, category, quantity, unit, sale_time, payment_status, last_updated)
+       VALUES (?, ?, ?, ?, 'fuel', ?, 'lít', ?, ?, NOW())`,
+      [inventoryId, customer_name, seller_name || '', item_name, quantity, saleTime, payment_status]
     )
 
     // Lưu QR code với reference đến inventory
     await query(
-      `INSERT INTO qr_codes (token, customer_name, item_name, quantity, unit, payment_status, inventory_id)
-       VALUES (?, ?, ?, ?, 'lít', ?, ?)`,
-      [token, customer_name, item_name, quantity, payment_status, inventoryId]
+      `INSERT INTO qr_codes (token, customer_name, seller_name, item_name, quantity, unit, payment_status, inventory_id)
+       VALUES (?, ?, ?, ?, ?, 'lít', ?, ?)`,
+      [token, customer_name, seller_name || '', item_name, quantity, payment_status, inventoryId]
     )
 
     // Tạo URL cho QR code
@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
         token,
         url: qrUrl,
         customer_name,
+        seller_name,
         item_name,
         quantity,
         inventory_id: inventoryId

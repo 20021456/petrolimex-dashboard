@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 
 interface InventoryItem {
   customer_name?: string;
+  seller_name?: string;
   item_name: string;
   category: string;
   quantity: number;
@@ -36,6 +37,7 @@ export async function PUT(
       UPDATE inventory_items 
       SET 
         customer_name = ?,
+        seller_name = ?,
         item_name = ?,
         category = ?,
         quantity = ?,
@@ -46,6 +48,7 @@ export async function PUT(
       WHERE id = ?
     `, [
       data.customer_name || '',
+      data.seller_name || '',
       data.item_name,
       data.category,
       data.quantity,
