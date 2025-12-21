@@ -8,38 +8,30 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fuelName = searchParams.get('fuel_name');
 
-    // Lấy danh sách tất cả nhiên liệu từ bảng giá
+    // Lấy danh sách tất cả nhiên liệu từ bảng giá (bao gồm unit)
     const fuelPrices = await query<any[]>(`
-      SELECT fuel_name FROM fuel_prices ORDER BY fuel_name
+      SELECT fuel_name, unit FROM fuel_prices ORDER BY fuel_name
     `);
 
     // Nếu chỉ query cho 1 loại nhiên liệu cụ thể
     if (fuelName) {
-      const stockData = await calculateStockForFuel(fuelName);
+      // Tìm unit từ bảng giá
+      const [fuelInfo] = await query<any[]>(`
+        SELECT unit FROM fuel_prices WHERE fuel_name = ?
+      `, [fuelName]);
+      const unit = fuelInfo?.unit || 'lít';
+      const stockData = await calculateStockForFuel(fuelName, unit);
       return NextResponse.json({
         success: true,
         data: stockData
       });
     }
 
-    // Tính tồn kho cho tất cả các loại nhiên liệu
+    // Tính tồn kho cho tất cả các loại nhiên liệu (chỉ từ bảng đơn giá)
     const stockResults = [];
 
     for (const fuel of fuelPrices) {
-      const stockData = await calculateStockForFuel(fuel.fuel_name);
-      stockResults.push(stockData);
-    }
-
-    // Thêm các nhiên liệu có trong fuel_pump nhưng không có trong fuel_prices
-    const additionalFuels = await query<any[]>(`
-      SELECT DISTINCT nhien_lieu as fuel_name 
-      FROM fuel_pump 
-      WHERE nhien_lieu NOT IN (SELECT fuel_name FROM fuel_prices)
-      AND nhien_lieu IS NOT NULL AND nhien_lieu != ''
-    `);
-
-    for (const fuel of additionalFuels) {
-      const stockData = await calculateStockForFuel(fuel.fuel_name);
+      const stockData = await calculateStockForFuel(fuel.fuel_name, fuel.unit);
       stockResults.push(stockData);
     }
 
@@ -57,21 +49,13 @@ export async function GET(request: NextRequest) {
 }
 
 // Helper function để tính tồn kho cho 1 loại nhiên liệu
-async function calculateStockForFuel(fuelName: string) {
+async function calculateStockForFuel(fuelName: string, unit: string = 'lít') {
   // Tổng số lượng nhập
   const [importResult] = await query<any[]>(`
     SELECT COALESCE(SUM(quantity), 0) as total_import
     FROM fuel_inventory_import
     WHERE fuel_name = ?
   `, [fuelName]);
-
-  // Tổng số lượng xuất (từ fuel_pump - giao dịch bán hàng)
-  // Mapping tên nhiên liệu giữa các bảng
-  const [exportResult] = await query<any[]>(`
-    SELECT COALESCE(SUM(lit), 0) as total_export
-    FROM fuel_pump
-    WHERE nhien_lieu = ? OR nhien_lieu LIKE ?
-  `, [fuelName, `%${fuelName}%`]);
 
   // Tổng số lượng xuất từ inventory_items (xuất kho thủ công)
   const [manualExportResult] = await query<any[]>(`
@@ -81,9 +65,8 @@ async function calculateStockForFuel(fuelName: string) {
   `, [fuelName, `%${fuelName}%`]);
 
   const totalImport = parseFloat(importResult?.total_import || 0);
-  const totalExport = parseFloat(exportResult?.total_export || 0);
   const totalManualExport = parseFloat(manualExportResult?.total_manual_export || 0);
-  const currentStock = totalImport - totalExport - totalManualExport;
+  const currentStock = totalImport - totalManualExport;
 
   // Lấy lần nhập hàng cuối cùng
   const [lastImport] = await query<any[]>(`
@@ -96,9 +79,9 @@ async function calculateStockForFuel(fuelName: string) {
 
   return {
     fuel_name: fuelName,
+    unit: unit,
     total_import: totalImport,
-    total_export: totalExport,
-    total_manual_export: totalManualExport,
+    total_export: totalManualExport,
     current_stock: currentStock,
     last_import_time: lastImport?.import_time || null,
     last_import_quantity: lastImport?.quantity || 0

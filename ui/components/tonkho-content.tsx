@@ -31,9 +31,9 @@ interface PriceItem {
 
 interface StockItem {
   fuel_name: string
+  unit: string
   total_import: number
   total_export: number
-  total_manual_export: number
   current_stock: number
   last_import_time: string | null
   last_import_quantity: number
@@ -214,7 +214,9 @@ export function TonkhoContent() {
       const result = await response.json()
       
       if (result.success) {
-        toast.success(`Đã nhập ${formatNumber(quantity)} lít ${formData.fuel_name}`, {
+        const selectedProduct = products.find(p => p.fuel_name === formData.fuel_name)
+        const unit = selectedProduct?.unit || 'đơn vị'
+        toast.success(`Đã nhập ${formatNumber(quantity)} ${unit} ${formData.fuel_name}`, {
           description: `Thời gian: ${formatDateTime(result.import_time)}`
         })
         
@@ -298,12 +300,14 @@ export function TonkhoContent() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="quantity">Số lượng (lít) *</Label>
+                <Label htmlFor="quantity">
+                  Số lượng ({products.find(p => p.fuel_name === formData.fuel_name)?.unit || 'đơn vị'}) *
+                </Label>
                 <Input
                   id="quantity"
                   type="number"
-                  step="0.01"
-                  min="0"
+                  step="1"
+                  min="1"
                   placeholder="Nhập số lượng..."
                   value={formData.quantity}
                   onChange={(e) => setFormData(prev => ({ ...prev, quantity: e.target.value }))}
@@ -378,18 +382,18 @@ export function TonkhoContent() {
                         <TableCell className="text-right">
                           <span className="text-green-600 flex items-center justify-end gap-1">
                             <TrendingUpIcon className="h-3 w-3" />
-                            {formatNumber(item.total_import)} L
+                            {formatNumber(item.total_import)} {item.unit}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <span className="text-red-600 flex items-center justify-end gap-1">
                             <TrendingDownIcon className="h-3 w-3" />
-                            {formatNumber(item.total_export + item.total_manual_export)} L
+                            {formatNumber(item.total_export)} {item.unit}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge variant={item.current_stock > 0 ? "default" : "destructive"}>
-                            {formatNumber(item.current_stock)} L
+                            {formatNumber(item.current_stock)} {item.unit}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center text-xs text-muted-foreground">
@@ -456,7 +460,7 @@ export function TonkhoContent() {
                           {item.import_count} lần nhập
                         </Badge>
                         <p className="text-sm font-medium text-green-600">
-                          +{formatNumber(item.total_quantity)} L
+                          +{formatNumber(item.total_quantity)}
                         </p>
                       </div>
                     </div>
@@ -506,24 +510,28 @@ export function TonkhoContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedDateDetails.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="text-sm">
-                        {new Date(item.import_time).toLocaleTimeString('vi-VN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit'
-                        })}
-                      </TableCell>
-                      <TableCell className="font-medium">{item.fuel_name}</TableCell>
-                      <TableCell className="text-right text-green-600 font-medium">
-                        +{formatNumber(item.quantity)} L
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.note || '-'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {selectedDateDetails.map((item) => {
+                    const product = products.find(p => p.fuel_name === item.fuel_name)
+                    const unit = product?.unit || 'đơn vị'
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="text-sm">
+                          {new Date(item.import_time).toLocaleTimeString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                          })}
+                        </TableCell>
+                        <TableCell className="font-medium">{item.fuel_name}</TableCell>
+                        <TableCell className="text-right text-green-600 font-medium">
+                          +{formatNumber(item.quantity)} {unit}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.note || '-'}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
