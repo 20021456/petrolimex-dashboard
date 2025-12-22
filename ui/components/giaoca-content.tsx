@@ -185,8 +185,8 @@ function PersonSection({
           <span className="text-[10px] sm:text-xs text-muted-foreground">đ</span>
         </div>
 
-        {/* Stats Cards - Ngang trên mobile, dọc trên desktop */}
-        <div className="grid gap-2 sm:gap-3 grid-cols-3 md:grid-cols-1">
+        {/* Stats Cards - Dọc trên mobile, ngang trên desktop */}
+        <div className="grid gap-2 sm:gap-3 grid-cols-1 md:grid-cols-3">
           <StatsCard
             title="Tổng tiền bán"
             value={formatCurrency(data.totalBan)}
