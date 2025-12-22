@@ -8,6 +8,7 @@ import { ChartSection } from "@/components/chart-section"
 import { ChiTietContent } from "@/components/chitiet-content"
 import { KhoContent } from "@/components/kho-content"
 import { TonkhoContent } from "@/components/tonkho-content"
+import { GiaoCaContent } from "@/components/giaoca-content"
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { DashboardSection } from "@/components/dashboard-section"
 import { DateRangePicker } from "@/components/date-range-picker"
@@ -244,6 +245,7 @@ export default function Page() {
     chitiet: "Chi Tiết Fuel",
     kho: "Xuất Kho",
     tonkho: "Quản Lý Tồn Kho",
+    giaoca: "Giao Ca",
     revenue: "Doanh Thu",
     statistics: "Thống Kê & Biểu Đồ",
     pumps: "Quản Lý Cột Bơm",
@@ -269,7 +271,7 @@ export default function Page() {
               {viewTitles[activeView] || "Fuel Dashboard"}
             </h1>
 
-            {activeView !== "chitiet" && activeView !== "kho" && activeView !== "tonkho" && (
+            {activeView !== "chitiet" && activeView !== "kho" && activeView !== "tonkho" && activeView !== "giaoca" && (
               <>
                 {/* Desktop filters */}
                 <div className="ml-auto hidden items-center gap-2 lg:flex">
@@ -397,6 +399,8 @@ export default function Page() {
             <KhoContent />
           ) : activeView === "tonkho" ? (
             <TonkhoContent />
+          ) : activeView === "giaoca" ? (
+            <GiaoCaContent />
           ) : !stats ? (
             <div className="flex flex-1 items-center justify-center">
               <div className="text-muted-foreground">Đang tải dữ liệu...</div>

@@ -5,7 +5,6 @@ import {
   FuelIcon,
   BarChart3Icon,
   ClipboardListIcon,
-  DatabaseIcon,
   FileTextIcon,
   HelpCircleIcon,
   LayoutDashboardIcon,
@@ -15,6 +14,7 @@ import {
   CalendarIcon,
   PackageIcon,
   WarehouseIcon,
+  RefreshCwIcon,
 } from "lucide-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -76,10 +76,10 @@ const data = {
   ],
   documents: [
     {
-      name: "Dữ Liệu",
+      name: "Giao Ca",
       url: "#",
-      icon: DatabaseIcon,
-      id: "dulieu",
+      icon: RefreshCwIcon,
+      id: "giaoca",
     },
     {
       name: "Báo Cáo",
