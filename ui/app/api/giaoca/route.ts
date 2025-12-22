@@ -23,6 +23,29 @@ interface DailyStock {
   ton_cuoi_ngay: number;
 }
 
+// Đảm bảo bảng fuel_inventory_import tồn tại
+async function ensureTableExists() {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS fuel_inventory_import (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        fuel_name VARCHAR(100) NOT NULL,
+        quantity DECIMAL(15, 2) NOT NULL,
+        import_time DATETIME NOT NULL,
+        note VARCHAR(255) DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_fuel_name (fuel_name),
+        INDEX idx_import_time (import_time),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    return true;
+  } catch (error) {
+    console.error('Error ensuring table exists:', error);
+    return false;
+  }
+}
+
 // GET - Lấy dữ liệu giao ca
 export async function GET(request: NextRequest) {
   try {
@@ -44,6 +67,9 @@ export async function GET(request: NextRequest) {
         details: dbError.message
       }, { status: 500 });
     }
+
+    // Đảm bảo bảng fuel_inventory_import tồn tại
+    await ensureTableExists();
 
     // Lấy danh sách giá từ fuel_prices
     const prices = await query<any[]>(`
@@ -151,12 +177,39 @@ export async function GET(request: NextRequest) {
                     String(today.getMonth() + 1).padStart(2, '0') + '-' + 
                     String(today.getDate()).padStart(2, '0');
 
-    // Lấy tồn kho đầu ngày từ inventory_stock
-    const stockData = await query<any[]>(`
-      SELECT fuel_name, total_import, total_export, 
-             (total_import - total_export) as current_stock
-      FROM inventory_stock
-    `);
+    // Tính tồn kho từ fuel_inventory_import và inventory_items
+    // Helper function để tính tồn kho cho từng loại nhiên liệu
+    const calculateStockForFuel = async (fuelName: string) => {
+      // Tổng số lượng nhập
+      const [importResult] = await query<any[]>(`
+        SELECT COALESCE(SUM(quantity), 0) as total_import
+        FROM fuel_inventory_import
+        WHERE fuel_name = ?
+      `, [fuelName]);
+
+      // Tổng số lượng xuất từ inventory_items (xuất kho thủ công)
+      const [manualExportResult] = await query<any[]>(`
+        SELECT COALESCE(SUM(quantity), 0) as total_manual_export
+        FROM inventory_items
+        WHERE item_name = ? OR item_name LIKE ?
+      `, [fuelName, `%${fuelName}%`]);
+
+      const totalImport = parseFloat(importResult?.total_import || 0);
+      const totalManualExport = parseFloat(manualExportResult?.total_manual_export || 0);
+      const currentStock = totalImport - totalManualExport;
+
+      return {
+        fuel_name: fuelName,
+        total_import: totalImport,
+        total_export: totalManualExport,
+        current_stock: currentStock,
+      };
+    };
+
+    // Tính tồn kho cho tất cả các loại nhiên liệu
+    const stockData = await Promise.all(
+      prices.map((p: any) => calculateStockForFuel(p.fuel_name))
+    );
 
     // Tính xuất kho theo từng người và ca (sáng: trước 12h, chiều: sau 12h)
     const getDailyExport = async (sellerName: string, shift: 'morning' | 'afternoon') => {
