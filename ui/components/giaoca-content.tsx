@@ -105,15 +105,15 @@ function StatsCard({
   className?: string
 }) {
   return (
-    <Card className={className}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium truncate">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+    <Card className={`${className} overflow-hidden`}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+        <CardTitle className="text-xs sm:text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
       </CardHeader>
-      <CardContent>
-        <div className="text-xl sm:text-2xl font-bold truncate">{value}</div>
+      <CardContent className="p-3 sm:p-4 pt-0">
+        <div className="text-lg sm:text-xl md:text-2xl font-bold break-all">{value}</div>
         {subtitle && (
-          <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 break-words">{subtitle}</p>
         )}
       </CardContent>
     </Card>
@@ -156,37 +156,39 @@ function PersonSection({
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <UserIcon className="h-5 w-5 flex-shrink-0" />
-            <CardTitle className="truncate">{title}</CardTitle>
-            <Badge variant="secondary" className="flex-shrink-0">{shiftLabel}</Badge>
+      <CardHeader className="pb-2 px-3 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <UserIcon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+            <CardTitle className="text-base sm:text-lg">{title}</CardTitle>
+            <Badge variant="secondary" className="text-xs">{shiftLabel}</Badge>
           </div>
-          <Badge variant="outline" className="flex-shrink-0">
+          <Badge variant="outline" className="text-xs">
             {data.inventoryItems.length + data.pumpItems.length} giao dịch
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 px-3 sm:px-6">
         {/* Transfer Amount Input */}
-        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-          <Label htmlFor={`transfer-${title}`} className="whitespace-nowrap font-medium">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-muted/50 rounded-lg">
+          <Label htmlFor={`transfer-${title}`} className="text-sm font-medium whitespace-nowrap">
             Số tiền chuyển khoản:
           </Label>
-          <Input
-            id={`transfer-${title}`}
-            type="number"
-            placeholder="0"
-            value={transferAmount}
-            onChange={(e) => onTransferAmountChange(e.target.value)}
-            className="max-w-[200px]"
-          />
-          <span className="text-sm text-muted-foreground">VNĐ</span>
+          <div className="flex items-center gap-2 flex-1">
+            <Input
+              id={`transfer-${title}`}
+              type="number"
+              placeholder="0"
+              value={transferAmount}
+              onChange={(e) => onTransferAmountChange(e.target.value)}
+              className="flex-1 sm:max-w-[200px]"
+            />
+            <span className="text-xs sm:text-sm text-muted-foreground">VNĐ</span>
+          </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+        <div className="grid gap-2 sm:gap-3 grid-cols-1">
           <StatsCard
             title="Tổng tiền bán"
             value={formatCurrency(data.totalBan)}
@@ -212,9 +214,13 @@ function PersonSection({
 
         {/* Tabs for tables */}
         <Tabs defaultValue="pump" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="pump">Danh sách bơm ({filteredPumpItems.length})</TabsTrigger>
-            <TabsTrigger value="inventory">Xuất kho ({data.inventoryItems.length})</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 h-auto">
+            <TabsTrigger value="pump" className="text-xs sm:text-sm py-2 px-1 sm:px-3">
+              Bơm ({filteredPumpItems.length})
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="text-xs sm:text-sm py-2 px-1 sm:px-3">
+              Xuất kho ({data.inventoryItems.length})
+            </TabsTrigger>
           </TabsList>
 
           {/* Pump List Tab */}
@@ -456,16 +462,16 @@ export function GiaoCaContent() {
   const afternoonSeller = data?.afternoonSeller || (morningSeller === 'Hà Bính' ? 'Hà Khánh' : 'Hà Bính')
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Giao Ca</h2>
-          <p className="text-muted-foreground text-sm">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Giao Ca</h2>
+          <p className="text-muted-foreground text-xs sm:text-sm">
             Thống kê giao ca giữa {morningSeller} và {afternoonSeller}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData}>
+        <Button variant="outline" size="sm" onClick={fetchData} className="self-start sm:self-auto">
           <RefreshCwIcon className="h-4 w-4 mr-2" />
           Làm mới
         </Button>
@@ -473,27 +479,28 @@ export function GiaoCaContent() {
 
       {/* Shift Settings */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
+        <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6">
+          <CardTitle className="text-sm sm:text-base flex items-center gap-2">
             <ClockIcon className="h-4 w-4" />
             Cài đặt giao ca
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-2">
-              <Label>Ngày</Label>
+        <CardContent className="px-3 sm:px-6">
+          <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm">Ngày</Label>
               <Input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
+                className="text-sm"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Người trực ca sáng</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm">Ca sáng</Label>
               <Select value={morningSeller} onValueChange={setMorningSeller}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn người ca sáng" />
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Chọn người" />
                 </SelectTrigger>
                 <SelectContent>
                   {sellers.map((seller) => (
@@ -504,24 +511,25 @@ export function GiaoCaContent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Thời gian giao ca</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm">Giờ giao ca</Label>
               <Input
                 type="time"
                 value={shiftTime}
                 onChange={(e) => setShiftTime(e.target.value)}
+                className="text-sm"
               />
             </div>
             <div className="flex items-end">
-              <Button onClick={fetchData} className="w-full">
-                <CalendarIcon className="h-4 w-4 mr-2" />
+              <Button onClick={fetchData} className="w-full text-sm" size="sm">
+                <CalendarIcon className="h-4 w-4 mr-1 sm:mr-2" />
                 Áp dụng
               </Button>
             </div>
           </div>
-          <div className="mt-3 text-sm text-muted-foreground">
-            <span className="font-medium">{morningSeller}</span> (Ca sáng: 00:00 - {shiftTime}) → 
-            <span className="font-medium ml-1">{afternoonSeller}</span> (Ca chiều: {shiftTime} - 23:59)
+          <div className="mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground">
+            <span className="font-medium">{morningSeller}</span> (00:00 - {shiftTime}) → 
+            <span className="font-medium ml-1">{afternoonSeller}</span> ({shiftTime} - 23:59)
           </div>
         </CardContent>
       </Card>
@@ -552,77 +560,77 @@ export function GiaoCaContent() {
 
           {/* Daily Stock Stats Table */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2">
-                <WarehouseIcon className="h-5 w-5" />
+            <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6">
+              <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                <WarehouseIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                 Thống kê kho ngày {data.date ? new Date(data.date).toLocaleDateString('vi-VN') : 'hôm nay'}
               </CardTitle>
-              <CardDescription>
-                Tổng hợp xuất kho theo ca sáng ({data.morningSeller}) và ca chiều ({data.afternoonSeller})
+              <CardDescription className="text-xs sm:text-sm">
+                Ca sáng ({data.morningSeller}) → Ca chiều ({data.afternoonSeller})
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-md border overflow-x-auto">
+            <CardContent className="px-3 sm:px-6">
+              <div className="rounded-md border overflow-x-auto -mx-3 sm:mx-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="min-w-[150px] whitespace-nowrap">Sản phẩm</TableHead>
-                      <TableHead className="text-right min-w-[100px] whitespace-nowrap">Đầu ngày</TableHead>
-                      <TableHead className="text-right min-w-[100px] whitespace-nowrap bg-orange-50 dark:bg-orange-950/20">
-                        {data.morningSeller}
+                      <TableHead className="min-w-[100px] text-xs sm:text-sm whitespace-nowrap sticky left-0 bg-background">Sản phẩm</TableHead>
+                      <TableHead className="text-right min-w-[70px] text-xs sm:text-sm whitespace-nowrap">Đầu ngày</TableHead>
+                      <TableHead className="text-right min-w-[70px] text-xs sm:text-sm whitespace-nowrap bg-orange-50 dark:bg-orange-950/20">
+                        {data.morningSeller.split(' ')[1] || data.morningSeller}
                       </TableHead>
-                      <TableHead className="text-right min-w-[120px] whitespace-nowrap">
-                        Tồn cuối ca ({data.morningSeller.split(' ')[1]})
+                      <TableHead className="text-right min-w-[70px] text-xs sm:text-sm whitespace-nowrap">
+                        Tồn
                       </TableHead>
-                      <TableHead className="text-right min-w-[100px] whitespace-nowrap bg-blue-50 dark:bg-blue-950/20">
-                        {data.afternoonSeller}
+                      <TableHead className="text-right min-w-[70px] text-xs sm:text-sm whitespace-nowrap bg-blue-50 dark:bg-blue-950/20">
+                        {data.afternoonSeller.split(' ')[1] || data.afternoonSeller}
                       </TableHead>
-                      <TableHead className="text-right min-w-[120px] whitespace-nowrap">
-                        Tồn cuối ca ({data.afternoonSeller.split(' ')[1]})
+                      <TableHead className="text-right min-w-[70px] text-xs sm:text-sm whitespace-nowrap">
+                        Tồn
                       </TableHead>
-                      <TableHead className="text-right min-w-[100px] whitespace-nowrap">Tồn cuối ngày</TableHead>
+                      <TableHead className="text-right min-w-[70px] text-xs sm:text-sm whitespace-nowrap">Cuối ngày</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.dailyStock.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8 text-xs sm:text-sm">
                           Không có dữ liệu sản phẩm
                         </TableCell>
                       </TableRow>
                     ) : (
                       data.dailyStock.map((item) => (
                         <TableRow key={item.fuel_name}>
-                          <TableCell className="font-medium">
-                            <Badge variant="outline" className="whitespace-nowrap max-w-[140px] truncate">
+                          <TableCell className="font-medium sticky left-0 bg-background text-xs sm:text-sm">
+                            <span className="truncate block max-w-[90px] sm:max-w-[140px]" title={item.fuel_name}>
                               {item.fuel_name}
-                            </Badge>
+                            </span>
                           </TableCell>
-                          <TableCell className="text-right font-medium">
+                          <TableCell className="text-right font-medium text-xs sm:text-sm">
                             {formatNumber(item.dau_ngay)}
                           </TableCell>
-                          <TableCell className="text-right bg-orange-50/50 dark:bg-orange-950/10">
+                          <TableCell className="text-right bg-orange-50/50 dark:bg-orange-950/10 text-xs sm:text-sm">
                             {item.morning_seller_export > 0 ? (
                               <span className="text-red-600">-{formatNumber(item.morning_seller_export)}</span>
                             ) : '-'}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant={item.ton_cuoi_ca_sang >= 0 ? "secondary" : "destructive"}>
+                          <TableCell className="text-right text-xs sm:text-sm">
+                            <Badge variant={item.ton_cuoi_ca_sang >= 0 ? "secondary" : "destructive"} className="text-[10px] sm:text-xs px-1.5">
                               {formatNumber(item.ton_cuoi_ca_sang)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right bg-blue-50/50 dark:bg-blue-950/10">
+                          <TableCell className="text-right bg-blue-50/50 dark:bg-blue-950/10 text-xs sm:text-sm">
                             {item.afternoon_seller_export > 0 ? (
                               <span className="text-red-600">-{formatNumber(item.afternoon_seller_export)}</span>
                             ) : '-'}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant={item.ton_cuoi_ca_chieu >= 0 ? "secondary" : "destructive"}>
+                          <TableCell className="text-right text-xs sm:text-sm">
+                            <Badge variant={item.ton_cuoi_ca_chieu >= 0 ? "secondary" : "destructive"} className="text-[10px] sm:text-xs px-1.5">
                               {formatNumber(item.ton_cuoi_ca_chieu)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant={item.ton_cuoi_ngay >= 0 ? "default" : "destructive"}>
+                          <TableCell className="text-right text-xs sm:text-sm">
+                            <Badge variant={item.ton_cuoi_ngay >= 0 ? "default" : "destructive"} className="text-[10px] sm:text-xs px-1.5">
                               {formatNumber(item.ton_cuoi_ngay)}
                             </Badge>
                           </TableCell>
