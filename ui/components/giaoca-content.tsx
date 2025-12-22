@@ -106,14 +106,14 @@ function StatsCard({
 }) {
   return (
     <Card className={`${className} overflow-hidden`}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
-        <CardTitle className="text-xs sm:text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 sm:p-3 pb-0.5 sm:pb-1">
+        <CardTitle className="text-[10px] sm:text-xs font-medium truncate">{title}</CardTitle>
+        <Icon className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
       </CardHeader>
-      <CardContent className="p-3 sm:p-4 pt-0">
-        <div className="text-lg sm:text-xl md:text-2xl font-bold break-all">{value}</div>
+      <CardContent className="p-2 sm:p-3 pt-0">
+        <div className="text-sm sm:text-lg md:text-xl font-bold truncate">{value}</div>
         {subtitle && (
-          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 break-words">{subtitle}</p>
+          <p className="text-[9px] sm:text-xs text-muted-foreground truncate">{subtitle}</p>
         )}
       </CardContent>
     </Card>
@@ -155,58 +155,56 @@ function PersonSection({
   const tienMat = data.totalBan - data.totalNo - transferAmountNum
 
   return (
-    <Card>
-      <CardHeader className="pb-2 px-3 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <UserIcon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-            <CardTitle className="text-base sm:text-lg">{title}</CardTitle>
-            <Badge variant="secondary" className="text-xs">{shiftLabel}</Badge>
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-2 px-2 sm:px-4">
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+            <UserIcon className="h-4 w-4 flex-shrink-0" />
+            <CardTitle className="text-sm sm:text-base truncate">{title}</CardTitle>
+            <Badge variant="secondary" className="text-[10px] sm:text-xs flex-shrink-0">{shiftLabel}</Badge>
           </div>
-          <Badge variant="outline" className="text-xs">
-            {data.inventoryItems.length + data.pumpItems.length} giao dịch
+          <Badge variant="outline" className="text-[10px] sm:text-xs flex-shrink-0">
+            {data.inventoryItems.length + data.pumpItems.length}
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 px-3 sm:px-6">
+      <CardContent className="space-y-2 sm:space-y-3 px-2 sm:px-4">
         {/* Transfer Amount Input */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-muted/50 rounded-lg">
-          <Label htmlFor={`transfer-${title}`} className="text-sm font-medium whitespace-nowrap">
-            Số tiền chuyển khoản:
+        <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+          <Label htmlFor={`transfer-${title}`} className="text-xs sm:text-sm font-medium whitespace-nowrap">
+            Chuyển khoản:
           </Label>
-          <div className="flex items-center gap-2 flex-1">
-            <Input
-              id={`transfer-${title}`}
-              type="number"
-              placeholder="0"
-              value={transferAmount}
-              onChange={(e) => onTransferAmountChange(e.target.value)}
-              className="flex-1 sm:max-w-[200px]"
-            />
-            <span className="text-xs sm:text-sm text-muted-foreground">VNĐ</span>
-          </div>
+          <Input
+            id={`transfer-${title}`}
+            type="number"
+            placeholder="0"
+            value={transferAmount}
+            onChange={(e) => onTransferAmountChange(e.target.value)}
+            className="flex-1 h-8 text-sm"
+          />
+          <span className="text-[10px] sm:text-xs text-muted-foreground">đ</span>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-2 sm:gap-3 grid-cols-1">
+        <div className="grid gap-2 grid-cols-3">
           <StatsCard
             title="Tổng tiền bán"
             value={formatCurrency(data.totalBan)}
-            subtitle={`Bơm: ${formatCurrency(data.totalBom)} + Kho: ${formatCurrency(data.totalKho)}`}
+            subtitle={`Bơm + Kho`}
             icon={DollarSignIcon}
             className="bg-green-50 dark:bg-green-950/20"
           />
           <StatsCard
             title="Tổng tiền nợ"
             value={formatCurrency(data.totalNo)}
-            subtitle="Ghi nợ chưa thanh toán"
+            subtitle="Ghi nợ"
             icon={PackageIcon}
             className="bg-red-50 dark:bg-red-950/20"
           />
           <StatsCard
-            title="Tổng tiền mặt"
+            title="Tiền mặt"
             value={formatCurrency(tienMat)}
-            subtitle={`Bán - Nợ - CK: ${formatCurrency(transferAmountNum)}`}
+            subtitle={`Bán - Nợ - CK`}
             icon={DropletIcon}
             className={tienMat >= 0 ? "bg-blue-50 dark:bg-blue-950/20" : "bg-yellow-50 dark:bg-yellow-950/20"}
           />
@@ -462,45 +460,45 @@ export function GiaoCaContent() {
   const afternoonSeller = data?.afternoonSeller || (morningSeller === 'Hà Bính' ? 'Hà Khánh' : 'Hà Bính')
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-2 sm:space-y-4 max-w-full overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Giao Ca</h2>
-          <p className="text-muted-foreground text-xs sm:text-sm">
-            Thống kê giao ca giữa {morningSeller} và {afternoonSeller}
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-2xl font-bold tracking-tight">Giao Ca</h2>
+          <p className="text-muted-foreground text-[10px] sm:text-sm truncate">
+            {morningSeller} ↔ {afternoonSeller}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData} className="self-start sm:self-auto">
-          <RefreshCwIcon className="h-4 w-4 mr-2" />
-          Làm mới
+        <Button variant="outline" size="sm" onClick={fetchData} className="flex-shrink-0 h-8 px-2 sm:px-3">
+          <RefreshCwIcon className="h-3.5 w-3.5 sm:mr-2" />
+          <span className="hidden sm:inline">Làm mới</span>
         </Button>
       </div>
 
       {/* Shift Settings */}
-      <Card>
-        <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6">
-          <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-            <ClockIcon className="h-4 w-4" />
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2 px-2 sm:px-4">
+          <CardTitle className="text-xs sm:text-sm flex items-center gap-2">
+            <ClockIcon className="h-3.5 w-3.5" />
             Cài đặt giao ca
           </CardTitle>
         </CardHeader>
-        <CardContent className="px-3 sm:px-6">
-          <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs sm:text-sm">Ngày</Label>
+        <CardContent className="px-2 sm:px-4 pb-3">
+          <div className="grid gap-2 grid-cols-4">
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Ngày</Label>
               <Input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="text-sm"
+                className="text-xs sm:text-sm h-8"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs sm:text-sm">Ca sáng</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Ca sáng</Label>
               <Select value={morningSeller} onValueChange={setMorningSeller}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Chọn người" />
+                <SelectTrigger className="text-xs sm:text-sm h-8">
+                  <SelectValue placeholder="Chọn" />
                 </SelectTrigger>
                 <SelectContent>
                   {sellers.map((seller) => (
@@ -511,25 +509,23 @@ export function GiaoCaContent() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs sm:text-sm">Giờ giao ca</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] sm:text-xs">Giờ giao</Label>
               <Input
                 type="time"
                 value={shiftTime}
                 onChange={(e) => setShiftTime(e.target.value)}
-                className="text-sm"
+                className="text-xs sm:text-sm h-8"
               />
             </div>
             <div className="flex items-end">
-              <Button onClick={fetchData} className="w-full text-sm" size="sm">
-                <CalendarIcon className="h-4 w-4 mr-1 sm:mr-2" />
-                Áp dụng
+              <Button onClick={fetchData} className="w-full text-xs sm:text-sm h-8" size="sm">
+                OK
               </Button>
             </div>
           </div>
-          <div className="mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground">
-            <span className="font-medium">{morningSeller}</span> (00:00 - {shiftTime}) → 
-            <span className="font-medium ml-1">{afternoonSeller}</span> ({shiftTime} - 23:59)
+          <div className="mt-2 text-[10px] sm:text-xs text-muted-foreground truncate">
+            {morningSeller} (00:00-{shiftTime}) → {afternoonSeller} ({shiftTime}-23:59)
           </div>
         </CardContent>
       </Card>
@@ -537,7 +533,7 @@ export function GiaoCaContent() {
       {/* Person Sections */}
       {data && (
         <>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-2 sm:gap-4 md:grid-cols-2">
             <PersonSection
               data={data.morning}
               title={data.morningSeller}
