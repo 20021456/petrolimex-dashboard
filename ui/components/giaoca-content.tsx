@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { 
   RefreshCwIcon,
-  WalletIcon,
   FuelIcon,
   DollarSignIcon,
   DropletIcon,
@@ -21,10 +21,12 @@ import {
   UserIcon,
   PackageIcon,
   WarehouseIcon,
+  ClockIcon,
 } from "lucide-react"
 
 interface GiaoCaStats {
   seller: string
+  shift: 'morning' | 'afternoon'
   totalKho: number
   totalBom: number
   totalBan: number
@@ -38,23 +40,28 @@ interface GiaoCaStats {
 interface DailyStock {
   fuel_name: string
   dau_ngay: number
-  ha_binh_sang: number
-  ha_khanh_sang: number
-  ha_binh_chieu: number
-  ha_khanh_chieu: number
+  morning_seller_export: number
+  afternoon_seller_export: number
+  ton_cuoi_ca_sang: number
+  ton_cuoi_ca_chieu: number
   ton_cuoi_ngay: number
 }
 
 interface GiaoCaData {
-  haBinh: GiaoCaStats
-  haKhanh: GiaoCaStats
+  morningSeller: string
+  afternoonSeller: string
+  shiftTime: string
+  morning: GiaoCaStats
+  afternoon: GiaoCaStats
   dailyStock: DailyStock[]
+  sellers: string[]
   prices: any[]
   date: string
 }
 
 // Helper functions
 const formatCurrency = (value: number) => {
+  if (isNaN(value)) return '0 ₫'
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND',
@@ -63,6 +70,7 @@ const formatCurrency = (value: number) => {
 }
 
 const formatNumber = (value: number) => {
+  if (isNaN(value)) return '0'
   return new Intl.NumberFormat('vi-VN', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
@@ -79,15 +87,6 @@ const formatDateTime = (dateStr: string | null) => {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-const getLocalDateTimeString = (date: Date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
 // Stats Card Component
@@ -107,13 +106,13 @@ function StatsCard({
   return (
     <Card className={className}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <CardTitle className="text-sm font-medium truncate">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-xl sm:text-2xl font-bold truncate">{value}</div>
         {subtitle && (
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
+          <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
         )}
       </CardContent>
     </Card>
@@ -123,13 +122,15 @@ function StatsCard({
 // Person Section Component
 function PersonSection({ 
   data, 
-  title, 
+  title,
+  shiftLabel,
   pumpFilter,
   onPumpFilterChange,
 }: { 
   data: GiaoCaStats
   title: string
-  pumpFilter: { minAmount: string; maxAmount: string; timeFrom: string; timeTo: string }
+  shiftLabel: string
+  pumpFilter: { minAmount: string; maxAmount: string }
   onPumpFilterChange: (filter: any) => void
 }) {
   const [showPumpFilter, setShowPumpFilter] = React.useState(false)
@@ -137,7 +138,7 @@ function PersonSection({
   // Filter pump items locally based on amount filter
   const filteredPumpItems = React.useMemo(() => {
     return data.pumpItems.filter((item: any) => {
-      const amount = item.tien || 0
+      const amount = parseFloat(item.tien) || 0
       if (pumpFilter.minAmount && amount < parseFloat(pumpFilter.minAmount)) return false
       if (pumpFilter.maxAmount && amount > parseFloat(pumpFilter.maxAmount)) return false
       return true
@@ -148,11 +149,14 @@ function PersonSection({
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <UserIcon className="h-5 w-5" />
-            <CardTitle>{title}</CardTitle>
+          <div className="flex items-center gap-2 min-w-0">
+            <UserIcon className="h-5 w-5 flex-shrink-0" />
+            <CardTitle className="truncate">{title}</CardTitle>
+            <Badge variant="secondary" className="flex-shrink-0">{shiftLabel}</Badge>
           </div>
-          <Badge variant="outline">{data.inventoryItems.length + data.pumpItems.length} giao dịch</Badge>
+          <Badge variant="outline" className="flex-shrink-0">
+            {data.inventoryItems.length + data.pumpItems.length} giao dịch
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -192,13 +196,13 @@ function PersonSection({
         <Tabs defaultValue="pump" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="pump">Danh sách bơm ({filteredPumpItems.length})</TabsTrigger>
-            <TabsTrigger value="inventory">Nhiên liệu đã bán ({data.inventoryItems.length})</TabsTrigger>
+            <TabsTrigger value="inventory">Xuất kho ({data.inventoryItems.length})</TabsTrigger>
           </TabsList>
 
           {/* Pump List Tab */}
           <TabsContent value="pump" className="space-y-3">
             {/* Pump Filter */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
@@ -208,7 +212,7 @@ function PersonSection({
                 Bộ lọc
               </Button>
               {(pumpFilter.minAmount || pumpFilter.maxAmount) && (
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="text-xs">
                   {pumpFilter.minAmount && `Từ ${formatCurrency(parseFloat(pumpFilter.minAmount))}`}
                   {pumpFilter.minAmount && pumpFilter.maxAmount && ' - '}
                   {pumpFilter.maxAmount && `Đến ${formatCurrency(parseFloat(pumpFilter.maxAmount))}`}
@@ -242,7 +246,7 @@ function PersonSection({
                   variant="ghost"
                   size="sm"
                   className="mt-3"
-                  onClick={() => onPumpFilterChange({ minAmount: '', maxAmount: '', timeFrom: '', timeTo: '' })}
+                  onClick={() => onPumpFilterChange({ minAmount: '', maxAmount: '' })}
                 >
                   Xóa bộ lọc
                 </Button>
@@ -271,16 +275,16 @@ function PersonSection({
                   ) : (
                     filteredPumpItems.slice(0, 50).map((item: any) => (
                       <TableRow key={item.id}>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap text-sm">
                           {formatDateTime(item.ket_thuc_bom)}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">Cột {item.cot_bom || '-'}</Badge>
                         </TableCell>
-                        <TableCell>{item.nhien_lieu || '-'}</TableCell>
-                        <TableCell className="text-right">{formatNumber(item.lit || 0)} lít</TableCell>
+                        <TableCell className="truncate max-w-[150px]">{item.nhien_lieu || '-'}</TableCell>
+                        <TableCell className="text-right">{formatNumber(parseFloat(item.lit) || 0)} lít</TableCell>
                         <TableCell className="text-right font-medium text-green-600">
-                          {formatCurrency(item.tien || 0)}
+                          {formatCurrency(parseFloat(item.tien) || 0)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -318,10 +322,10 @@ function PersonSection({
                   ) : (
                     data.inventoryItems.map((item: any) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.customer_name || '-'}</TableCell>
-                        <TableCell>{item.item_name}</TableCell>
-                        <TableCell className="text-right">{formatNumber(item.quantity)} {item.unit || 'lít'}</TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className="font-medium truncate max-w-[150px]">{item.customer_name || '-'}</TableCell>
+                        <TableCell className="truncate max-w-[120px]">{item.item_name}</TableCell>
+                        <TableCell className="text-right">{formatNumber(parseFloat(item.quantity) || 0)} {item.unit || 'lít'}</TableCell>
+                        <TableCell className="whitespace-nowrap text-sm">
                           {formatDateTime(item.sale_time)}
                         </TableCell>
                         <TableCell>
@@ -348,19 +352,19 @@ export function GiaoCaContent() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
-  // Time filter state
+  // Filter state
   const today = new Date()
-  const startOfDay = new Date(today)
-  startOfDay.setHours(0, 0, 0, 0)
-  const endOfDay = new Date(today)
-  endOfDay.setHours(23, 59, 59, 999)
+  const todayStr = today.getFullYear() + '-' + 
+                   String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                   String(today.getDate()).padStart(2, '0')
+  
+  const [selectedDate, setSelectedDate] = React.useState(todayStr)
+  const [morningSeller, setMorningSeller] = React.useState('Hà Bính')
+  const [shiftTime, setShiftTime] = React.useState('12:00')
 
-  const [timeFrom, setTimeFrom] = React.useState(getLocalDateTimeString(startOfDay))
-  const [timeTo, setTimeTo] = React.useState(getLocalDateTimeString(endOfDay))
-
-  // Pump filter state (shared for display but filtered locally)
-  const [haBinhPumpFilter, setHaBinhPumpFilter] = React.useState({ minAmount: '', maxAmount: '', timeFrom: '', timeTo: '' })
-  const [haKhanhPumpFilter, setHaKhanhPumpFilter] = React.useState({ minAmount: '', maxAmount: '', timeFrom: '', timeTo: '' })
+  // Pump filter state
+  const [morningPumpFilter, setMorningPumpFilter] = React.useState({ minAmount: '', maxAmount: '' })
+  const [afternoonPumpFilter, setAfternoonPumpFilter] = React.useState({ minAmount: '', maxAmount: '' })
 
   // Fetch data
   const fetchData = React.useCallback(async () => {
@@ -369,24 +373,9 @@ export function GiaoCaContent() {
 
     try {
       const params = new URLSearchParams()
-      if (timeFrom) {
-        const fromDate = new Date(timeFrom)
-        const fromStr = fromDate.getFullYear() + '-' +
-          String(fromDate.getMonth() + 1).padStart(2, '0') + '-' +
-          String(fromDate.getDate()).padStart(2, '0') + ' ' +
-          String(fromDate.getHours()).padStart(2, '0') + ':' +
-          String(fromDate.getMinutes()).padStart(2, '0') + ':00'
-        params.append('from', fromStr)
-      }
-      if (timeTo) {
-        const toDate = new Date(timeTo)
-        const toStr = toDate.getFullYear() + '-' +
-          String(toDate.getMonth() + 1).padStart(2, '0') + '-' +
-          String(toDate.getDate()).padStart(2, '0') + ' ' +
-          String(toDate.getHours()).padStart(2, '0') + ':' +
-          String(toDate.getMinutes()).padStart(2, '0') + ':59'
-        params.append('to', toStr)
-      }
+      params.append('morningSeller', morningSeller)
+      params.append('shiftTime', shiftTime)
+      params.append('date', selectedDate)
 
       const response = await fetch(`/api/giaoca?${params.toString()}`)
       const result = await response.json()
@@ -403,7 +392,7 @@ export function GiaoCaContent() {
     } finally {
       setLoading(false)
     }
-  }, [timeFrom, timeTo])
+  }, [morningSeller, shiftTime, selectedDate])
 
   React.useEffect(() => {
     fetchData()
@@ -441,6 +430,9 @@ export function GiaoCaContent() {
     )
   }
 
+  const sellers = data?.sellers || ['Hà Bính', 'Hà Khánh']
+  const afternoonSeller = data?.afternoonSeller || (morningSeller === 'Hà Bính' ? 'Hà Khánh' : 'Hà Bính')
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -448,7 +440,7 @@ export function GiaoCaContent() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Giao Ca</h2>
           <p className="text-muted-foreground text-sm">
-            Thống kê giao ca giữa Hà Bính và Hà Khánh
+            Thống kê giao ca giữa {morningSeller} và {afternoonSeller}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchData}>
@@ -457,53 +449,57 @@ export function GiaoCaContent() {
         </Button>
       </div>
 
-      {/* Time Filter */}
+      {/* Shift Settings */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4" />
-            Bộ lọc thời gian giao ca
+            <ClockIcon className="h-4 w-4" />
+            Cài đặt giao ca
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="timeFrom">Từ thời gian</Label>
+              <Label>Ngày</Label>
               <Input
-                id="timeFrom"
-                type="datetime-local"
-                value={timeFrom}
-                onChange={(e) => setTimeFrom(e.target.value)}
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="timeTo">Đến thời gian</Label>
+              <Label>Người trực ca sáng</Label>
+              <Select value={morningSeller} onValueChange={setMorningSeller}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn người ca sáng" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sellers.map((seller) => (
+                    <SelectItem key={seller} value={seller}>
+                      {seller}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Thời gian giao ca</Label>
               <Input
-                id="timeTo"
-                type="datetime-local"
-                value={timeTo}
-                onChange={(e) => setTimeTo(e.target.value)}
+                type="time"
+                value={shiftTime}
+                onChange={(e) => setShiftTime(e.target.value)}
               />
             </div>
-            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-2">
-              <Button onClick={fetchData} className="flex-1 sm:flex-none">
+            <div className="flex items-end">
+              <Button onClick={fetchData} className="w-full">
+                <CalendarIcon className="h-4 w-4 mr-2" />
                 Áp dụng
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const now = new Date()
-                  const start = new Date(now)
-                  start.setHours(0, 0, 0, 0)
-                  const end = new Date(now)
-                  end.setHours(23, 59, 59, 999)
-                  setTimeFrom(getLocalDateTimeString(start))
-                  setTimeTo(getLocalDateTimeString(end))
-                }}
-              >
-                Hôm nay
-              </Button>
             </div>
+          </div>
+          <div className="mt-3 text-sm text-muted-foreground">
+            <span className="font-medium">{morningSeller}</span> (Ca sáng: 00:00 - {shiftTime}) → 
+            <span className="font-medium ml-1">{afternoonSeller}</span> (Ca chiều: {shiftTime} - 23:59)
           </div>
         </CardContent>
       </Card>
@@ -513,16 +509,18 @@ export function GiaoCaContent() {
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             <PersonSection
-              data={data.haBinh}
-              title="Hà Bính"
-              pumpFilter={haBinhPumpFilter}
-              onPumpFilterChange={setHaBinhPumpFilter}
+              data={data.morning}
+              title={data.morningSeller}
+              shiftLabel="Ca sáng"
+              pumpFilter={morningPumpFilter}
+              onPumpFilterChange={setMorningPumpFilter}
             />
             <PersonSection
-              data={data.haKhanh}
-              title="Hà Khánh"
-              pumpFilter={haKhanhPumpFilter}
-              onPumpFilterChange={setHaKhanhPumpFilter}
+              data={data.afternoon}
+              title={data.afternoonSeller}
+              shiftLabel="Ca chiều"
+              pumpFilter={afternoonPumpFilter}
+              onPumpFilterChange={setAfternoonPumpFilter}
             />
           </div>
 
@@ -534,7 +532,7 @@ export function GiaoCaContent() {
                 Thống kê kho ngày {data.date ? new Date(data.date).toLocaleDateString('vi-VN') : 'hôm nay'}
               </CardTitle>
               <CardDescription>
-                Tổng hợp xuất kho theo ca sáng (trước 12h) và ca chiều (từ 12h)
+                Tổng hợp xuất kho theo ca sáng ({data.morningSeller}) và ca chiều ({data.afternoonSeller})
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -542,13 +540,21 @@ export function GiaoCaContent() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="min-w-[120px]">Sản phẩm</TableHead>
-                      <TableHead className="text-right min-w-[100px]">Đầu ngày</TableHead>
-                      <TableHead className="text-right min-w-[100px] bg-orange-50 dark:bg-orange-950/20">Hà Bính (Sáng)</TableHead>
-                      <TableHead className="text-right min-w-[100px] bg-blue-50 dark:bg-blue-950/20">Hà Khánh (Sáng)</TableHead>
-                      <TableHead className="text-right min-w-[100px] bg-orange-50 dark:bg-orange-950/20">Hà Bính (Chiều)</TableHead>
-                      <TableHead className="text-right min-w-[100px] bg-blue-50 dark:bg-blue-950/20">Hà Khánh (Chiều)</TableHead>
-                      <TableHead className="text-right min-w-[100px]">Tồn cuối ngày</TableHead>
+                      <TableHead className="min-w-[150px] whitespace-nowrap">Sản phẩm</TableHead>
+                      <TableHead className="text-right min-w-[100px] whitespace-nowrap">Đầu ngày</TableHead>
+                      <TableHead className="text-right min-w-[100px] whitespace-nowrap bg-orange-50 dark:bg-orange-950/20">
+                        {data.morningSeller}
+                      </TableHead>
+                      <TableHead className="text-right min-w-[120px] whitespace-nowrap">
+                        Tồn cuối ca ({data.morningSeller.split(' ')[1]})
+                      </TableHead>
+                      <TableHead className="text-right min-w-[100px] whitespace-nowrap bg-blue-50 dark:bg-blue-950/20">
+                        {data.afternoonSeller}
+                      </TableHead>
+                      <TableHead className="text-right min-w-[120px] whitespace-nowrap">
+                        Tồn cuối ca ({data.afternoonSeller.split(' ')[1]})
+                      </TableHead>
+                      <TableHead className="text-right min-w-[100px] whitespace-nowrap">Tồn cuối ngày</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -562,33 +568,35 @@ export function GiaoCaContent() {
                       data.dailyStock.map((item) => (
                         <TableRow key={item.fuel_name}>
                           <TableCell className="font-medium">
-                            <Badge variant="outline">{item.fuel_name}</Badge>
+                            <Badge variant="outline" className="whitespace-nowrap max-w-[140px] truncate">
+                              {item.fuel_name}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right font-medium">
                             {formatNumber(item.dau_ngay)}
                           </TableCell>
                           <TableCell className="text-right bg-orange-50/50 dark:bg-orange-950/10">
-                            {item.ha_binh_sang > 0 ? (
-                              <span className="text-red-600">-{formatNumber(item.ha_binh_sang)}</span>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell className="text-right bg-blue-50/50 dark:bg-blue-950/10">
-                            {item.ha_khanh_sang > 0 ? (
-                              <span className="text-red-600">-{formatNumber(item.ha_khanh_sang)}</span>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell className="text-right bg-orange-50/50 dark:bg-orange-950/10">
-                            {item.ha_binh_chieu > 0 ? (
-                              <span className="text-red-600">-{formatNumber(item.ha_binh_chieu)}</span>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell className="text-right bg-blue-50/50 dark:bg-blue-950/10">
-                            {item.ha_khanh_chieu > 0 ? (
-                              <span className="text-red-600">-{formatNumber(item.ha_khanh_chieu)}</span>
+                            {item.morning_seller_export > 0 ? (
+                              <span className="text-red-600">-{formatNumber(item.morning_seller_export)}</span>
                             ) : '-'}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Badge variant={item.ton_cuoi_ngay > 0 ? "default" : "destructive"}>
+                            <Badge variant={item.ton_cuoi_ca_sang >= 0 ? "secondary" : "destructive"}>
+                              {formatNumber(item.ton_cuoi_ca_sang)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right bg-blue-50/50 dark:bg-blue-950/10">
+                            {item.afternoon_seller_export > 0 ? (
+                              <span className="text-red-600">-{formatNumber(item.afternoon_seller_export)}</span>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant={item.ton_cuoi_ca_chieu >= 0 ? "secondary" : "destructive"}>
+                              {formatNumber(item.ton_cuoi_ca_chieu)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant={item.ton_cuoi_ngay >= 0 ? "default" : "destructive"}>
                               {formatNumber(item.ton_cuoi_ngay)}
                             </Badge>
                           </TableCell>
@@ -605,4 +613,3 @@ export function GiaoCaContent() {
     </div>
   )
 }
-

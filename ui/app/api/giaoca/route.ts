@@ -3,23 +3,24 @@ import { query } from '@/lib/db';
 
 interface GiaoCaStats {
   seller: string;
-  totalKho: number;        // Tổng tiền từ xuất kho
-  totalBom: number;        // Tổng tiền từ fuel_pump
-  totalBan: number;        // Tổng cộng
-  totalLit: number;        // Tổng lít đã bán
-  litKho: number;          // Lít từ xuất kho
-  litBom: number;          // Lít từ bơm
-  inventoryItems: any[];   // Danh sách xuất kho
-  pumpItems: any[];        // Danh sách bơm
+  shift: 'morning' | 'afternoon';
+  totalKho: number;
+  totalBom: number;
+  totalBan: number;
+  totalLit: number;
+  litKho: number;
+  litBom: number;
+  inventoryItems: any[];
+  pumpItems: any[];
 }
 
 interface DailyStock {
   fuel_name: string;
   dau_ngay: number;
-  ha_binh_sang: number;
-  ha_khanh_sang: number;
-  ha_binh_chieu: number;
-  ha_khanh_chieu: number;
+  morning_seller_export: number;
+  afternoon_seller_export: number;
+  ton_cuoi_ca_sang: number;
+  ton_cuoi_ca_chieu: number;
   ton_cuoi_ngay: number;
 }
 
@@ -50,9 +51,9 @@ async function ensureTableExists() {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
-    const seller = searchParams.get('seller'); // 'Hà Bính' | 'Hà Khánh'
+    const morningSeller = searchParams.get('morningSeller') || 'Hà Bính';
+    const shiftTime = searchParams.get('shiftTime') || '12:00'; // Thời gian giao ca (HH:mm)
+    const dateStr = searchParams.get('date'); // YYYY-MM-DD
     const minAmount = searchParams.get('minAmount');
     const maxAmount = searchParams.get('maxAmount');
 
@@ -71,6 +72,30 @@ export async function GET(request: NextRequest) {
     // Đảm bảo bảng fuel_inventory_import tồn tại
     await ensureTableExists();
 
+    // Lấy danh sách seller_name từ inventory_items
+    const sellers = await query<any[]>(`
+      SELECT DISTINCT seller_name 
+      FROM inventory_items 
+      WHERE seller_name IS NOT NULL AND seller_name != ''
+      ORDER BY seller_name ASC
+    `);
+    const sellerList = sellers.map((s: any) => s.seller_name);
+
+    // Xác định người ca sáng và ca chiều
+    const afternoonSeller = sellerList.find((s: string) => s !== morningSeller) || 
+                            (morningSeller === 'Hà Bính' ? 'Hà Khánh' : 'Hà Bính');
+
+    // Ngày cần tính (mặc định hôm nay)
+    const today = new Date();
+    const todayStr = dateStr || (today.getFullYear() + '-' + 
+                    String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                    String(today.getDate()).padStart(2, '0'));
+
+    // Thời gian bắt đầu và kết thúc ca
+    const dayStart = `${todayStr} 00:00:00`;
+    const shiftTimeStr = `${todayStr} ${shiftTime}:00`;
+    const dayEnd = `${todayStr} 23:59:59`;
+
     // Lấy danh sách giá từ fuel_prices
     const prices = await query<any[]>(`
       SELECT fuel_name, price, unit FROM fuel_prices ORDER BY fuel_name ASC
@@ -79,81 +104,68 @@ export async function GET(request: NextRequest) {
     // Tạo map giá để tính toán
     const priceMap: Record<string, number> = {};
     prices.forEach((p: any) => {
-      priceMap[p.fuel_name] = p.price;
+      priceMap[p.fuel_name] = parseFloat(p.price) || 0;
     });
 
-    // Build date conditions
-    let inventoryDateWhere = '';
-    let pumpDateWhere = '';
-    const inventoryConditions: string[] = [];
-    const pumpConditions: string[] = [];
-
-    if (from) {
-      inventoryConditions.push(`sale_time >= '${from}'`);
-      pumpConditions.push(`ket_thuc_bom >= '${from}'`);
-    }
-    if (to) {
-      inventoryConditions.push(`sale_time <= '${to}'`);
-      pumpConditions.push(`ket_thuc_bom <= '${to}'`);
-    }
-
-    if (inventoryConditions.length > 0) {
-      inventoryDateWhere = ' AND ' + inventoryConditions.join(' AND ');
-    }
-    if (pumpConditions.length > 0) {
-      pumpDateWhere = ' WHERE ' + pumpConditions.join(' AND ');
-    }
-
     // Pump amount filter
-    let pumpAmountWhere = '';
+    let pumpAmountFilter = '';
     if (minAmount) {
-      pumpAmountWhere += pumpDateWhere ? ` AND tien >= ${parseFloat(minAmount)}` : ` WHERE tien >= ${parseFloat(minAmount)}`;
+      pumpAmountFilter += ` AND tien >= ${parseFloat(minAmount)}`;
     }
     if (maxAmount) {
-      const prefix = pumpDateWhere || pumpAmountWhere ? ' AND ' : ' WHERE ';
-      pumpAmountWhere += `${prefix}tien <= ${parseFloat(maxAmount)}`;
+      pumpAmountFilter += ` AND tien <= ${parseFloat(maxAmount)}`;
     }
 
-    // Lấy thống kê cho từng người
-    const getSellerStats = async (sellerName: string): Promise<GiaoCaStats> => {
-      // 1. Dữ liệu từ xuất kho (inventory_items)
+    // Lấy thống kê cho một người theo ca
+    const getSellerStats = async (
+      sellerName: string, 
+      shift: 'morning' | 'afternoon',
+      pumpFrom: string,
+      pumpTo: string
+    ): Promise<GiaoCaStats> => {
+      // 1. Dữ liệu từ xuất kho (inventory_items) theo seller và thời gian
       const inventoryItems = await query<any[]>(`
         SELECT 
           id, customer_name, item_name, quantity, unit, sale_time, payment_status, created_at
         FROM inventory_items
-        WHERE seller_name = ?${inventoryDateWhere}
+        WHERE seller_name = ?
+          AND sale_time >= ?
+          AND sale_time <= ?
         ORDER BY sale_time DESC
-      `, [sellerName]);
+      `, [sellerName, pumpFrom, pumpTo]);
 
       // Tính tổng tiền kho và lít
       let totalKho = 0;
       let litKho = 0;
       inventoryItems.forEach((item: any) => {
         const price = priceMap[item.item_name] || 0;
-        totalKho += item.quantity * price;
-        litKho += item.quantity;
+        const qty = parseFloat(item.quantity) || 0;
+        totalKho += qty * price;
+        litKho += qty;
       });
 
-      // 2. Dữ liệu từ fuel_pump (tất cả giao dịch bơm trong khoảng thời gian)
-      // Lưu ý: fuel_pump không có seller_name, nên lấy tất cả để hiển thị
+      // 2. Dữ liệu từ fuel_pump (giao dịch bơm trong khoảng thời gian của ca)
       const pumpItems = await query<any[]>(`
         SELECT 
           id, ma_bom, cot_bom, nhien_lieu, gia, lit, tien, ket_thuc_bom, khach_hang
         FROM fuel_pump
-        ${pumpDateWhere}${pumpAmountWhere}
+        WHERE ket_thuc_bom >= ?
+          AND ket_thuc_bom <= ?
+          ${pumpAmountFilter}
         ORDER BY ket_thuc_bom DESC
-      `);
+      `, [pumpFrom, pumpTo]);
 
       // Tính tổng tiền bơm và lít bơm
       let totalBom = 0;
       let litBom = 0;
       pumpItems.forEach((item: any) => {
-        totalBom += item.tien || 0;
-        litBom += item.lit || 0;
+        totalBom += parseFloat(item.tien) || 0;
+        litBom += parseFloat(item.lit) || 0;
       });
 
       return {
         seller: sellerName,
+        shift,
         totalKho,
         totalBom,
         totalBan: totalKho + totalBom,
@@ -165,20 +177,13 @@ export async function GET(request: NextRequest) {
       };
     };
 
-    // Lấy stats cho cả 2 người
-    const [haBinhStats, haKhanhStats] = await Promise.all([
-      getSellerStats('Hà Bính'),
-      getSellerStats('Hà Khánh'),
-    ]);
+    // Lấy stats cho người ca sáng (từ đầu ngày đến giờ giao ca)
+    const morningStats = await getSellerStats(morningSeller, 'morning', dayStart, shiftTimeStr);
+    
+    // Lấy stats cho người ca chiều (từ giờ giao ca đến cuối ngày)
+    const afternoonStats = await getSellerStats(afternoonSeller, 'afternoon', shiftTimeStr, dayEnd);
 
-    // Tính thống kê kho theo ngày (dựa vào ngày hiện tại)
-    const today = new Date();
-    const todayStr = today.getFullYear() + '-' + 
-                    String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                    String(today.getDate()).padStart(2, '0');
-
-    // Tính tồn kho từ fuel_inventory_import và inventory_items
-    // Helper function để tính tồn kho cho từng loại nhiên liệu
+    // Tính tồn kho cho từng loại nhiên liệu
     const calculateStockForFuel = async (fuelName: string) => {
       // Tổng số lượng nhập
       const [importResult] = await query<any[]>(`
@@ -187,57 +192,47 @@ export async function GET(request: NextRequest) {
         WHERE fuel_name = ?
       `, [fuelName]);
 
-      // Tổng số lượng xuất từ inventory_items (xuất kho thủ công)
-      const [manualExportResult] = await query<any[]>(`
-        SELECT COALESCE(SUM(quantity), 0) as total_manual_export
+      // Tổng số lượng xuất từ inventory_items trước ngày hôm nay
+      const [exportBeforeToday] = await query<any[]>(`
+        SELECT COALESCE(SUM(quantity), 0) as total_export
         FROM inventory_items
-        WHERE item_name = ? OR item_name LIKE ?
-      `, [fuelName, `%${fuelName}%`]);
+        WHERE (item_name = ? OR item_name LIKE ?)
+          AND DATE(sale_time) < ?
+      `, [fuelName, `%${fuelName}%`, todayStr]);
 
       const totalImport = parseFloat(importResult?.total_import || 0);
-      const totalManualExport = parseFloat(manualExportResult?.total_manual_export || 0);
-      const currentStock = totalImport - totalManualExport;
+      const totalExportBefore = parseFloat(exportBeforeToday?.total_export || 0);
+      const stockAtDayStart = totalImport - totalExportBefore;
 
       return {
         fuel_name: fuelName,
         total_import: totalImport,
-        total_export: totalManualExport,
-        current_stock: currentStock,
+        stock_at_day_start: stockAtDayStart,
       };
     };
 
-    // Tính tồn kho cho tất cả các loại nhiên liệu
-    const stockData = await Promise.all(
-      prices.map((p: any) => calculateStockForFuel(p.fuel_name))
-    );
-
-    // Tính xuất kho theo từng người và ca (sáng: trước 12h, chiều: sau 12h)
-    const getDailyExport = async (sellerName: string, shift: 'morning' | 'afternoon') => {
-      const hourCondition = shift === 'morning' 
-        ? 'HOUR(sale_time) < 12' 
-        : 'HOUR(sale_time) >= 12';
-      
+    // Tính xuất kho theo từng người trong ngày
+    const getDailyExportBySeller = async (sellerName: string) => {
       const result = await query<any[]>(`
-        SELECT item_name, SUM(quantity) as total_qty
+        SELECT item_name, COALESCE(SUM(quantity), 0) as total_qty
         FROM inventory_items
         WHERE seller_name = ?
           AND DATE(sale_time) = ?
-          AND ${hourCondition}
         GROUP BY item_name
       `, [sellerName, todayStr]);
 
       const map: Record<string, number> = {};
       result.forEach((r: any) => {
-        map[r.item_name] = r.total_qty;
+        map[r.item_name] = parseFloat(r.total_qty) || 0;
       });
       return map;
     };
 
-    const [haBinhSang, haKhanhSang, haBinhChieu, haKhanhChieu] = await Promise.all([
-      getDailyExport('Hà Bính', 'morning'),
-      getDailyExport('Hà Khánh', 'morning'),
-      getDailyExport('Hà Bính', 'afternoon'),
-      getDailyExport('Hà Khánh', 'afternoon'),
+    // Tính tồn kho và xuất kho
+    const [stockData, morningExport, afternoonExport] = await Promise.all([
+      Promise.all(prices.map((p: any) => calculateStockForFuel(p.fuel_name))),
+      getDailyExportBySeller(morningSeller),
+      getDailyExportBySeller(afternoonSeller),
     ]);
 
     // Tạo bảng thống kê kho ngày
@@ -245,33 +240,35 @@ export async function GET(request: NextRequest) {
       const fuelName = p.fuel_name;
       const stockItem = stockData.find((s: any) => s.fuel_name === fuelName);
       
-      // Tính tồn đầu ngày = tồn hiện tại + xuất trong ngày
-      const hbSang = haBinhSang[fuelName] || 0;
-      const hkSang = haKhanhSang[fuelName] || 0;
-      const hbChieu = haBinhChieu[fuelName] || 0;
-      const hkChieu = haKhanhChieu[fuelName] || 0;
-      const totalExportToday = hbSang + hkSang + hbChieu + hkChieu;
+      const dauNgay = stockItem?.stock_at_day_start || 0;
+      const morningExp = morningExport[fuelName] || 0;
+      const afternoonExp = afternoonExport[fuelName] || 0;
       
-      const currentStock = stockItem?.current_stock || 0;
-      const dauNgay = currentStock + totalExportToday;
+      const tonCuoiCaSang = dauNgay - morningExp;
+      const tonCuoiCaChieu = tonCuoiCaSang - afternoonExp;
+      const tonCuoiNgay = tonCuoiCaChieu;
 
       return {
         fuel_name: fuelName,
         dau_ngay: dauNgay,
-        ha_binh_sang: hbSang,
-        ha_khanh_sang: hkSang,
-        ha_binh_chieu: hbChieu,
-        ha_khanh_chieu: hkChieu,
-        ton_cuoi_ngay: currentStock,
+        morning_seller_export: morningExp,
+        afternoon_seller_export: afternoonExp,
+        ton_cuoi_ca_sang: tonCuoiCaSang,
+        ton_cuoi_ca_chieu: tonCuoiCaChieu,
+        ton_cuoi_ngay: tonCuoiNgay,
       };
     });
 
     return NextResponse.json({
       success: true,
       data: {
-        haBinh: haBinhStats,
-        haKhanh: haKhanhStats,
+        morningSeller,
+        afternoonSeller,
+        shiftTime,
+        morning: morningStats,
+        afternoon: afternoonStats,
         dailyStock: dailyStockStats,
+        sellers: sellerList.length > 0 ? sellerList : ['Hà Bính', 'Hà Khánh'],
         prices: prices,
         date: todayStr,
       }
@@ -285,4 +282,3 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
-
