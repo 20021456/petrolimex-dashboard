@@ -30,6 +30,7 @@ interface GiaoCaStats {
   totalKho: number
   totalBom: number
   totalBan: number
+  totalNo: number
   totalLit: number
   litKho: number
   litBom: number
@@ -126,12 +127,16 @@ function PersonSection({
   shiftLabel,
   pumpFilter,
   onPumpFilterChange,
+  transferAmount,
+  onTransferAmountChange,
 }: { 
   data: GiaoCaStats
   title: string
   shiftLabel: string
   pumpFilter: { minAmount: string; maxAmount: string }
   onPumpFilterChange: (filter: any) => void
+  transferAmount: string
+  onTransferAmountChange: (value: string) => void
 }) {
   const [showPumpFilter, setShowPumpFilter] = React.useState(false)
 
@@ -144,6 +149,10 @@ function PersonSection({
       return true
     })
   }, [data.pumpItems, pumpFilter.minAmount, pumpFilter.maxAmount])
+
+  // Tính tiền mặt = Tổng tiền bán - Tiền nợ - Tiền chuyển khoản
+  const transferAmountNum = parseFloat(transferAmount) || 0
+  const tienMat = data.totalBan - data.totalNo - transferAmountNum
 
   return (
     <Card>
@@ -160,35 +169,44 @@ function PersonSection({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Transfer Amount Input */}
+        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+          <Label htmlFor={`transfer-${title}`} className="whitespace-nowrap font-medium">
+            Số tiền chuyển khoản:
+          </Label>
+          <Input
+            id={`transfer-${title}`}
+            type="number"
+            placeholder="0"
+            value={transferAmount}
+            onChange={(e) => onTransferAmountChange(e.target.value)}
+            className="max-w-[200px]"
+          />
+          <span className="text-sm text-muted-foreground">VNĐ</span>
+        </div>
+
         {/* Stats Cards */}
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          <StatsCard
-            title="Tổng tiền kho"
-            value={formatCurrency(data.totalKho)}
-            subtitle={`${formatNumber(data.litKho)} lít`}
-            icon={PackageIcon}
-            className="bg-orange-50 dark:bg-orange-950/20"
-          />
-          <StatsCard
-            title="Tổng tiền bơm"
-            value={formatCurrency(data.totalBom)}
-            subtitle={`${formatNumber(data.litBom)} lít`}
-            icon={FuelIcon}
-            className="bg-blue-50 dark:bg-blue-950/20"
-          />
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
           <StatsCard
             title="Tổng tiền bán"
             value={formatCurrency(data.totalBan)}
-            subtitle="Kho + Bơm"
+            subtitle={`Bơm: ${formatCurrency(data.totalBom)} + Kho: ${formatCurrency(data.totalKho)}`}
             icon={DollarSignIcon}
             className="bg-green-50 dark:bg-green-950/20"
           />
           <StatsCard
-            title="Số lít đã bán"
-            value={formatNumber(data.totalLit)}
-            subtitle="Tổng cộng"
+            title="Tổng tiền nợ"
+            value={formatCurrency(data.totalNo)}
+            subtitle="Ghi nợ chưa thanh toán"
+            icon={PackageIcon}
+            className="bg-red-50 dark:bg-red-950/20"
+          />
+          <StatsCard
+            title="Tổng tiền mặt"
+            value={formatCurrency(tienMat)}
+            subtitle={`Bán - Nợ - CK: ${formatCurrency(transferAmountNum)}`}
             icon={DropletIcon}
-            className="bg-purple-50 dark:bg-purple-950/20"
+            className={tienMat >= 0 ? "bg-blue-50 dark:bg-blue-950/20" : "bg-yellow-50 dark:bg-yellow-950/20"}
           />
         </div>
 
@@ -366,6 +384,10 @@ export function GiaoCaContent() {
   const [morningPumpFilter, setMorningPumpFilter] = React.useState({ minAmount: '', maxAmount: '' })
   const [afternoonPumpFilter, setAfternoonPumpFilter] = React.useState({ minAmount: '', maxAmount: '' })
 
+  // Transfer amount state
+  const [morningTransfer, setMorningTransfer] = React.useState('')
+  const [afternoonTransfer, setAfternoonTransfer] = React.useState('')
+
   // Fetch data
   const fetchData = React.useCallback(async () => {
     setLoading(true)
@@ -514,6 +536,8 @@ export function GiaoCaContent() {
               shiftLabel="Ca sáng"
               pumpFilter={morningPumpFilter}
               onPumpFilterChange={setMorningPumpFilter}
+              transferAmount={morningTransfer}
+              onTransferAmountChange={setMorningTransfer}
             />
             <PersonSection
               data={data.afternoon}
@@ -521,6 +545,8 @@ export function GiaoCaContent() {
               shiftLabel="Ca chiều"
               pumpFilter={afternoonPumpFilter}
               onPumpFilterChange={setAfternoonPumpFilter}
+              transferAmount={afternoonTransfer}
+              onTransferAmountChange={setAfternoonTransfer}
             />
           </div>
 

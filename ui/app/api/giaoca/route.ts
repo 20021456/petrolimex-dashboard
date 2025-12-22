@@ -7,6 +7,7 @@ interface GiaoCaStats {
   totalKho: number;
   totalBom: number;
   totalBan: number;
+  totalNo: number;       // Tổng tiền nợ (unpaid)
   totalLit: number;
   litKho: number;
   litBom: number;
@@ -134,14 +135,20 @@ export async function GET(request: NextRequest) {
         ORDER BY sale_time DESC
       `, [sellerName, pumpFrom, pumpTo]);
 
-      // Tính tổng tiền kho và lít
+      // Tính tổng tiền kho, tiền nợ và lít
       let totalKho = 0;
+      let totalNo = 0;
       let litKho = 0;
       inventoryItems.forEach((item: any) => {
         const price = priceMap[item.item_name] || 0;
         const qty = parseFloat(item.quantity) || 0;
-        totalKho += qty * price;
+        const itemTotal = qty * price;
+        totalKho += itemTotal;
         litKho += qty;
+        // Tính tiền nợ (unpaid)
+        if (item.payment_status === 'unpaid') {
+          totalNo += itemTotal;
+        }
       });
 
       // 2. Dữ liệu từ fuel_pump (giao dịch bơm trong khoảng thời gian của ca)
@@ -169,6 +176,7 @@ export async function GET(request: NextRequest) {
         totalKho,
         totalBom,
         totalBan: totalKho + totalBom,
+        totalNo,
         totalLit: litKho + litBom,
         litKho,
         litBom,
