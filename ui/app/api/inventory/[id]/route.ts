@@ -13,12 +13,49 @@ interface InventoryItem {
   paid_amount?: number;
 }
 
+// Cập nhật schema nếu cần
+async function ensureSchemaUpdated() {
+  try {
+    // Thêm cột paid_amount nếu chưa có
+    try {
+      await query(`SELECT paid_amount FROM inventory_items LIMIT 1`);
+    } catch (e: any) {
+      if (e.code === 'ER_BAD_FIELD_ERROR') {
+        console.log('🔄 Adding paid_amount column...');
+        await query(`ALTER TABLE inventory_items ADD COLUMN paid_amount DECIMAL(15, 2) DEFAULT 0 AFTER payment_status`);
+        console.log('✅ Added paid_amount column');
+      }
+    }
+    
+    // Cập nhật ENUM để bao gồm 'partial'
+    try {
+      await query(`SELECT * FROM inventory_items WHERE payment_status = 'partial' LIMIT 1`);
+    } catch (e: any) {
+      console.log('🔄 Updating payment_status ENUM...');
+      try {
+        await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`);
+        console.log('✅ Updated payment_status ENUM');
+      } catch (alterErr) {
+        console.error('Error updating ENUM:', alterErr);
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error ensuring schema:', error);
+    return false;
+  }
+}
+
 // PUT - Cập nhật vật tư
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Đảm bảo schema đúng trước khi update
+    await ensureSchemaUpdated();
+    
     const data: InventoryItem = await request.json();
     const { id } = await params;
 
