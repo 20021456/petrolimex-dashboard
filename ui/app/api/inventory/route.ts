@@ -49,20 +49,27 @@ async function addPaidAmountColumn() {
 // Cập nhật ENUM payment_status để bao gồm 'partial'
 async function updatePaymentStatusEnum() {
   try {
-    // Thử insert một giá trị test với partial
-    await query(`SELECT * FROM inventory_items WHERE payment_status = 'partial' LIMIT 1`);
+    // Kiểm tra ENUM bằng cách xem COLUMN_TYPE
+    const columns = await query<any[]>(`
+      SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'inventory_items' 
+      AND COLUMN_NAME = 'payment_status'
+    `);
+    
+    if (columns.length > 0) {
+      const columnType = columns[0].COLUMN_TYPE || '';
+      // Kiểm tra xem ENUM đã có 'partial' chưa
+      if (!columnType.includes('partial')) {
+        console.log('🔄 Updating payment_status ENUM to include partial...');
+        console.log('Current ENUM:', columnType);
+        await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`);
+        console.log('✅ Updated payment_status ENUM');
+      }
+    }
     return true;
   } catch (error: any) {
-    // Nếu lỗi do ENUM không có 'partial', cập nhật ENUM
-    console.log('🔄 Updating payment_status ENUM to include partial...');
-    try {
-      await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`);
-      console.log('✅ Updated payment_status ENUM');
-      return true;
-    } catch (alterError: any) {
-      console.error('❌ Error updating ENUM:', alterError.message);
-      return false;
-    }
+    console.error('❌ Error updating ENUM:', error.message);
+    return false;
   }
 }
 

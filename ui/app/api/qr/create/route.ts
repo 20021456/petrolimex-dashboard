@@ -16,17 +16,24 @@ async function ensureSchemaUpdated() {
       }
     }
     
-    // Cập nhật ENUM inventory_items
+    // Kiểm tra và cập nhật ENUM inventory_items
     try {
-      await query(`SELECT * FROM inventory_items WHERE payment_status = 'partial' LIMIT 1`)
-    } catch (e: any) {
-      console.log('🔄 Updating inventory_items payment_status ENUM...')
-      try {
-        await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`)
-        console.log('✅ Updated inventory_items ENUM')
-      } catch (alterErr) {
-        console.error('Error updating inventory_items ENUM:', alterErr)
+      const columns = await query<any[]>(`
+        SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'inventory_items' 
+        AND COLUMN_NAME = 'payment_status'
+      `)
+      
+      if (columns.length > 0) {
+        const columnType = columns[0].COLUMN_TYPE || ''
+        if (!columnType.includes('partial')) {
+          console.log('🔄 Updating inventory_items payment_status ENUM...')
+          await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`)
+          console.log('✅ Updated inventory_items ENUM')
+        }
       }
+    } catch (alterErr) {
+      console.error('Error updating inventory_items ENUM:', alterErr)
     }
     
     // Tạo bảng qr_codes nếu chưa có
@@ -60,15 +67,24 @@ async function ensureSchemaUpdated() {
       }
     }
     
-    // Cập nhật ENUM qr_codes
+    // Kiểm tra và cập nhật ENUM qr_codes
     try {
-      await query(`SELECT * FROM qr_codes WHERE payment_status = 'partial' LIMIT 1`)
-    } catch (e: any) {
-      try {
-        await query(`ALTER TABLE qr_codes MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`)
-      } catch (alterErr) {
-        console.error('Error updating qr_codes ENUM:', alterErr)
+      const qrColumns = await query<any[]>(`
+        SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'qr_codes' 
+        AND COLUMN_NAME = 'payment_status'
+      `)
+      
+      if (qrColumns.length > 0) {
+        const columnType = qrColumns[0].COLUMN_TYPE || ''
+        if (!columnType.includes('partial')) {
+          console.log('🔄 Updating qr_codes payment_status ENUM...')
+          await query(`ALTER TABLE qr_codes MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`)
+          console.log('✅ Updated qr_codes ENUM')
+        }
       }
+    } catch (alterErr) {
+      console.error('Error updating qr_codes ENUM:', alterErr)
     }
     
     return true
