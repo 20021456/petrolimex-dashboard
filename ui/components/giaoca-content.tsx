@@ -351,9 +351,24 @@ function PersonSection({
                           {formatDateTime(item.sale_time)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={item.payment_status === 'paid' ? 'default' : 'destructive'}>
-                            {item.payment_status === 'paid' ? 'Đã trả' : 'Ghi nợ'}
+                          <Badge variant={
+                            item.payment_status === 'paid' 
+                              ? 'default' 
+                              : item.payment_status === 'partial' 
+                              ? 'secondary' 
+                              : 'destructive'
+                          }>
+                            {item.payment_status === 'paid' 
+                              ? 'Đã trả' 
+                              : item.payment_status === 'partial'
+                              ? 'Trả 1 phần'
+                              : 'Ghi nợ'}
                           </Badge>
+                          {item.payment_status === 'partial' && item.paid_amount > 0 && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              Đã: {formatCurrency(item.paid_amount)}
+                            </p>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

@@ -19,7 +19,8 @@ interface InventoryItem {
   customer_name?: string
   seller_name?: string
   sale_time?: string
-  payment_status: 'unpaid' | 'paid'
+  payment_status: 'unpaid' | 'paid' | 'partial'
+  paid_amount?: number
   created_at: string
 }
 
@@ -28,7 +29,8 @@ interface FormData {
   seller_name: string
   item_name: string
   quantity: number
-  payment_status: 'unpaid' | 'paid'
+  payment_status: 'unpaid' | 'paid' | 'partial'
+  paid_amount: number  // Số tiền đã trả (cho trạng thái partial)
 }
 
 interface PriceItem {
@@ -59,7 +61,8 @@ export function KhoContent() {
     seller_name: 'Hà Khánh',
     item_name: '',
     quantity: 1,
-    payment_status: 'unpaid'
+    payment_status: 'unpaid',
+    paid_amount: 0
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -158,7 +161,8 @@ export function KhoContent() {
           quantity: formData.quantity,
           unit: 'lít',
           sale_time: getLocalDateTime(),
-          payment_status: formData.payment_status
+          payment_status: formData.payment_status,
+          paid_amount: formData.payment_status === 'partial' ? formData.paid_amount : 0
         })
       })
 
@@ -187,7 +191,8 @@ export function KhoContent() {
       seller_name: 'Hà Khánh',
       item_name: products[0]?.fuel_name || '',
       quantity: 1,
-      payment_status: 'unpaid'
+      payment_status: 'unpaid',
+      paid_amount: 0
     })
     setEditingId(null)
     setGeneratedQR(null)
@@ -201,7 +206,8 @@ export function KhoContent() {
       seller_name: item.seller_name || 'Hà Khánh',
       item_name: item.item_name,
       quantity: item.quantity,
-      payment_status: item.payment_status || 'unpaid'
+      payment_status: item.payment_status || 'unpaid',
+      paid_amount: item.paid_amount || 0
     })
     setEditingId(item.id)
     setGeneratedQR(null)
@@ -257,7 +263,8 @@ export function KhoContent() {
           seller_name: formData.seller_name,
           item_name: formData.item_name,
           quantity: formData.quantity,
-          payment_status: formData.payment_status
+          payment_status: formData.payment_status,
+          paid_amount: formData.payment_status === 'partial' ? formData.paid_amount : 0
         })
       })
 
@@ -390,17 +397,43 @@ export function KhoContent() {
               <Label htmlFor="payment_status">Trạng thái thanh toán</Label>
               <Select
                 value={formData.payment_status}
-                onValueChange={(value: 'unpaid' | 'paid') => handleInputChange('payment_status', value)}
+                onValueChange={(value: 'unpaid' | 'paid' | 'partial') => {
+                  handleInputChange('payment_status', value)
+                  // Reset paid_amount khi đổi trạng thái
+                  if (value !== 'partial') {
+                    handleInputChange('paid_amount', 0)
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unpaid">Ghi nợ</SelectItem>
+                  <SelectItem value="partial">Trả 1 phần</SelectItem>
                   <SelectItem value="paid">Đã trả tiền</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Hiển thị ô nhập số tiền đã trả khi chọn "Trả 1 phần" */}
+            {formData.payment_status === 'partial' && (
+              <div className="space-y-2">
+                <Label htmlFor="paid_amount">Số tiền đã trả *</Label>
+                <Input
+                  id="paid_amount"
+                  type="number"
+                  value={formData.paid_amount || ''}
+                  onChange={(e) => handleInputChange('paid_amount', parseFloat(e.target.value) || 0)}
+                  placeholder="Nhập số tiền đã trả"
+                  min="0"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Nhập số tiền khách đã thanh toán (VNĐ)
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-2">
               {!editingId ? (
@@ -444,20 +477,22 @@ export function KhoContent() {
             </div>
           </form>
 
-          {/* Hiển thị QR Code */}
+          {/* Hiển thị QR Code - Tông màu tối hơn */}
           {generatedQR && qrInfo && (
-            <div className="mt-6 p-6 border rounded-lg bg-gradient-to-br from-orange-50 to-red-50">
+            <div className="mt-6 p-6 border rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 shadow-xl">
               <div className="text-center">
-                <p className="text-lg font-medium mb-2">QR Code</p>
-                <p className="text-xs text-muted-foreground mb-4">Quét mã để xác nhận đơn hàng</p>
-                <QRCodeGenerator data={generatedQR} size={256} />
-                <div className="mt-4 space-y-2 text-sm text-left bg-white rounded-lg p-4">
-                  <p><strong>Khách hàng:</strong> {qrInfo.customer_name}</p>
-                  <p><strong>Sản phẩm:</strong> {qrInfo.item_name}</p>
-                  <p><strong>Số lượng:</strong> {qrInfo.quantity} lít</p>
+                <p className="text-lg font-medium mb-2 text-white">QR Code</p>
+                <p className="text-xs text-slate-300 mb-4">Quét mã để xác nhận đơn hàng</p>
+                <div className="bg-white p-4 rounded-xl inline-block shadow-lg">
+                  <QRCodeGenerator data={generatedQR} size={256} />
                 </div>
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-xs text-blue-600 break-all">{generatedQR}</p>
+                <div className="mt-4 space-y-2 text-sm text-left bg-slate-700/50 rounded-lg p-4 text-slate-100">
+                  <p><span className="text-slate-400">Khách hàng:</span> <span className="font-medium">{qrInfo.customer_name}</span></p>
+                  <p><span className="text-slate-400">Sản phẩm:</span> <span className="font-medium">{qrInfo.item_name}</span></p>
+                  <p><span className="text-slate-400">Số lượng:</span> <span className="font-medium">{qrInfo.quantity} lít</span></p>
+                </div>
+                <div className="mt-4 p-3 bg-slate-700 rounded-lg">
+                  <p className="text-xs text-cyan-300 break-all font-mono">{generatedQR}</p>
                 </div>
                 <div className="flex gap-2 mt-4">
                   <Button 
@@ -472,7 +507,7 @@ export function KhoContent() {
                         toast.success('Đã tải QR code!')
                       }
                     }}
-                    className="flex-1"
+                    className="flex-1 bg-white text-slate-900 hover:bg-slate-100"
                   >
                     Tải QR Code
                   </Button>
@@ -482,7 +517,7 @@ export function KhoContent() {
                       navigator.clipboard.writeText(generatedQR)
                       toast.success('Đã copy link!')
                     }}
-                    className="flex-1"
+                    className="flex-1 border-slate-500 text-white hover:bg-slate-700"
                   >
                     Copy Link
                   </Button>
@@ -551,10 +586,21 @@ export function KhoContent() {
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
                           item.payment_status === 'paid' 
                             ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
+                            : item.payment_status === 'partial'
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
                             : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
                         }`}>
-                          {item.payment_status === 'paid' ? 'Đã trả' : 'Ghi nợ'}
+                          {item.payment_status === 'paid' 
+                            ? 'Đã trả' 
+                            : item.payment_status === 'partial'
+                            ? `Trả 1 phần`
+                            : 'Ghi nợ'}
                         </span>
+                        {item.payment_status === 'partial' && item.paid_amount && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Đã trả: {new Intl.NumberFormat('vi-VN').format(item.paid_amount)}đ
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

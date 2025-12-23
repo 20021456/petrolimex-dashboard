@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
       // 1. Dữ liệu từ xuất kho (inventory_items) theo seller và thời gian
       const inventoryItems = await query<any[]>(`
         SELECT 
-          id, customer_name, item_name, quantity, unit, sale_time, payment_status, created_at
+          id, customer_name, item_name, quantity, unit, sale_time, payment_status, paid_amount, created_at
         FROM inventory_items
         WHERE seller_name = ?
           AND sale_time >= ?
@@ -143,12 +143,18 @@ export async function GET(request: NextRequest) {
         const price = priceMap[item.item_name] || 0;
         const qty = parseFloat(item.quantity) || 0;
         const itemTotal = qty * price;
+        const paidAmount = parseFloat(item.paid_amount) || 0;
+        
         totalKho += itemTotal;
         litKho += qty;
-        // Tính tiền nợ (unpaid)
+        
+        // Tính tiền nợ: unpaid = toàn bộ, partial = tổng tiền - số đã trả
         if (item.payment_status === 'unpaid') {
           totalNo += itemTotal;
+        } else if (item.payment_status === 'partial') {
+          totalNo += Math.max(0, itemTotal - paidAmount);
         }
+        // paid = không tính vào nợ
       });
 
       // 2. Dữ liệu từ fuel_pump (giao dịch bơm trong khoảng thời gian của ca)

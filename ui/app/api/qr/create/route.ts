@@ -14,7 +14,8 @@ async function ensureQrCodesTableExists() {
         item_name VARCHAR(255) NOT NULL,
         quantity DECIMAL(10, 2) NOT NULL,
         unit VARCHAR(20) NOT NULL DEFAULT 'lít',
-        payment_status ENUM('unpaid', 'paid') NOT NULL DEFAULT 'unpaid',
+        payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid',
+        paid_amount DECIMAL(15, 2) DEFAULT 0,
         is_confirmed BOOLEAN DEFAULT FALSE,
         confirmed_at DATETIME,
         inventory_id VARCHAR(50),
@@ -24,6 +25,25 @@ async function ensureQrCodesTableExists() {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)
+    
+    // Thêm cột paid_amount nếu chưa có (cho bảng đã tồn tại)
+    try {
+      await query(`SELECT paid_amount FROM qr_codes LIMIT 1`)
+    } catch (e: any) {
+      if (e.code === 'ER_BAD_FIELD_ERROR') {
+        await query(`ALTER TABLE qr_codes ADD COLUMN paid_amount DECIMAL(15, 2) DEFAULT 0 AFTER payment_status`)
+      }
+    }
+    
+    // Cập nhật ENUM để bao gồm partial
+    try {
+      await query(`UPDATE qr_codes SET payment_status = 'partial' WHERE 1=0`)
+    } catch (e: any) {
+      if (e.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD' || e.message?.includes('partial')) {
+        await query(`ALTER TABLE qr_codes MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`)
+      }
+    }
+    
     return true
   } catch (error) {
     console.error('Error creating qr_codes table:', error)
@@ -56,7 +76,7 @@ function generateInventoryId(): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customer_name, seller_name, item_name, quantity, payment_status = 'unpaid' } = body
+    const { customer_name, seller_name, item_name, quantity, payment_status = 'unpaid', paid_amount = 0 } = body
 
     // Validate
     if (!customer_name?.trim()) {
@@ -67,6 +87,10 @@ export async function POST(request: NextRequest) {
     }
     if (!quantity || quantity <= 0) {
       return NextResponse.json({ success: false, error: 'Số lượng phải lớn hơn 0' }, { status: 400 })
+    }
+    // Validate paid_amount cho partial
+    if (payment_status === 'partial' && (!paid_amount || paid_amount <= 0)) {
+      return NextResponse.json({ success: false, error: 'Vui lòng nhập số tiền đã trả' }, { status: 400 })
     }
 
     // Đảm bảo bảng tồn tại
@@ -79,16 +103,16 @@ export async function POST(request: NextRequest) {
 
     // Lưu vào inventory_items trước
     await query(
-      `INSERT INTO inventory_items (id, customer_name, seller_name, item_name, category, quantity, unit, sale_time, payment_status, last_updated)
-       VALUES (?, ?, ?, ?, 'fuel', ?, 'lít', ?, ?, NOW())`,
-      [inventoryId, customer_name, seller_name || '', item_name, quantity, saleTime, payment_status]
+      `INSERT INTO inventory_items (id, customer_name, seller_name, item_name, category, quantity, unit, sale_time, payment_status, paid_amount, last_updated)
+       VALUES (?, ?, ?, ?, 'fuel', ?, 'lít', ?, ?, ?, NOW())`,
+      [inventoryId, customer_name, seller_name || '', item_name, quantity, saleTime, payment_status, paid_amount || 0]
     )
 
     // Lưu QR code với reference đến inventory
     await query(
-      `INSERT INTO qr_codes (token, customer_name, seller_name, item_name, quantity, unit, payment_status, inventory_id)
-       VALUES (?, ?, ?, ?, ?, 'lít', ?, ?)`,
-      [token, customer_name, seller_name || '', item_name, quantity, payment_status, inventoryId]
+      `INSERT INTO qr_codes (token, customer_name, seller_name, item_name, quantity, unit, payment_status, paid_amount, inventory_id)
+       VALUES (?, ?, ?, ?, ?, 'lít', ?, ?, ?)`,
+      [token, customer_name, seller_name || '', item_name, quantity, payment_status, paid_amount || 0, inventoryId]
     )
 
     // Tạo URL cho QR code
@@ -104,6 +128,7 @@ export async function POST(request: NextRequest) {
         seller_name,
         item_name,
         quantity,
+        paid_amount,
         inventory_id: inventoryId
       }
     })

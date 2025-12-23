@@ -9,7 +9,8 @@ interface InventoryItem {
   quantity: number;
   unit?: string;
   sale_time?: string;
-  payment_status?: 'unpaid' | 'paid';
+  payment_status?: 'unpaid' | 'paid' | 'partial';
+  paid_amount?: number;  // Số tiền đã trả (cho trạng thái partial)
 }
 
 // Tạo lại bảng với schema đúng
@@ -20,7 +21,7 @@ async function recreateTable() {
     // Drop bảng cũ
     await query(`DROP TABLE IF EXISTS inventory_items`);
     
-    // Tạo bảng mới với schema đúng
+    // Tạo bảng mới với schema đúng (bao gồm partial và paid_amount)
     await query(`
       CREATE TABLE inventory_items (
         id VARCHAR(50) PRIMARY KEY,
@@ -31,7 +32,8 @@ async function recreateTable() {
         quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
         unit VARCHAR(20) NOT NULL DEFAULT 'lít',
         sale_time DATETIME,
-        payment_status ENUM('unpaid', 'paid') NOT NULL DEFAULT 'unpaid',
+        payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid',
+        paid_amount DECIMAL(15, 2) DEFAULT 0,
         last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_customer_name (customer_name),
@@ -46,6 +48,44 @@ async function recreateTable() {
   } catch (error) {
     console.error('❌ Error recreating table:', error);
     return false;
+  }
+}
+
+// Thêm cột paid_amount nếu chưa có
+async function addPaidAmountColumn() {
+  try {
+    await query(`SELECT paid_amount FROM inventory_items LIMIT 1`);
+    return true;
+  } catch (error: any) {
+    if (error.code === 'ER_BAD_FIELD_ERROR') {
+      console.log('🔄 Adding paid_amount column...');
+      await query(`ALTER TABLE inventory_items ADD COLUMN paid_amount DECIMAL(15, 2) DEFAULT 0 AFTER payment_status`);
+      console.log('✅ Added paid_amount column');
+      return true;
+    }
+    return false;
+  }
+}
+
+// Cập nhật ENUM payment_status để bao gồm 'partial'
+async function updatePaymentStatusEnum() {
+  try {
+    // Kiểm tra xem có thể sử dụng partial không
+    await query(`UPDATE inventory_items SET payment_status = 'partial' WHERE 1=0`);
+    return true;
+  } catch (error: any) {
+    if (error.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD' || error.message.includes('partial')) {
+      console.log('🔄 Updating payment_status ENUM to include partial...');
+      try {
+        await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`);
+        console.log('✅ Updated payment_status ENUM');
+        return true;
+      } catch (alterError) {
+        console.error('❌ Error updating ENUM:', alterError);
+        return false;
+      }
+    }
+    return true;
   }
 }
 
@@ -73,6 +113,10 @@ async function ensureCorrectSchema() {
     await query(`SELECT id, sale_time, payment_status FROM inventory_items LIMIT 1`);
     // Thêm cột seller_name nếu chưa có
     await addSellerNameColumn();
+    // Thêm cột paid_amount nếu chưa có
+    await addPaidAmountColumn();
+    // Cập nhật ENUM để bao gồm partial
+    await updatePaymentStatusEnum();
     return true;
   } catch (error: any) {
     if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_NO_SUCH_TABLE') {
@@ -90,7 +134,7 @@ export async function GET() {
     
     const items = await query<any[]>(`
       SELECT id, customer_name, seller_name, item_name, category, quantity, unit, 
-             sale_time, payment_status, created_at 
+             sale_time, payment_status, paid_amount, created_at 
       FROM inventory_items 
       ORDER BY created_at DESC
     `);
@@ -132,8 +176,8 @@ export async function POST(request: NextRequest) {
     // Insert vào database
     await query(`
       INSERT INTO inventory_items 
-      (id, customer_name, seller_name, item_name, category, quantity, unit, sale_time, payment_status, last_updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      (id, customer_name, seller_name, item_name, category, quantity, unit, sale_time, payment_status, paid_amount, last_updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `, [
       id,
       data.customer_name || '',
@@ -143,7 +187,8 @@ export async function POST(request: NextRequest) {
       data.quantity,
       data.unit || 'lít',
       saleTime,
-      data.payment_status || 'unpaid'
+      data.payment_status || 'unpaid',
+      data.paid_amount || 0
     ]);
 
     return NextResponse.json({

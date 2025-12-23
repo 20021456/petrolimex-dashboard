@@ -9,7 +9,8 @@ interface InventoryItem {
   quantity: number;
   unit: string;
   sale_time?: string;
-  payment_status?: 'unpaid' | 'paid';
+  payment_status?: 'unpaid' | 'paid' | 'partial';
+  paid_amount?: number;  // Số tiền đã trả (cho trạng thái partial)
 }
 
 // PUT - Cập nhật vật tư
@@ -44,6 +45,7 @@ export async function PUT(
         unit = ?,
         sale_time = ?,
         payment_status = ?,
+        paid_amount = ?,
         last_updated = NOW()
       WHERE id = ?
     `, [
@@ -55,6 +57,7 @@ export async function PUT(
       data.unit || 'lít',
       saleTime,
       data.payment_status || 'unpaid',
+      data.paid_amount || 0,
       id
     ]);
 
