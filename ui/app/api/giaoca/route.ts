@@ -48,6 +48,42 @@ async function ensureTableExists() {
   }
 }
 
+// Đảm bảo cột paid_amount tồn tại trong inventory_items
+async function ensureInventoryColumnsExist() {
+  try {
+    // Thêm cột paid_amount nếu chưa có
+    try {
+      await query(`SELECT paid_amount FROM inventory_items LIMIT 1`);
+    } catch (error: any) {
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        console.log('🔄 Adding paid_amount column to inventory_items...');
+        await query(`ALTER TABLE inventory_items ADD COLUMN paid_amount DECIMAL(15, 2) DEFAULT 0 AFTER payment_status`);
+        console.log('✅ Added paid_amount column');
+      }
+    }
+    
+    // Cập nhật ENUM payment_status để bao gồm 'partial'
+    try {
+      await query(`UPDATE inventory_items SET payment_status = 'partial' WHERE 1=0`);
+    } catch (error: any) {
+      if (error.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD' || error.message?.includes('partial')) {
+        console.log('🔄 Updating payment_status ENUM...');
+        try {
+          await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`);
+          console.log('✅ Updated payment_status ENUM');
+        } catch (alterError) {
+          console.error('Error updating ENUM:', alterError);
+        }
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error ensuring inventory columns:', error);
+    return false;
+  }
+}
+
 // GET - Lấy dữ liệu giao ca
 export async function GET(request: NextRequest) {
   try {
@@ -72,6 +108,9 @@ export async function GET(request: NextRequest) {
 
     // Đảm bảo bảng fuel_inventory_import tồn tại
     await ensureTableExists();
+    
+    // Đảm bảo cột paid_amount tồn tại trong inventory_items
+    await ensureInventoryColumnsExist();
 
     // Lấy danh sách seller_name từ inventory_items
     const sellers = await query<any[]>(`
