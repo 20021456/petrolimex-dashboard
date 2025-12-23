@@ -10,7 +10,7 @@ interface InventoryItem {
   unit: string;
   sale_time?: string;
   payment_status?: 'unpaid' | 'paid' | 'partial';
-  paid_amount?: number;  // Số tiền đã trả (cho trạng thái partial)
+  paid_amount?: number;
 }
 
 // PUT - Cập nhật vật tư
@@ -32,6 +32,12 @@ export async function PUT(
 
     // sale_time đã được gửi đúng format từ frontend (YYYY-MM-DD HH:MM:SS)
     const saleTime = data.sale_time || null;
+    
+    // Validate payment_status
+    const validStatuses = ['unpaid', 'paid', 'partial'];
+    const paymentStatus = validStatuses.includes(data.payment_status || '') 
+      ? data.payment_status 
+      : 'unpaid';
 
     // Update database
     await query(`
@@ -56,7 +62,7 @@ export async function PUT(
       data.quantity,
       data.unit || 'lít',
       saleTime,
-      data.payment_status || 'unpaid',
+      paymentStatus,
       data.paid_amount || 0,
       id
     ]);
@@ -99,4 +105,3 @@ export async function DELETE(
     }, { status: 500 });
   }
 }
-

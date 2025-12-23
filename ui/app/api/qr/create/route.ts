@@ -2,9 +2,34 @@ import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
 import { randomBytes } from 'crypto'
 
-// Đảm bảo bảng qr_codes tồn tại
-async function ensureQrCodesTableExists() {
+// Cập nhật ENUM và thêm cột nếu cần
+async function ensureSchemaUpdated() {
   try {
+    // Thêm cột paid_amount vào inventory_items nếu chưa có
+    try {
+      await query(`SELECT paid_amount FROM inventory_items LIMIT 1`)
+    } catch (e: any) {
+      if (e.code === 'ER_BAD_FIELD_ERROR') {
+        console.log('🔄 Adding paid_amount column to inventory_items...')
+        await query(`ALTER TABLE inventory_items ADD COLUMN paid_amount DECIMAL(15, 2) DEFAULT 0 AFTER payment_status`)
+        console.log('✅ Added paid_amount column')
+      }
+    }
+    
+    // Cập nhật ENUM inventory_items
+    try {
+      await query(`SELECT * FROM inventory_items WHERE payment_status = 'partial' LIMIT 1`)
+    } catch (e: any) {
+      console.log('🔄 Updating inventory_items payment_status ENUM...')
+      try {
+        await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`)
+        console.log('✅ Updated inventory_items ENUM')
+      } catch (alterErr) {
+        console.error('Error updating inventory_items ENUM:', alterErr)
+      }
+    }
+    
+    // Tạo bảng qr_codes nếu chưa có
     await query(`
       CREATE TABLE IF NOT EXISTS qr_codes (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -26,7 +51,7 @@ async function ensureQrCodesTableExists() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)
     
-    // Thêm cột paid_amount nếu chưa có (cho bảng đã tồn tại)
+    // Thêm cột paid_amount vào qr_codes nếu chưa có
     try {
       await query(`SELECT paid_amount FROM qr_codes LIMIT 1`)
     } catch (e: any) {
@@ -35,18 +60,20 @@ async function ensureQrCodesTableExists() {
       }
     }
     
-    // Cập nhật ENUM để bao gồm partial
+    // Cập nhật ENUM qr_codes
     try {
-      await query(`UPDATE qr_codes SET payment_status = 'partial' WHERE 1=0`)
+      await query(`SELECT * FROM qr_codes WHERE payment_status = 'partial' LIMIT 1`)
     } catch (e: any) {
-      if (e.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD' || e.message?.includes('partial')) {
+      try {
         await query(`ALTER TABLE qr_codes MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`)
+      } catch (alterErr) {
+        console.error('Error updating qr_codes ENUM:', alterErr)
       }
     }
     
     return true
   } catch (error) {
-    console.error('Error creating qr_codes table:', error)
+    console.error('Error ensuring schema:', error)
     return false
   }
 }
@@ -93,26 +120,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Vui lòng nhập số tiền đã trả' }, { status: 400 })
     }
 
-    // Đảm bảo bảng tồn tại
-    await ensureQrCodesTableExists()
+    // Đảm bảo schema đúng trước khi insert
+    await ensureSchemaUpdated()
 
     // Generate unique token
     const token = generateToken()
     const inventoryId = generateInventoryId()
     const saleTime = getLocalDateTime()
+    
+    // Validate payment_status
+    const validStatuses = ['unpaid', 'paid', 'partial']
+    const validPaymentStatus = validStatuses.includes(payment_status) ? payment_status : 'unpaid'
 
     // Lưu vào inventory_items trước
     await query(
       `INSERT INTO inventory_items (id, customer_name, seller_name, item_name, category, quantity, unit, sale_time, payment_status, paid_amount, last_updated)
        VALUES (?, ?, ?, ?, 'fuel', ?, 'lít', ?, ?, ?, NOW())`,
-      [inventoryId, customer_name, seller_name || '', item_name, quantity, saleTime, payment_status, paid_amount || 0]
+      [inventoryId, customer_name, seller_name || '', item_name, quantity, saleTime, validPaymentStatus, paid_amount || 0]
     )
 
     // Lưu QR code với reference đến inventory
     await query(
       `INSERT INTO qr_codes (token, customer_name, seller_name, item_name, quantity, unit, payment_status, paid_amount, inventory_id)
        VALUES (?, ?, ?, ?, ?, 'lít', ?, ?, ?)`,
-      [token, customer_name, seller_name || '', item_name, quantity, payment_status, paid_amount || 0, inventoryId]
+      [token, customer_name, seller_name || '', item_name, quantity, validPaymentStatus, paid_amount || 0, inventoryId]
     )
 
     // Tạo URL cho QR code
@@ -132,9 +163,8 @@ export async function POST(request: NextRequest) {
         inventory_id: inventoryId
       }
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating QR code:', error)
-    return NextResponse.json({ success: false, error: 'Không thể tạo QR code' }, { status: 500 })
+    return NextResponse.json({ success: false, error: error.message || 'Không thể tạo QR code' }, { status: 500 })
   }
 }
-

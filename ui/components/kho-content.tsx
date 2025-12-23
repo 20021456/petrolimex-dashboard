@@ -30,7 +30,7 @@ interface FormData {
   item_name: string
   quantity: number
   payment_status: 'unpaid' | 'paid' | 'partial'
-  paid_amount: number  // Số tiền đã trả (cho trạng thái partial)
+  paid_amount: number
 }
 
 interface PriceItem {
@@ -399,7 +399,6 @@ export function KhoContent() {
                 value={formData.payment_status}
                 onValueChange={(value: 'unpaid' | 'paid' | 'partial') => {
                   handleInputChange('payment_status', value)
-                  // Reset paid_amount khi đổi trạng thái
                   if (value !== 'partial') {
                     handleInputChange('paid_amount', 0)
                   }
@@ -593,7 +592,7 @@ export function KhoContent() {
                           {item.payment_status === 'paid' 
                             ? 'Đã trả' 
                             : item.payment_status === 'partial'
-                            ? `Trả 1 phần`
+                            ? 'Trả 1 phần'
                             : 'Ghi nợ'}
                         </span>
                         {item.payment_status === 'partial' && item.paid_amount && (

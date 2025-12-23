@@ -10,43 +10,22 @@ interface InventoryItem {
   unit?: string;
   sale_time?: string;
   payment_status?: 'unpaid' | 'paid' | 'partial';
-  paid_amount?: number;  // Số tiền đã trả (cho trạng thái partial)
+  paid_amount?: number;
 }
 
-// Tạo lại bảng với schema đúng
-async function recreateTable() {
+// Thêm cột seller_name nếu chưa có
+async function addSellerNameColumn() {
   try {
-    console.log('🔄 Recreating inventory_items table with correct schema...');
-    
-    // Drop bảng cũ
-    await query(`DROP TABLE IF EXISTS inventory_items`);
-    
-    // Tạo bảng mới với schema đúng (bao gồm partial và paid_amount)
-    await query(`
-      CREATE TABLE inventory_items (
-        id VARCHAR(50) PRIMARY KEY,
-        customer_name VARCHAR(255),
-        seller_name VARCHAR(255),
-        item_name VARCHAR(255) NOT NULL,
-        category VARCHAR(50) NOT NULL DEFAULT 'fuel',
-        quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
-        unit VARCHAR(20) NOT NULL DEFAULT 'lít',
-        sale_time DATETIME,
-        payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid',
-        paid_amount DECIMAL(15, 2) DEFAULT 0,
-        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_customer_name (customer_name),
-        INDEX idx_seller_name (seller_name),
-        INDEX idx_item_name (item_name),
-        INDEX idx_created_at (created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-    
-    console.log('✅ Table recreated successfully!');
+    await query(`SELECT seller_name FROM inventory_items LIMIT 1`);
     return true;
-  } catch (error) {
-    console.error('❌ Error recreating table:', error);
+  } catch (error: any) {
+    if (error.code === 'ER_BAD_FIELD_ERROR') {
+      console.log('🔄 Adding seller_name column...');
+      await query(`ALTER TABLE inventory_items ADD COLUMN seller_name VARCHAR(255) AFTER customer_name`);
+      await query(`CREATE INDEX idx_seller_name ON inventory_items (seller_name)`);
+      console.log('✅ Added seller_name column');
+      return true;
+    }
     return false;
   }
 }
@@ -70,58 +49,61 @@ async function addPaidAmountColumn() {
 // Cập nhật ENUM payment_status để bao gồm 'partial'
 async function updatePaymentStatusEnum() {
   try {
-    // Kiểm tra xem có thể sử dụng partial không
-    await query(`UPDATE inventory_items SET payment_status = 'partial' WHERE 1=0`);
+    // Thử insert một giá trị test với partial
+    await query(`SELECT * FROM inventory_items WHERE payment_status = 'partial' LIMIT 1`);
     return true;
   } catch (error: any) {
-    if (error.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD' || error.message.includes('partial')) {
-      console.log('🔄 Updating payment_status ENUM to include partial...');
-      try {
-        await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`);
-        console.log('✅ Updated payment_status ENUM');
-        return true;
-      } catch (alterError) {
-        console.error('❌ Error updating ENUM:', alterError);
-        return false;
-      }
-    }
-    return true;
-  }
-}
-
-// Thêm cột seller_name nếu chưa có
-async function addSellerNameColumn() {
-  try {
-    await query(`SELECT seller_name FROM inventory_items LIMIT 1`);
-    return true;
-  } catch (error: any) {
-    if (error.code === 'ER_BAD_FIELD_ERROR') {
-      console.log('🔄 Adding seller_name column...');
-      await query(`ALTER TABLE inventory_items ADD COLUMN seller_name VARCHAR(255) AFTER customer_name`);
-      await query(`CREATE INDEX idx_seller_name ON inventory_items (seller_name)`);
-      console.log('✅ Added seller_name column');
+    // Nếu lỗi do ENUM không có 'partial', cập nhật ENUM
+    console.log('🔄 Updating payment_status ENUM to include partial...');
+    try {
+      await query(`ALTER TABLE inventory_items MODIFY COLUMN payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid'`);
+      console.log('✅ Updated payment_status ENUM');
       return true;
+    } catch (alterError: any) {
+      console.error('❌ Error updating ENUM:', alterError.message);
+      return false;
     }
-    return false;
   }
 }
 
-// Kiểm tra schema và tạo lại nếu cần
+// Kiểm tra và cập nhật schema
 async function ensureCorrectSchema() {
   try {
-    // Thử query với schema mới
-    await query(`SELECT id, sale_time, payment_status FROM inventory_items LIMIT 1`);
-    // Thêm cột seller_name nếu chưa có
+    // Kiểm tra bảng tồn tại
+    await query(`SELECT id FROM inventory_items LIMIT 1`);
+    
+    // Thêm các cột mới nếu chưa có
     await addSellerNameColumn();
-    // Thêm cột paid_amount nếu chưa có
     await addPaidAmountColumn();
-    // Cập nhật ENUM để bao gồm partial
     await updatePaymentStatusEnum();
+    
     return true;
   } catch (error: any) {
-    if (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_NO_SUCH_TABLE') {
-      // Schema sai hoặc bảng không tồn tại -> tạo lại
-      return await recreateTable();
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      // Tạo bảng mới
+      console.log('🔄 Creating inventory_items table...');
+      await query(`
+        CREATE TABLE inventory_items (
+          id VARCHAR(50) PRIMARY KEY,
+          customer_name VARCHAR(255),
+          seller_name VARCHAR(255),
+          item_name VARCHAR(255) NOT NULL,
+          category VARCHAR(50) NOT NULL DEFAULT 'fuel',
+          quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
+          unit VARCHAR(20) NOT NULL DEFAULT 'lít',
+          sale_time DATETIME,
+          payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid',
+          paid_amount DECIMAL(15, 2) DEFAULT 0,
+          last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_customer_name (customer_name),
+          INDEX idx_seller_name (seller_name),
+          INDEX idx_item_name (item_name),
+          INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ Created inventory_items table');
+      return true;
     }
     throw error;
   }
@@ -172,6 +154,12 @@ export async function POST(request: NextRequest) {
 
     // sale_time đã được gửi đúng format từ frontend (YYYY-MM-DD HH:MM:SS)
     const saleTime = data.sale_time || null;
+    
+    // Validate payment_status
+    const validStatuses = ['unpaid', 'paid', 'partial'];
+    const paymentStatus = validStatuses.includes(data.payment_status || '') 
+      ? data.payment_status 
+      : 'unpaid';
 
     // Insert vào database
     await query(`
@@ -187,7 +175,7 @@ export async function POST(request: NextRequest) {
       data.quantity,
       data.unit || 'lít',
       saleTime,
-      data.payment_status || 'unpaid',
+      paymentStatus,
       data.paid_amount || 0
     ]);
 
