@@ -67,11 +67,19 @@ services:
       # Node.js
       NODE_ENV: production
       TZ: Asia/Ho_Chi_Minh
-    # Expose port cho Dokploy Traefik routing (không bind ra host)
+    # Expose port cho Dokploy Traefik routing
     expose:
       - "3000"
+    # Kết nối vào Dokploy network để Traefik có thể route traffic
+    networks:
+      - dokploy-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+# Network để kết nối với Traefik của Dokploy
+networks:
+  dokploy-network:
+    external: true
