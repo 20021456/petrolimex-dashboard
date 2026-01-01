@@ -43,8 +43,6 @@ services:
       TZ: Asia/Ho_Chi_Minh
     volumes:
       - ./output:/app/output
-    networks:
-      - dokploy-network
     logging:
       driver: "json-file"
       options:
@@ -69,18 +67,11 @@ services:
       # Node.js
       NODE_ENV: production
       TZ: Asia/Ho_Chi_Minh
-    # Dokploy sử dụng Traefik để routing, chỉ cần expose port 3000
-    expose:
-      - "3000"
-    networks:
-      - dokploy-network
+    # Port cho Dokploy Traefik routing
+    ports:
+      - "3000:3000"
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-
-# Join Dokploy's default network to access other services (MySQL, etc.)
-networks:
-  dokploy-network:
-    external: true
