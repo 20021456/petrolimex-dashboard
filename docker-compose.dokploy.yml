@@ -67,9 +67,9 @@ services:
       # Node.js
       NODE_ENV: production
       TZ: Asia/Ho_Chi_Minh
-    # Port cho Dokploy Traefik routing
-    ports:
-      - "3000:3000"
+    # Expose port cho Dokploy Traefik routing (không bind ra host)
+    expose:
+      - "3000"
     logging:
       driver: "json-file"
       options:
