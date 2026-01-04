@@ -43,8 +43,6 @@ services:
       TZ: Asia/Ho_Chi_Minh
     volumes:
       - ./output:/app/output
-    networks:
-      - dokploy-network
     logging:
       driver: "json-file"
       options:
@@ -72,22 +70,8 @@ services:
     # Expose port cho Traefik routing
     expose:
       - "3000"
-    # Traefik labels for routing
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.fuel-dashboard.rule=Host(`xangdau.evanguyen3110.space`)"
-      - "traefik.http.routers.fuel-dashboard.entrypoints=websecure"
-      - "traefik.http.routers.fuel-dashboard.tls.certresolver=letsencrypt"
-      - "traefik.http.services.fuel-dashboard.loadbalancer.server.port=3000"
-    networks:
-      - dokploy-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-
-# Network mặc định của Dokploy
-networks:
-  dokploy-network:
-    external: true
