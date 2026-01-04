@@ -21,6 +21,10 @@
 # FUEL_PASSWORD=<your-fuel-password>      # Password scrape data
 # =====================================================
 
+networks:
+  dokploy-network:
+    external: true
+
 services:
   # Python Service (Auto-update & Scraping)
   # Sử dụng Dokploy Schedule Task để restart container định kỳ
@@ -29,6 +33,8 @@ services:
       context: .
       dockerfile: Dockerfile.python
     restart: unless-stopped
+    networks:
+      - dokploy-network
     environment:
       # MySQL Config - sử dụng external database từ Dokploy
       MYSQL_HOST: ${MYSQL_HOST}
@@ -55,6 +61,8 @@ services:
       context: .
       dockerfile: Dockerfile.nextjs
     restart: unless-stopped
+    networks:
+      - dokploy-network
     environment:
       # MySQL Config - sử dụng external database từ Dokploy
       DB_HOST: ${DB_HOST:-${MYSQL_HOST}}
