@@ -304,7 +304,7 @@ function PersonSection({
                         <TableCell>
                           <Badge variant="outline">Cột {item.cot_bom || '-'}</Badge>
                         </TableCell>
-                        <TableCell className="truncate max-w-[150px]">{item.nhien_lieu || '-'}</TableCell>
+                        <TableCell className="min-w-[180px]" title={item.nhien_lieu || '-'}>{item.nhien_lieu || '-'}</TableCell>
                         <TableCell className="text-right">{formatNumber(parseFloat(item.lit) || 0)} lít</TableCell>
                         <TableCell className="text-right font-medium text-green-600">
                           {formatCurrency(parseFloat(item.tien) || 0)}
@@ -345,8 +345,8 @@ function PersonSection({
                   ) : (
                     data.inventoryItems.map((item: any) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium truncate max-w-[150px]">{item.customer_name || '-'}</TableCell>
-                        <TableCell className="truncate max-w-[120px]">{item.item_name}</TableCell>
+                        <TableCell className="font-medium min-w-[150px]" title={item.customer_name || '-'}>{item.customer_name || '-'}</TableCell>
+                        <TableCell className="min-w-[180px]" title={item.item_name}>{item.item_name}</TableCell>
                         <TableCell className="text-right">{formatNumber(parseFloat(item.quantity) || 0)} {item.unit || 'lít'}</TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           {formatDateTime(item.sale_time)}
@@ -723,10 +723,8 @@ export function GiaoCaContent() {
                     ) : (
                       data.dailyStock.map((item) => (
                         <TableRow key={item.fuel_name}>
-                          <TableCell className="font-medium sticky left-0 bg-background text-xs sm:text-sm">
-                            <span className="truncate block max-w-[90px] sm:max-w-[140px]" title={item.fuel_name}>
-                              {item.fuel_name}
-                            </span>
+                          <TableCell className="font-medium sticky left-0 bg-background text-xs sm:text-sm min-w-[150px] sm:min-w-[200px]" title={item.fuel_name}>
+                            {item.fuel_name}
                           </TableCell>
                           <TableCell className="text-right font-medium text-xs sm:text-sm">
                             {formatNumber(item.dau_ngay)}

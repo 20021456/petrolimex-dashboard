@@ -359,16 +359,16 @@ export function KhoContent() {
                 onValueChange={(value) => handleInputChange('item_name', value)}
                 disabled={isLoadingProducts || products.length === 0}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder={
                     isLoadingProducts ? "Đang tải..." : 
                     products.length === 0 ? "Chưa có sản phẩm" : 
                     "Chọn sản phẩm"
                   } />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px]">
                   {products.map(product => (
-                    <SelectItem key={product.id} value={product.fuel_name}>
+                    <SelectItem key={product.id} value={product.fuel_name} className="whitespace-normal">
                       {product.fuel_name}
                     </SelectItem>
                   ))}

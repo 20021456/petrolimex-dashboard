@@ -286,12 +286,12 @@ export function TonkhoContent() {
                   onValueChange={(value) => setFormData(prev => ({ ...prev, fuel_name: value }))}
                   disabled={isLoadingProducts}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Chọn nhiên liệu..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[300px]">
                     {products.map((product) => (
-                      <SelectItem key={product.id} value={product.fuel_name}>
+                      <SelectItem key={product.id} value={product.fuel_name} className="whitespace-normal">
                         {product.fuel_name}
                       </SelectItem>
                     ))}

@@ -230,9 +230,9 @@ export function PriceDialog({ open, onOpenChange }: PriceDialogProps) {
                   <SelectTrigger>
                     <SelectValue placeholder="Chọn sản phẩm" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-[300px]">
                     {items.map(item => (
-                      <SelectItem key={item.id} value={item.fuel_name}>
+                      <SelectItem key={item.id} value={item.fuel_name} className="whitespace-normal">
                         {item.fuel_name}
                       </SelectItem>
                     ))}
@@ -314,11 +314,11 @@ export function PriceDialog({ open, onOpenChange }: PriceDialogProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[35%]">Tên sản phẩm</TableHead>
-                  <TableHead className="w-[25%]">Giá (VNĐ)</TableHead>
-                  <TableHead className="w-[15%]">Đơn vị</TableHead>
-                  <TableHead className="w-[15%]">Cập nhật</TableHead>
-                  <TableHead className="w-[10%] text-right">Thao tác</TableHead>
+                  <TableHead className="min-w-[200px]">Tên sản phẩm</TableHead>
+                  <TableHead className="w-[120px]">Giá (VNĐ)</TableHead>
+                  <TableHead className="w-[80px]">Đơn vị</TableHead>
+                  <TableHead className="w-[100px]">Cập nhật</TableHead>
+                  <TableHead className="w-[80px] text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
