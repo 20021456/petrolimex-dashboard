@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -392,18 +393,44 @@ interface GiaoCaSettings {
   shiftTime: string
 }
 
-// Helper to get stored settings from localStorage
-const getStoredSettings = (): GiaoCaSettings | null => {
-  if (typeof window === 'undefined') return null
+// Generate time options for shift time select (every 30 minutes)
+const SHIFT_TIME_OPTIONS = [
+  '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', 
+  '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00'
+]
+
+// Helper to get today's date string
+const getTodayStr = () => {
+  const today = new Date()
+  return today.getFullYear() + '-' + 
+         String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+         String(today.getDate()).padStart(2, '0')
+}
+
+// Helper to get stored settings from localStorage (sync version for initialization)
+const getInitialSettings = (): GiaoCaSettings => {
+  const defaults: GiaoCaSettings = {
+    selectedDate: getTodayStr(),
+    morningSeller: 'Hà Bính',
+    shiftTime: '12:00'
+  }
+  
+  if (typeof window === 'undefined') return defaults
+  
   try {
     const stored = localStorage.getItem(GIAOCA_SETTINGS_KEY)
     if (stored) {
-      return JSON.parse(stored)
+      const parsed = JSON.parse(stored)
+      return {
+        selectedDate: parsed.selectedDate || defaults.selectedDate,
+        morningSeller: parsed.morningSeller || defaults.morningSeller,
+        shiftTime: parsed.shiftTime || defaults.shiftTime
+      }
     }
   } catch (e) {
     console.error('Error reading giaoca settings from localStorage:', e)
   }
-  return null
+  return defaults
 }
 
 // Helper to save settings to localStorage
@@ -422,25 +449,18 @@ export function GiaoCaContent() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
-  // Filter state - initialize with defaults, will be updated from localStorage in useEffect
-  const today = new Date()
-  const todayStr = today.getFullYear() + '-' + 
-                   String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                   String(today.getDate()).padStart(2, '0')
-  
-  const [selectedDate, setSelectedDate] = React.useState(todayStr)
-  const [morningSeller, setMorningSeller] = React.useState('Hà Bính')
-  const [shiftTime, setShiftTime] = React.useState('12:00')
+  // Initialize state from localStorage using lazy initializer
+  const [selectedDate, setSelectedDate] = React.useState(() => getInitialSettings().selectedDate)
+  const [morningSeller, setMorningSeller] = React.useState(() => getInitialSettings().morningSeller)
+  const [shiftTime, setShiftTime] = React.useState(() => getInitialSettings().shiftTime)
   const [isSettingsLoaded, setIsSettingsLoaded] = React.useState(false)
 
-  // Load settings from localStorage on mount
+  // Mark settings as loaded and sync from localStorage (for hydration)
   React.useEffect(() => {
-    const storedSettings = getStoredSettings()
-    if (storedSettings) {
-      setSelectedDate(storedSettings.selectedDate)
-      setMorningSeller(storedSettings.morningSeller)
-      setShiftTime(storedSettings.shiftTime)
-    }
+    const stored = getInitialSettings()
+    setSelectedDate(stored.selectedDate)
+    setMorningSeller(stored.morningSeller)
+    setShiftTime(stored.shiftTime)
     setIsSettingsLoaded(true)
   }, [])
 
@@ -585,12 +605,44 @@ export function GiaoCaContent() {
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] sm:text-xs">Giờ giao</Label>
-              <Input
-                type="time"
-                value={shiftTime}
-                onChange={(e) => setShiftTime(e.target.value)}
-                className="text-xs sm:text-sm h-8"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal text-xs sm:text-sm h-8"
+                  >
+                    <ClockIcon className="mr-2 h-3.5 w-3.5" />
+                    {shiftTime}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="start">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Chọn giờ giao ca</p>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {SHIFT_TIME_OPTIONS.map((time) => (
+                        <Button
+                          key={time}
+                          variant={shiftTime === time ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => setShiftTime(time)}
+                        >
+                          {time}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="border-t pt-2 mt-2">
+                      <p className="text-xs text-muted-foreground mb-1.5">Hoặc nhập giờ tùy chỉnh:</p>
+                      <Input
+                        type="time"
+                        value={shiftTime}
+                        onChange={(e) => setShiftTime(e.target.value)}
+                        className="text-xs h-8"
+                      />
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex items-end">
               <Button onClick={fetchData} className="w-full text-xs sm:text-sm h-8" size="sm">
