@@ -383,13 +383,46 @@ function PersonSection({
   )
 }
 
+// LocalStorage keys for persisting settings
+const GIAOCA_SETTINGS_KEY = 'giaoca_settings'
+
+interface GiaoCaSettings {
+  selectedDate: string
+  morningSeller: string
+  shiftTime: string
+}
+
+// Helper to get stored settings from localStorage
+const getStoredSettings = (): GiaoCaSettings | null => {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = localStorage.getItem(GIAOCA_SETTINGS_KEY)
+    if (stored) {
+      return JSON.parse(stored)
+    }
+  } catch (e) {
+    console.error('Error reading giaoca settings from localStorage:', e)
+  }
+  return null
+}
+
+// Helper to save settings to localStorage
+const saveSettings = (settings: GiaoCaSettings) => {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(GIAOCA_SETTINGS_KEY, JSON.stringify(settings))
+  } catch (e) {
+    console.error('Error saving giaoca settings to localStorage:', e)
+  }
+}
+
 // Main Component
 export function GiaoCaContent() {
   const [data, setData] = React.useState<GiaoCaData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
-  // Filter state
+  // Filter state - initialize with defaults, will be updated from localStorage in useEffect
   const today = new Date()
   const todayStr = today.getFullYear() + '-' + 
                    String(today.getMonth() + 1).padStart(2, '0') + '-' + 
@@ -398,6 +431,29 @@ export function GiaoCaContent() {
   const [selectedDate, setSelectedDate] = React.useState(todayStr)
   const [morningSeller, setMorningSeller] = React.useState('Hà Bính')
   const [shiftTime, setShiftTime] = React.useState('12:00')
+  const [isSettingsLoaded, setIsSettingsLoaded] = React.useState(false)
+
+  // Load settings from localStorage on mount
+  React.useEffect(() => {
+    const storedSettings = getStoredSettings()
+    if (storedSettings) {
+      setSelectedDate(storedSettings.selectedDate)
+      setMorningSeller(storedSettings.morningSeller)
+      setShiftTime(storedSettings.shiftTime)
+    }
+    setIsSettingsLoaded(true)
+  }, [])
+
+  // Save settings to localStorage whenever they change (after initial load)
+  React.useEffect(() => {
+    if (isSettingsLoaded) {
+      saveSettings({
+        selectedDate,
+        morningSeller,
+        shiftTime,
+      })
+    }
+  }, [selectedDate, morningSeller, shiftTime, isSettingsLoaded])
 
   // Pump filter state
   const [morningPumpFilter, setMorningPumpFilter] = React.useState({ minAmount: '', maxAmount: '' })
@@ -435,9 +491,12 @@ export function GiaoCaContent() {
     }
   }, [morningSeller, shiftTime, selectedDate])
 
+  // Only fetch data after settings have been loaded from localStorage
   React.useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    if (isSettingsLoaded) {
+      fetchData()
+    }
+  }, [fetchData, isSettingsLoaded])
 
   // Loading state
   if (loading) {
