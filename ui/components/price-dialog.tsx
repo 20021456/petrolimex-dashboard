@@ -29,7 +29,7 @@ interface PriceDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-const UNITS = ['lít', 'kg', 'chai', 'thùng']
+const UNITS = ['lít', 'can', 'xô', 'bình', 'gói', 'chai']
 
 export function PriceDialog({ open, onOpenChange }: PriceDialogProps) {
   const [items, setItems] = useState<PriceItem[]>([])
@@ -184,9 +184,11 @@ export function PriceDialog({ open, onOpenChange }: PriceDialogProps) {
     }
   }
 
-  // Format tiền VND
-  const formatVND = (amount: number) => {
-    return amount.toLocaleString('vi-VN')
+  // Format tiền VND - không hiển thị số thập phân
+  const formatVND = (amount: number | string) => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount
+    if (isNaN(num)) return '0'
+    return Math.round(num).toLocaleString('vi-VN')
   }
 
   return (
