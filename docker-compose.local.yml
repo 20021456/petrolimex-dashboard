@@ -24,7 +24,7 @@ services:
       retries: 5
       start_period: 40s
 
-  # Python Service
+  # Python Service (Auto-update & Scraping + API Server)
   python:
     build:
       context: .
@@ -39,17 +39,20 @@ services:
       MYSQL_PORT: 3306
       FUEL_USERNAME: ${FUEL_USERNAME:-htxthanhsonna}
       FUEL_PASSWORD: ${FUEL_PASSWORD:-thanhson@123}
+      API_PORT: 5000
     volumes:
       - ./output:/app/output
       - ./database:/app/database
       - ./scripts:/app/scripts
+    expose:
+      - "5000"
     depends_on:
       mysql:
         condition: service_healthy
     networks:
       - fuel_network
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import mysql.connector; mysql.connector.connect(host=\"mysql\", user=\"root\", password=\"${MYSQL_ROOT_PASSWORD:-minhtrung02}\", database=\"${MYSQL_DATABASE:-petrolimex}\")' || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -69,6 +72,8 @@ services:
       DB_NAME: ${MYSQL_DATABASE:-petrolimex}
       DB_PORT: 3306
       NODE_ENV: production
+      PYTHON_API_URL: http://python:5000
+      DOCKER_ENV: "true"
     ports:
       - "${DASHBOARD_PORT:-3000}:3000"
     depends_on:

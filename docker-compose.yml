@@ -41,7 +41,7 @@ services:
       retries: 20
       start_period: 60s
 
-  # Python Service (Auto-update & Scraping)
+  # Python Service (Auto-update & Scraping + API Server)
   python:
     build:
       context: .
@@ -58,6 +58,8 @@ services:
       # Fuel Credentials
       FUEL_USERNAME: ${FUEL_USERNAME:-htxthanhsonna}
       FUEL_PASSWORD: ${FUEL_PASSWORD:-thanhson@123}
+      # API Server
+      API_PORT: 5000
     volumes:
       - ./output:/app/output
       - ./database:/app/database
@@ -67,12 +69,14 @@ services:
         condition: service_healthy
     networks:
       - fuel_network
+    expose:
+      - "5000"
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import sys; sys.exit(0)' || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 30s
 
   # Next.js Dashboard
   dashboard:
@@ -90,6 +94,9 @@ services:
       NODE_ENV: production
       # MySQL client config via environment variable
       MYSQL_PWD: ${MYSQL_ROOT_PASSWORD:-minhtrung02}
+      # Python API URL (để gọi cập nhật dữ liệu)
+      PYTHON_API_URL: http://python:5000
+      DOCKER_ENV: "true"
     # For Dokploy: use expose instead of ports (Dokploy handles routing via Traefik)
     # For local: uncomment ports and comment expose
     expose:
@@ -98,6 +105,8 @@ services:
     #   - "${DASHBOARD_PORT:-3000}:3000"
     depends_on:
       mysql:
+        condition: service_healthy
+      python:
         condition: service_healthy
     networks:
       - fuel_network

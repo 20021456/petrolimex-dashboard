@@ -26,8 +26,9 @@ networks:
     external: true
 
 services:
-  # Python Service (Auto-update & Scraping)
-  # Sử dụng Dokploy Schedule Task để restart container định kỳ
+  # Python Service (Auto-update & Scraping + API Server)
+  # Chạy Flask API server để nhận requests từ dashboard
+  # Dokploy Schedule Task vẫn có thể chạy: python scripts/demo_auto_update.py --mode 1
   python:
     build:
       context: .
@@ -45,10 +46,14 @@ services:
       # Fuel Credentials
       FUEL_USERNAME: ${FUEL_USERNAME}
       FUEL_PASSWORD: ${FUEL_PASSWORD}
+      # API Server
+      API_PORT: 5000
       # Timezone
       TZ: Asia/Ho_Chi_Minh
     volumes:
       - ./output:/app/output
+    expose:
+      - "5000"
     logging:
       driver: "json-file"
       options:
@@ -63,6 +68,8 @@ services:
     restart: unless-stopped
     networks:
       - dokploy-network
+    depends_on:
+      - python
     environment:
       # MySQL Config - sử dụng external database từ Dokploy
       DB_HOST: ${DB_HOST:-${MYSQL_HOST}}
@@ -72,6 +79,9 @@ services:
       DB_PORT: ${DB_PORT:-3306}
       # MySQL client config
       MYSQL_PWD: ${DB_PASSWORD:-${MYSQL_PASSWORD}}
+      # Python API URL (để gọi cập nhật dữ liệu)
+      PYTHON_API_URL: http://python:5000
+      DOCKER_ENV: "true"
       # Node.js
       NODE_ENV: production
       TZ: Asia/Ho_Chi_Minh

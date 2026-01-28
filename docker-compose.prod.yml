@@ -30,7 +30,7 @@ services:
       - --innodb_buffer_pool_size=256M
       - --log_error_verbosity=2
 
-  # Python Service (Auto-update & Scraping)
+  # Python Service (Auto-update & Scraping + API Server)
   python:
     build:
       context: .
@@ -45,9 +45,12 @@ services:
       MYSQL_PORT: 3306
       FUEL_USERNAME: ${FUEL_USERNAME}
       FUEL_PASSWORD: ${FUEL_PASSWORD}
+      API_PORT: 5000
       TZ: Asia/Ho_Chi_Minh
     volumes:
       - ./output:/app/output
+    expose:
+      - "5000"
     depends_on:
       mysql:
         condition: service_healthy
@@ -58,6 +61,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Next.js Dashboard
   dashboard:
@@ -73,11 +82,15 @@ services:
       DB_NAME: ${MYSQL_DATABASE:-petrolimex}
       DB_PORT: 3306
       NODE_ENV: production
+      PYTHON_API_URL: http://python:5000
+      DOCKER_ENV: "true"
       TZ: Asia/Ho_Chi_Minh
     ports:
       - "${DASHBOARD_PORT:-3000}:3000"
     depends_on:
       mysql:
+        condition: service_healthy
+      python:
         condition: service_healthy
     networks:
       - fuel_network
