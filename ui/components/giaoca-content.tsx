@@ -23,6 +23,8 @@ import {
   PackageIcon,
   WarehouseIcon,
   ClockIcon,
+  DownloadIcon,
+  Loader2Icon,
 } from "lucide-react"
 
 interface GiaoCaStats {
@@ -448,6 +450,7 @@ export function GiaoCaContent() {
   const [data, setData] = React.useState<GiaoCaData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const [isUpdating, setIsUpdating] = React.useState(false)
 
   // Initialize state from localStorage using lazy initializer
   const [selectedDate, setSelectedDate] = React.useState(() => getInitialSettings().selectedDate)
@@ -511,6 +514,44 @@ export function GiaoCaContent() {
     }
   }, [morningSeller, shiftTime, selectedDate])
 
+  // Function to update fuel pump data for selected date
+  const handleUpdateFuelData = React.useCallback(async () => {
+    setIsUpdating(true)
+    
+    try {
+      const response = await fetch('/api/update-fuel-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ date: selectedDate })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        toast.success(`Cập nhật thành công! Đã thêm ${result.inserted} bản ghi`, {
+          description: `Ngày ${selectedDate}: Xóa ${result.deleted}, thêm ${result.inserted} bản ghi`,
+          duration: 5000
+        })
+        // Refresh data after update
+        await fetchData()
+      } else {
+        toast.error('Cập nhật thất bại', {
+          description: result.message || 'Có lỗi xảy ra khi cập nhật dữ liệu',
+          duration: 5000
+        })
+      }
+    } catch (err: any) {
+      toast.error('Không thể cập nhật', {
+        description: err.message || 'Không thể kết nối đến server',
+        duration: 5000
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }, [selectedDate, fetchData])
+
   // Only fetch data after settings have been loaded from localStorage
   React.useEffect(() => {
     if (isSettingsLoaded) {
@@ -563,10 +604,27 @@ export function GiaoCaContent() {
             {morningSeller} ↔ {afternoonSeller}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchData} className="flex-shrink-0 h-8 px-2 sm:px-3">
-          <RefreshCwIcon className="h-3.5 w-3.5 sm:mr-2" />
-          <span className="hidden sm:inline">Làm mới</span>
-        </Button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleUpdateFuelData} 
+            disabled={isUpdating}
+            className="h-8 px-2 sm:px-3"
+            title={`Cập nhật dữ liệu bơm ngày ${selectedDate}`}
+          >
+            {isUpdating ? (
+              <Loader2Icon className="h-3.5 w-3.5 animate-spin sm:mr-2" />
+            ) : (
+              <DownloadIcon className="h-3.5 w-3.5 sm:mr-2" />
+            )}
+            <span className="hidden sm:inline">{isUpdating ? 'Đang cập nhật...' : 'Cập nhật'}</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchData} className="h-8 px-2 sm:px-3">
+            <RefreshCwIcon className="h-3.5 w-3.5 sm:mr-2" />
+            <span className="hidden sm:inline">Làm mới</span>
+          </Button>
+        </div>
       </div>
 
       {/* Shift Settings */}
