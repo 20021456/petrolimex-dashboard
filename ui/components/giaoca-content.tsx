@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,7 +24,6 @@ import {
   PackageIcon,
   WarehouseIcon,
   ClockIcon,
-  DownloadIcon,
   Loader2Icon,
 } from "lucide-react"
 
@@ -518,6 +518,11 @@ export function GiaoCaContent() {
   const handleUpdateFuelData = React.useCallback(async () => {
     setIsUpdating(true)
     
+    // Show loading toast
+    const loadingToastId = toast.loading('Đang cập nhật dữ liệu...', {
+      description: `Đang lấy dữ liệu ngày ${selectedDate} từ server`,
+    })
+    
     try {
       const response = await fetch('/api/update-fuel-data', {
         method: 'POST',
@@ -529,9 +534,12 @@ export function GiaoCaContent() {
       
       const result = await response.json()
       
+      // Dismiss loading toast
+      toast.dismiss(loadingToastId)
+      
       if (result.success) {
-        toast.success(`Cập nhật thành công! Đã thêm ${result.inserted} bản ghi`, {
-          description: `Ngày ${selectedDate}: Xóa ${result.deleted}, thêm ${result.inserted} bản ghi`,
+        toast.success('Cập nhật thành công!', {
+          description: `Ngày ${selectedDate}: Đã cập nhật ${result.inserted} bản ghi`,
           duration: 5000
         })
         // Refresh data after update
@@ -543,6 +551,8 @@ export function GiaoCaContent() {
         })
       }
     } catch (err: any) {
+      // Dismiss loading toast
+      toast.dismiss(loadingToastId)
       toast.error('Không thể cập nhật', {
         description: err.message || 'Không thể kết nối đến server',
         duration: 5000
@@ -604,27 +614,21 @@ export function GiaoCaContent() {
             {morningSeller} ↔ {afternoonSeller}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleUpdateFuelData} 
-            disabled={isUpdating}
-            className="h-8 px-2 sm:px-3"
-            title={`Cập nhật dữ liệu bơm ngày ${selectedDate}`}
-          >
-            {isUpdating ? (
-              <Loader2Icon className="h-3.5 w-3.5 animate-spin sm:mr-2" />
-            ) : (
-              <DownloadIcon className="h-3.5 w-3.5 sm:mr-2" />
-            )}
-            <span className="hidden sm:inline">{isUpdating ? 'Đang cập nhật...' : 'Cập nhật'}</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={fetchData} className="h-8 px-2 sm:px-3">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleUpdateFuelData} 
+          disabled={isUpdating}
+          className="h-8 px-2 sm:px-3 flex-shrink-0"
+          title={`Cập nhật dữ liệu bơm ngày ${selectedDate}`}
+        >
+          {isUpdating ? (
+            <Loader2Icon className="h-3.5 w-3.5 animate-spin sm:mr-2" />
+          ) : (
             <RefreshCwIcon className="h-3.5 w-3.5 sm:mr-2" />
-            <span className="hidden sm:inline">Làm mới</span>
-          </Button>
-        </div>
+          )}
+          <span className="hidden sm:inline">{isUpdating ? 'Đang cập nhật...' : 'Cập nhật'}</span>
+        </Button>
       </div>
 
       {/* Shift Settings */}
@@ -639,12 +643,32 @@ export function GiaoCaContent() {
           <div className="grid gap-2 grid-cols-4">
             <div className="space-y-1">
               <Label className="text-[10px] sm:text-xs">Ngày</Label>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="text-xs sm:text-sm h-8"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal text-xs sm:text-sm h-8"
+                  >
+                    <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                    {selectedDate ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('vi-VN') : 'Chọn ngày'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate ? new Date(selectedDate + 'T00:00:00') : undefined}
+                    onSelect={(date: Date | undefined) => {
+                      if (date) {
+                        const dateStr = date.getFullYear() + '-' + 
+                          String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(date.getDate()).padStart(2, '0')
+                        setSelectedDate(dateStr)
+                      }
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] sm:text-xs">Ca sáng</Label>
