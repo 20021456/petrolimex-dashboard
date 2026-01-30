@@ -410,11 +410,12 @@ const getTodayStr = () => {
 }
 
 // Helper to get stored settings from localStorage (sync version for initialization)
+// Ngày luôn mặc định là ngày hiện tại, chỉ lưu morningSeller và shiftTime
 const getInitialSettings = (): GiaoCaSettings => {
   const defaults: GiaoCaSettings = {
-    selectedDate: getTodayStr(),
+    selectedDate: getTodayStr(), // Luôn là ngày hiện tại
     morningSeller: 'Hà Bính',
-    shiftTime: '12:00'
+    shiftTime: '14:00'
   }
   
   if (typeof window === 'undefined') return defaults
@@ -424,7 +425,7 @@ const getInitialSettings = (): GiaoCaSettings => {
     if (stored) {
       const parsed = JSON.parse(stored)
       return {
-        selectedDate: parsed.selectedDate || defaults.selectedDate,
+        selectedDate: getTodayStr(), // Luôn dùng ngày hiện tại, không lấy từ localStorage
         morningSeller: parsed.morningSeller || defaults.morningSeller,
         shiftTime: parsed.shiftTime || defaults.shiftTime
       }
@@ -459,9 +460,10 @@ export function GiaoCaContent() {
   const [isSettingsLoaded, setIsSettingsLoaded] = React.useState(false)
 
   // Mark settings as loaded and sync from localStorage (for hydration)
+  // Ngày luôn là ngày hiện tại, chỉ load morningSeller và shiftTime từ localStorage
   React.useEffect(() => {
     const stored = getInitialSettings()
-    setSelectedDate(stored.selectedDate)
+    setSelectedDate(getTodayStr()) // Luôn dùng ngày hiện tại
     setMorningSeller(stored.morningSeller)
     setShiftTime(stored.shiftTime)
     setIsSettingsLoaded(true)
