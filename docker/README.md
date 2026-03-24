@@ -13,14 +13,14 @@ docker/
 │   └── entrypoint.sh           # Database initialization script
 ├── .env/
 │   └── prod.env.example        # Environment variables template
-└── docker-compose.yml          # Dokploy compose file
+└── README.md                    # Docker deployment guide
 ```
 
 ## 🚀 Deploy trên Dokploy
 
 ### 1. Cấu hình Compose Service
 
-- **Compose File Path**: `docker/docker-compose.yml`
+- **Compose File Path**: `docker-compose.dokploy.yml`
 - **Source**: GitHub Repository
 
 ### 2. Environment Variables

@@ -18,7 +18,7 @@ RUN npm install --legacy-peer-deps
 RUN npm run build
 
 # Copy entrypoint script
-COPY docker-entrypoint-dashboard.sh /entrypoint.sh
+COPY docker/nextjs/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Expose port

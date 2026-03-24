@@ -119,30 +119,6 @@ TZ=Asia/Ho_Chi_Minh
 
 ---
 
-### 💻 Local Development với Docker
-
-**Bước 1: Khởi động Docker Desktop**
-- Mở Docker Desktop application
-- Đợi cho đến khi hiển thị "Docker Desktop is running"
-
-**Bước 2: Chạy Docker Compose**
-
-```bash
-# Build và khởi động (local với ports exposed)
-docker-compose -f docker-compose.local.yml up --build -d
-
-# Xem logs
-docker-compose -f docker-compose.local.yml logs -f
-
-# Dừng containers
-docker-compose -f docker-compose.local.yml down
-```
-
-**Truy cập Dashboard:**
-- http://localhost:3000
-
----
-
 ## 📖 Hướng dẫn sử dụng Dashboard
 
 ### 🏠 Trang chủ Dashboard
@@ -317,7 +293,7 @@ docker exec -i fuel_mysql mysql -uroot -p[PASSWORD] petrolimex < backup.sql
 
 ### 🔧 Khởi tạo Database Tables
 
-Database tables được **TỰ ĐỘNG** tạo khi dashboard khởi động lần đầu thông qua `docker-entrypoint-dashboard.sh`.
+Database tables được **TỰ ĐỘNG** tạo khi dashboard khởi động lần đầu thông qua `docker/nextjs/entrypoint.sh`.
 
 Nếu gặp lỗi "Table doesn't exist", restart dashboard container:
 ```bash
@@ -390,10 +366,16 @@ petrolimex-dashboard/
 │   ├── components/               #   React components
 │   └── lib/                      #   Utils & helpers
 │
-├── docker-compose.yml            # Production (Dokploy)
-├── docker-compose.local.yml      # Local development
-├── Dockerfile.python             # Python service
-├── Dockerfile.nextjs             # Next.js dashboard
+├── docker/                        # Docker configuration
+│   ├── python/
+│   │   └── Dockerfile            # Python service
+│   ├── nextjs/
+│   │   ├── Dockerfile            # Next.js dashboard
+│   │   └── entrypoint.sh         # Database init script
+│   ├── .env/
+│   │   └── prod.env.example      # Environment template
+│   └── README.md
+├── docker-compose.dokploy.yml    # Dokploy deployment
 │
 ├── setup.bat                     # Setup Python + MySQL
 ├── run_auto_update.bat           # Update dữ liệu fuel
