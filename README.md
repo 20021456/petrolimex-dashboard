@@ -303,7 +303,7 @@ docker exec -i fuel_mysql mysql -uroot -p[PASSWORD] petrolimex < backup.sql
 | Vấn đề | Giải pháp |
 |--------|-----------|
 | Python error | Cài Python từ python.org, sau đó chạy `setup.bat` |
-| MySQL connection | Check MySQL đang chạy, password trong `database/config.py` |
+| MySQL connection | Check MySQL đang chạy, password trong `src/utils/config.py` |
 | npm install error | Dùng `npm install --legacy-peer-deps` |
 | Port 3000 đã dùng | Tắt app khác hoặc `PORT=3001 npm run dev` |
 | Dashboard không load | Check `.env.local` trong folder `ui/` |
@@ -357,36 +357,49 @@ DASHBOARD_PORT=3000
 ## 📁 Cấu trúc Project
 
 ```
-Python/Fuel/
-├── database/                      # Module database và API
-│   ├── fuel_api.py               # API chính & MySQL
-│   ├── config.py                 # Cấu hình (sử dụng env vars)
-│   └── *.sql                     # SQL scripts
+petrolimex-dashboard/
 │
-├── scripts/                       # Scripts chạy tác vụ
-│   ├── demo_auto_update.py       # Auto-update script
-│   └── scheduler_with_reload.py
+├── src/                           # Source code chính (Data Pipeline)
+│   ├── ingestion/                 # Đọc dữ liệu từ nguồn (web scraping)
+│   │   ├── fuel_api.py           #   FuelAPI class - scraper + DB operations
+│   │   └── get_fuel_data.py      #   Helper script cho Next.js
+│   ├── transform/                 # Logic biến đổi, làm sạch dữ liệu
+│   ├── load/                      # Ghi vào database (data warehouse)
+│   │   └── setup_tables.py       #   Tạo bảng database
+│   ├── utils/                     # Helper functions, config
+│   │   └── config.py             #   Cấu hình database (env vars)
+│   ├── models/                    # Data models & schemas
+│   │   └── schemas.py            #   FuelTransaction, TankData, FuelPrice
+│   └── api/                       # Flask REST API server
+│       └── server.py             #   API endpoints cho Next.js
+│
+├── dags/                          # Scheduled pipeline tasks (DAGs)
+│   ├── etl_daily.py              #   Auto-update dữ liệu hàng ngày
+│   ├── etl_scheduler.py          #   Scheduler chạy định kỳ
+│   └── etl_single_day.py         #   Cập nhật 1 ngày cụ thể
+│
+├── notebooks/                     # Jupyter / exploratory analysis
+│
+├── data/                          # Data lake layers
+│   ├── raw/                      #   Dữ liệu gốc (bronze)
+│   ├── processed/                #   Đã làm sạch (silver)
+│   └── output/                   #   Kết quả cuối (gold)
 │
 ├── ui/                            # Web Dashboard (Next.js)
-│   ├── app/
-│   │   ├── api/                  # API routes
-│   │   ├── dashboard/            # Dashboard page
-│   │   ├── chitiet/              # Chi tiết page
-│   │   └── kho/                 # Quản lý kho page
-│   ├── components/               # React components
-│   └── lib/                      # Utils & helpers
+│   ├── app/                      #   Pages & API routes
+│   ├── components/               #   React components
+│   └── lib/                      #   Utils & helpers
 │
 ├── docker-compose.yml            # Production (Dokploy)
 ├── docker-compose.local.yml      # Local development
 ├── Dockerfile.python             # Python service
 ├── Dockerfile.nextjs             # Next.js dashboard
-├── docker-entrypoint-dashboard.sh # Dashboard entrypoint (auto DB init)
 │
-├── setup.bat                     # ⭐ Setup Python + MySQL
-├── run_auto_update.bat           # ⭐ Update dữ liệu fuel
-├── run_dashboard.bat             # ⭐ Chạy dashboard local
+├── setup.bat                     # Setup Python + MySQL
+├── run_auto_update.bat           # Update dữ liệu fuel
+├── run_dashboard.bat             # Chạy dashboard local
 │
-└── README.md                     # File này
+└── README.md
 ```
 
 ### 🔧 Scripts chính (Windows)

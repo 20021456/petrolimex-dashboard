@@ -28,7 +28,7 @@ networks:
 services:
   # Python Service (Auto-update & Scraping + API Server)
   # Chạy Flask API server để nhận requests từ dashboard
-  # Dokploy Schedule Task vẫn có thể chạy: python scripts/demo_auto_update.py --mode 1
+  # Dokploy Schedule Task vẫn có thể chạy: python dags/etl_daily.py --mode 1
   python:
     build:
       context: .
@@ -51,7 +51,7 @@ services:
       # Timezone
       TZ: Asia/Ho_Chi_Minh
     volumes:
-      - ./output:/app/output
+      - ./data:/app/data
     expose:
       - "5000"
     logging:

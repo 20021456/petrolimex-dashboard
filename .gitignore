@@ -43,10 +43,21 @@ npm-debug.log*
 *.swo
 *~
 
+# Data lake (keep .gitkeep only)
+data/raw/*
+data/processed/*
+data/output/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/output/.gitkeep
+
 # Output files
 output/
 *.csv
 *.log
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
 # Ignore json files except package files
 *.json
 !package*.json
@@ -59,7 +70,7 @@ mysql_backups/
 *.sql.gz
 
 # Sensitive config (IMPORTANT!)
-# database/config.py - ĐÃ SỬ DỤNG ENV VARIABLES - AN TOÀN ĐỂ PUSH
+# src/utils/config.py - ĐÃ SỬ DỤNG ENV VARIABLES - AN TOÀN ĐỂ PUSH
 
 # Streamlit cache
 .streamlit/

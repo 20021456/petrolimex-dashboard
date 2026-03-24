@@ -10,16 +10,16 @@ import os
 import argparse
 from datetime import datetime, timedelta
 
-# Thêm parent directory vào path
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-from database.fuel_api import FuelAPI
+from src.ingestion.fuel_api import FuelAPI
 
-# Import config
 try:
-    from database.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
+    from src.utils.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
 except ImportError:
-    print("✗ Không tìm thấy file database/config.py")
+    print("✗ Không tìm thấy file src/utils/config.py")
     print("➜ Hãy kiểm tra lại cấu hình")
     exit(1)
 

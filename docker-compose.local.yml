@@ -41,9 +41,9 @@ services:
       FUEL_PASSWORD: ${FUEL_PASSWORD:-thanhson@123}
       API_PORT: 5000
     volumes:
-      - ./output:/app/output
-      - ./database:/app/database
-      - ./scripts:/app/scripts
+      - ./src:/app/src
+      - ./dags:/app/dags
+      - ./data:/app/data
     expose:
       - "5000"
     depends_on:

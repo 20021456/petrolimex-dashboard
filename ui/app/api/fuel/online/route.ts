@@ -24,20 +24,11 @@ export async function GET() {
       }, { status: 501 }) // 501 Not Implemented
     }
     
-    // Tìm thư mục database - chỉ cho local development
-    const possiblePaths = [
-      path.join(process.cwd(), '..', '..', 'database'),
-      path.join(process.cwd(), '..', 'database'),
-      path.join(process.cwd(), 'database'),
-      'D:\\Cursor\\Python\\Fuel\\database'
-    ]
+    // Tìm thư mục project root - chỉ cho local development
+    const projectRoot = path.join(process.cwd(), '..')
+    const scriptPath = path.join(projectRoot, 'src', 'ingestion', 'get_fuel_data.py')
     
-    let databasePath = possiblePaths[3] // Default to absolute path
-    
-    console.log('Trying to find database directory...')
     console.log('Current working directory:', process.cwd())
-    
-    const scriptPath = path.join(databasePath, 'get_fuel_data.py')
     console.log('Script path:', scriptPath)
     
     // Chạy script Python để lấy dữ liệu online
@@ -45,8 +36,8 @@ export async function GET() {
     console.log('Running command:', command)
     
     const { stdout, stderr } = await execAsync(command, { 
-      cwd: databasePath,
-      timeout: 60000, // 60 seconds timeout (Playwright cần thời gian)
+      cwd: projectRoot,
+      timeout: 60000,
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
     })
     

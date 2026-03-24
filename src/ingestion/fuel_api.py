@@ -3,6 +3,13 @@ Script để lấy dữ liệu từ fuel.net (Trang Mã Bơm - Theo dõi bán h�
 Sử dụng Playwright để tự động hóa browser và lấy dữ liệu
 """
 
+import sys
+import os
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -1410,10 +1417,10 @@ def main():
     
     # Import config
     try:
-        from config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
+        from src.utils.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
     except ImportError:
-        print("✗ Không tìm thấy file config.py")
-        print("ℹ️  Hãy tạo file config.py từ config_sample.py")
+        print("✗ Không tìm thấy file src/utils/config.py")
+        print("ℹ️  Hãy kiểm tra lại cấu hình")
         return
     
     # Parse command line arguments

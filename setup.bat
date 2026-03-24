@@ -37,7 +37,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [3/3] Dang tao bang Inventory trong MySQL...
-python database\setup_inventory.py
+python src\load\setup_tables.py
 
 echo.
 echo ============================================================
@@ -45,7 +45,7 @@ echo   CAI DAT THANH CONG!
 echo ============================================================
 echo.
 echo Buoc tiep theo:
-echo 1. Chinh sua database\config.py (MySQL password)
+echo 1. Chinh sua src\utils\config.py (MySQL password)
 echo 2. Tao file ui\.env.local (xem README.md)
 echo 3. Chay "run_dashboard.bat" de khoi dong dashboard
 echo.

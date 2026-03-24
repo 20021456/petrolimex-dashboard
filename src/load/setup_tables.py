@@ -2,8 +2,15 @@
 Script để tạo bảng fuel_prices và inventory_items trong database
 """
 
+import sys
+import os
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import mysql.connector
-from config import MYSQL_CONFIG
+from src.utils.config import MYSQL_CONFIG
 
 def create_tables():
     """Tạo bảng fuel_prices TRƯỚC, inventory_items SAU"""
@@ -22,7 +29,8 @@ def create_tables():
         # ========================================
         print("\n[1/2] Đang tạo bảng fuel_prices...")
         
-        with open('database/create_price_table.sql', 'r', encoding='utf-8') as f:
+        sql_dir = os.path.join(PROJECT_ROOT, 'src', 'storage')
+        with open(os.path.join(sql_dir, 'create_price_table.sql'), 'r', encoding='utf-8') as f:
             sql_content = f.read()
             sql_commands = [cmd.strip() for cmd in sql_content.split(';') if cmd.strip() and not cmd.strip().startswith('--')]
             
@@ -51,7 +59,7 @@ def create_tables():
         # ========================================
         print("\n[2/2] Đang tạo bảng inventory_items...")
         
-        with open('database/create_inventory_table.sql', 'r', encoding='utf-8') as f:
+        with open(os.path.join(sql_dir, 'create_inventory_table.sql'), 'r', encoding='utf-8') as f:
             sql_content = f.read()
             sql_commands = [cmd.strip() for cmd in sql_content.split(';') if cmd.strip() and not cmd.strip().startswith('--')]
             

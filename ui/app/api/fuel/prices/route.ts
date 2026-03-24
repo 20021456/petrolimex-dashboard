@@ -43,15 +43,15 @@ export async function GET() {
     }
     
     // Local development: chạy Python script
-    const databasePath = 'D:\\Cursor\\Python\\Fuel\\database'
-    const scriptPath = path.join(databasePath, 'get_fuel_data.py')
+    const projectRoot = path.join(process.cwd(), '..')
+    const scriptPath = path.join(projectRoot, 'src', 'ingestion', 'get_fuel_data.py')
     
     console.log('Getting prices from:', scriptPath)
     
     const { stdout, stderr } = await execAsync(
       `python "${scriptPath}" --type prices`,
       { 
-        cwd: databasePath,
+        cwd: projectRoot,
         timeout: 60000,
         env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
       }

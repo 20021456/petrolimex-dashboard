@@ -48,7 +48,7 @@ services:
       API_PORT: 5000
       TZ: Asia/Ho_Chi_Minh
     volumes:
-      - ./output:/app/output
+      - ./data:/app/data
     expose:
       - "5000"
     depends_on:

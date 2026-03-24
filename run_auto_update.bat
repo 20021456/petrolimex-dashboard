@@ -20,18 +20,18 @@ cd /d "%~dp0"
 if "%choice%"=="2" (
     echo.
     echo Mode 2: RELOAD tu thang 8/2025
-    python scripts\demo_auto_update.py --mode 2
+    python dags\etl_daily.py --mode 2
 ) else if "%choice%"=="3" (
     echo.
     set /p days="Nhap so ngay (mac dinh 90): "
     if "!days!"=="" set days=90
     echo.
     echo Mode 3: RELOAD !days! ngay gan nhat
-    python scripts\demo_auto_update.py --mode 3 --days !days!
+    python dags\etl_daily.py --mode 3 --days !days!
 ) else (
     echo.
     echo Mode 1: AUTO-UPDATE (mac dinh)
-    python scripts\demo_auto_update.py --mode 1
+    python dags\etl_daily.py --mode 1
 )
 
 echo.

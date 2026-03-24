@@ -6,26 +6,22 @@ Cho phép Next.js dashboard gọi để trigger cập nhật dữ liệu
 import sys
 import os
 
-# Thêm parent directory vào path trước khi import
-APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if APP_DIR not in sys.path:
-    sys.path.insert(0, APP_DIR)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-# Print để debug
-print(f"🐳 Running in Docker mode - Working dir: {os.getcwd()}")
-print(f"🐳 APP_DIR: {APP_DIR}")
-print(f"🐳 sys.path: {sys.path[:3]}...")
+print(f"Working dir: {os.getcwd()}")
+print(f"PROJECT_ROOT: {PROJECT_ROOT}")
 
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-# Import config và check kết nối
 try:
-    from database.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
-    print(f"🐳 Running in Docker mode - MySQL: {MYSQL_CONFIG.get('host')}:{MYSQL_CONFIG.get('port', 3306)}")
+    from src.utils.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
+    print(f"MySQL: {MYSQL_CONFIG.get('host')}:{MYSQL_CONFIG.get('port', 3306)}")
 except Exception as e:
-    print(f"⚠️ Warning: Could not import config: {e}")
+    print(f"Warning: Could not import config: {e}")
     MYSQL_CONFIG = None
 
 app = Flask(__name__)
@@ -92,8 +88,8 @@ def update_fuel_data():
         # Import và chạy update trực tiếp
         print(f"[API] Nhận request cập nhật ngày: {date_str}")
         
-        from database.fuel_api import FuelAPI
-        from database.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
+        from src.ingestion.fuel_api import FuelAPI
+        from src.utils.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
         
         result = {
             "success": False,
@@ -182,8 +178,8 @@ def auto_update():
     API endpoint để chạy auto-update (cập nhật thông minh)
     """
     try:
-        from database.fuel_api import FuelAPI
-        from database.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
+        from src.ingestion.fuel_api import FuelAPI
+        from src.utils.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
         
         print("[API] Bắt đầu auto-update...")
         
@@ -226,7 +222,7 @@ def auto_update():
 def test_endpoint():
     """Test endpoint để kiểm tra API hoạt động"""
     try:
-        from database.config import FUEL_USERNAME, MYSQL_CONFIG
+        from src.utils.config import FUEL_USERNAME, MYSQL_CONFIG
         return jsonify({
             'status': 'ok',
             'fuel_username': FUEL_USERNAME,

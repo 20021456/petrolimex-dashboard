@@ -6,11 +6,16 @@ Script helper để lấy dữ liệu từ Fuel API và trả về JSON
 """
 
 import sys
+import os
 import json
 import argparse
 
-from fuel_api import FuelAPI
-from config import FUEL_USERNAME, FUEL_PASSWORD
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from src.ingestion.fuel_api import FuelAPI
+from src.utils.config import FUEL_USERNAME, FUEL_PASSWORD
 
 def main():
     try:
