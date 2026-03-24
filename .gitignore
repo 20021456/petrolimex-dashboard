@@ -21,10 +21,14 @@ wheels/
 .installed.cfg
 *.egg
 
-# Docker
+# Docker & Environment Variables (CRITICAL - NEVER COMMIT)
 .env
 .env.local
 .env.*.local
+*.env
+!env.example
+!env.dokploy.example
+!env-template.txt
 
 # Virtual Environment
 venv/
