@@ -7,7 +7,7 @@
 # 1. Tạo MySQL database trong cùng Project trên Dokploy
 # 2. Lấy "Internal Host" từ tab Connection của MySQL service
 # 3. Cấu hình Environment Variables trong Dokploy (xem bên dưới)
-# 4. Trong "Compose File Path", chọn: docker-compose.dokploy.yml
+# 4. Trong "Compose File Path", chọn: docker/docker-compose.yml
 # 5. Deploy
 #
 # =====================================================
@@ -31,8 +31,8 @@ services:
   # Dokploy Schedule Task vẫn có thể chạy: python dags/etl_daily.py --mode 1
   python:
     build:
-      context: .
-      dockerfile: Dockerfile.python
+      context: ..
+      dockerfile: docker/python/Dockerfile
     restart: unless-stopped
     networks:
       - dokploy-network
@@ -63,8 +63,8 @@ services:
   # Next.js Dashboard
   dashboard:
     build:
-      context: .
-      dockerfile: Dockerfile.nextjs
+      context: ..
+      dockerfile: docker/nextjs/Dockerfile
     restart: unless-stopped
     networks:
       - dokploy-network
