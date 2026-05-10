@@ -100,17 +100,20 @@ TZ=Asia/Ho_Chi_Minh
 2. Click tab **Schedules**
 3. Click **Add Schedule** và cấu hình:
    - **Name**: `auto-update-fuel`
+   - **Service**: chọn service `python` (không phải `dashboard`)
    - **Cron Expression**: `0 */6 * * *` (mỗi 6 giờ) hoặc:
      - `0 0 * * *` = Mỗi ngày lúc 00:00
      - `0 */4 * * *` = Mỗi 4 giờ
      - `0 8,14,20 * * *` = Lúc 8h, 14h, 20h hàng ngày
-   - **Command**: `restart` (restart container Python để trigger update)
+   - **Command**: `python dags/etl_daily.py --mode 1` (auto-update thông minh, chỉ lấy data mới)
 4. Click **Save**
 
+> ⚠️ **Lưu ý:** Đừng đặt Command là `restart` — Dokploy sẽ chạy `docker exec <container> bash -c "restart"` và bash không có lệnh `restart`, schedule sẽ fail với `restart: command not found`.
+
 **Cách hoạt động:**
-- Container Python chạy script cập nhật 1 lần khi khởi động, sau đó sleep
-- Dokploy Schedule Task restart container theo lịch đã đặt
-- Mỗi lần restart = 1 lần cập nhật dữ liệu mới
+- Dokploy Schedule Task chạy `docker exec` vào container Python theo lịch
+- Mỗi lần chạy = 1 lần ETL cập nhật dữ liệu mới từ seenpro.net vào MySQL
+- Container Python vẫn chạy liên tục để serve API (port 5000)
 
 **Lưu ý:**
 - Dashboard tự động khởi tạo database tables lần đầu
