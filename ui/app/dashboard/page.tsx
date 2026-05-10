@@ -230,7 +230,7 @@ export default function Page() {
           peakHoursData={stats.chartData.byHourOfDay}
           uniqueDays={stats.chartData.uniqueDays}
         />,
-        table: <FuelDataTable data={stats.recentTransactions} />,
+        table: <FuelDataTable dateRange={dateRange} search={search} data={stats.recentTransactions} />,
       }
     : null
 
