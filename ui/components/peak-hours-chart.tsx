@@ -75,25 +75,33 @@ function formatHour(hour: number): string {
 
 export function PeakHoursChart({ chartData, uniqueDays: propUniqueDays }: PeakHoursChartProps) {
   const [displayMode, setDisplayMode] = React.useState<DisplayMode>("total")
-  
+  const [selectedFuels, setSelectedFuels] = React.useState<string[]>([])
+
   const safeChartData = Array.isArray(chartData) ? chartData : []
   const uniqueDays = propUniqueDays || 1
-  
-  // Get unique pump columns and fuel types
+
+  // Get unique pump columns and fuel types from the full dataset
+  // (fuel toggles must remain visible even when the user deselects them)
   const { pumpColumns, fuelTypes } = React.useMemo(() => {
     const pumps = new Set<number>()
     const fuels = new Set<string>()
-    
+
     safeChartData.forEach(item => {
       if (item.cotBom && item.cotBom > 0) pumps.add(item.cotBom)
       if (item.fuelType) fuels.add(item.fuelType)
     })
-    
+
     return {
       pumpColumns: Array.from(pumps).sort((a, b) => a - b),
       fuelTypes: Array.from(fuels).sort()
     }
   }, [safeChartData])
+
+  // Empty selection means "all fuels"
+  const filteredData = React.useMemo(() => {
+    if (selectedFuels.length === 0) return safeChartData
+    return safeChartData.filter(item => selectedFuels.includes(item.fuelType))
+  }, [safeChartData, selectedFuels])
 
   // Build chart config for pump columns
   const chartConfig = React.useMemo(() => {
@@ -122,7 +130,7 @@ export function PeakHoursChart({ chartData, uniqueDays: propUniqueDays }: PeakHo
     }
     
     // Fill in the data
-    safeChartData.forEach(item => {
+    filteredData.forEach(item => {
       const hour = item.hour
       const pump = item.cotBom || 0
       if (hour >= 0 && hour < 24 && pump > 0) {
@@ -155,10 +163,10 @@ export function PeakHoursChart({ chartData, uniqueDays: propUniqueDays }: PeakHo
       })
       .filter(item => item.total > 0) // Only show hours with data
       .sort((a, b) => a.hourValue - b.hourValue)
-  }, [safeChartData, pumpColumns, displayMode, uniqueDays])
+  }, [filteredData, pumpColumns, displayMode, uniqueDays])
 
-  const totalRevenue = safeChartData.reduce((sum, item) => sum + (Number(item.revenue) || 0), 0)
-  const totalTransactions = safeChartData.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
+  const totalRevenue = filteredData.reduce((sum, item) => sum + (Number(item.revenue) || 0), 0)
+  const totalTransactions = filteredData.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
 
   // Find peak hour
   const peakHour = React.useMemo(() => {
@@ -170,19 +178,42 @@ export function PeakHoursChart({ chartData, uniqueDays: propUniqueDays }: PeakHo
     ? totalRevenue / uniqueDays 
     : totalRevenue
 
-  // Custom legend for fuel types
-  const FuelLegend = () => (
-    <div className="flex flex-wrap gap-3 mt-2 px-2 justify-center">
+  // Interactive fuel filter — clicking a chip toggles that fuel.
+  // Empty selection means "show all".
+  const FuelFilter = () => (
+    <div className="flex flex-wrap items-center gap-2 mt-2 px-2 justify-center">
       <span className="text-xs text-muted-foreground font-medium">Nhiên liệu:</span>
-      {fuelTypes.map(fuel => (
-        <div key={fuel} className="flex items-center gap-1.5">
-          <div 
-            className="w-3 h-3 rounded-sm" 
-            style={{ backgroundColor: FUEL_COLORS[fuel] || '#888' }}
-          />
-          <span className="text-xs text-muted-foreground">{fuel}</span>
-        </div>
-      ))}
+      <ToggleGroup
+        type="multiple"
+        value={selectedFuels}
+        onValueChange={(value) => setSelectedFuels(value)}
+        className="flex flex-wrap gap-1 justify-start"
+      >
+        {fuelTypes.map(fuel => (
+          <ToggleGroupItem
+            key={fuel}
+            value={fuel}
+            size="sm"
+            aria-label={`Lọc ${fuel}`}
+            className="h-6 px-2 gap-1.5 data-[state=off]:opacity-50"
+          >
+            <div
+              className="w-3 h-3 rounded-sm"
+              style={{ backgroundColor: FUEL_COLORS[fuel] || '#888' }}
+            />
+            <span className="text-xs">{fuel}</span>
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      {selectedFuels.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setSelectedFuels([])}
+          className="text-xs text-muted-foreground underline hover:text-foreground"
+        >
+          Tất cả
+        </button>
+      )}
     </div>
   )
 
@@ -310,16 +341,23 @@ export function PeakHoursChart({ chartData, uniqueDays: propUniqueDays }: PeakHo
               </BarChart>
             </ChartContainer>
             
-            {/* Legends */}
+            {/* Legends + fuel filter */}
             <div className="border-t pt-3 mt-2 space-y-2">
               <PumpLegend />
-              <FuelLegend />
+              <FuelFilter />
             </div>
           </>
         ) : (
-          <div className="flex min-h-[280px] items-center justify-center text-muted-foreground">
-            Không có dữ liệu
-          </div>
+          <>
+            <div className="flex min-h-[280px] items-center justify-center text-muted-foreground">
+              Không có dữ liệu
+            </div>
+            {fuelTypes.length > 0 && (
+              <div className="border-t pt-3 mt-2">
+                <FuelFilter />
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
