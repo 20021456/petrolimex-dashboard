@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { FuelIcon, DollarSignIcon, ActivityIcon, TrendingUpIcon, BarChart3Icon } from "lucide-react"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell, LabelList, CartesianGrid } from "recharts"
 
@@ -28,7 +29,8 @@ export function ChiTietContent() {
   const [priceData, setPriceData] = React.useState<PriceData[]>([])
   const [tankData, setTankData] = React.useState<TankData[]>([])
   const [dashboardStats, setDashboardStats] = React.useState<any>(null)
-  
+  const [selectedFuels, setSelectedFuels] = React.useState<string[]>([])
+
   const [loading, setLoading] = React.useState({
     prices: false,
     tanks: false,
@@ -172,19 +174,26 @@ export function ChiTietContent() {
     }
   }, [dashboardStats?.chartData?.byHourOfDay])
 
-  // Tổng hợp dữ liệu theo giờ và cột bơm
+  // Tổng hợp dữ liệu theo giờ và cột bơm — áp dụng bộ lọc nhiên liệu trước khi gộp.
+  // Empty selection nghĩa là "tất cả".
   const aggregatedHourData = React.useMemo(() => {
     if (!dashboardStats?.chartData?.byHourOfDay || !Array.isArray(dashboardStats.chartData.byHourOfDay)) {
       return []
     }
-    
+
+    const source = selectedFuels.length === 0
+      ? dashboardStats.chartData.byHourOfDay
+      : dashboardStats.chartData.byHourOfDay.filter(
+          (item: any) => selectedFuels.includes(item.fuelType)
+        )
+
     const hourMap = new Map<number, any>()
-    
-    dashboardStats.chartData.byHourOfDay.forEach((item: any) => {
+
+    source.forEach((item: any) => {
       const hourValue = Number(item.hour)
       const cotBom = Number(item.cotBom) || 0
       if (isNaN(hourValue)) return
-      
+
       if (!hourMap.has(hourValue)) {
         hourMap.set(hourValue, {
           hour: hourValue,
@@ -196,20 +205,20 @@ export function ChiTietContent() {
           hourMap.get(hourValue)[`pump_${pump}`] = 0
         })
       }
-      
+
       const existing = hourMap.get(hourValue)
       existing.revenue += Number(item.revenue) || 0
       existing.count += Number(item.count) || 0
-      
+
       if (cotBom > 0) {
         existing[`pump_${cotBom}`] = (existing[`pump_${cotBom}`] || 0) + (Number(item.revenue) || 0)
       }
     })
-    
+
     return Array.from(hourMap.values())
       .filter(item => item.revenue > 0)
       .sort((a, b) => a.hour - b.hour)
-  }, [dashboardStats?.chartData?.byHourOfDay, pumpColumns])
+  }, [dashboardStats?.chartData?.byHourOfDay, pumpColumns, selectedFuels])
 
   return (
     <div className="space-y-4" suppressHydrationWarning>
@@ -597,18 +606,40 @@ export function ChiTietContent() {
                               ))}
                             </div>
                             
-                            {/* Legend cho loại nhiên liệu */}
-                            <div className="flex flex-wrap gap-3 px-2 justify-center">
+                            {/* Bộ lọc loại nhiên liệu */}
+                            <div className="flex flex-wrap items-center gap-2 px-2 justify-center">
                               <span className="text-xs text-muted-foreground font-medium">Nhiên liệu:</span>
-                              {fuelTypes.map(fuel => (
-                                <div key={fuel} className="flex items-center gap-1.5">
-                                  <div 
-                                    className="w-3 h-3 rounded-sm" 
-                                    style={{ backgroundColor: FUEL_COLORS[fuel] || '#888' }}
-                                  />
-                                  <span className="text-xs text-muted-foreground">{fuel}</span>
-                                </div>
-                              ))}
+                              <ToggleGroup
+                                type="multiple"
+                                value={selectedFuels}
+                                onValueChange={(value) => setSelectedFuels(value)}
+                                className="flex flex-wrap gap-1 justify-start"
+                              >
+                                {fuelTypes.map(fuel => (
+                                  <ToggleGroupItem
+                                    key={fuel}
+                                    value={fuel}
+                                    size="sm"
+                                    aria-label={`Lọc ${fuel}`}
+                                    className="h-6 px-2 gap-1.5 data-[state=off]:opacity-50"
+                                  >
+                                    <div
+                                      className="w-3 h-3 rounded-sm"
+                                      style={{ backgroundColor: FUEL_COLORS[fuel] || '#888' }}
+                                    />
+                                    <span className="text-xs">{fuel}</span>
+                                  </ToggleGroupItem>
+                                ))}
+                              </ToggleGroup>
+                              {selectedFuels.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedFuels([])}
+                                  className="text-xs text-muted-foreground underline hover:text-foreground"
+                                >
+                                  Tất cả
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}
@@ -618,11 +649,23 @@ export function ChiTietContent() {
                         <div className="text-center">
                           <BarChart3Icon className="mx-auto h-12 w-12 text-muted-foreground opacity-50 mb-4" />
                           <p className="text-sm text-muted-foreground">
-                            Chưa có dữ liệu bán hàng theo giờ cho ngày hôm nay
+                            {selectedFuels.length > 0
+                              ? "Không có dữ liệu cho nhiên liệu đã chọn"
+                              : "Chưa có dữ liệu bán hàng theo giờ cho ngày hôm nay"}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Dữ liệu sẽ hiển thị khi có giao dịch trong ngày
-                          </p>
+                          {selectedFuels.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFuels([])}
+                              className="text-xs text-muted-foreground underline hover:text-foreground mt-2"
+                            >
+                              Bỏ lọc, xem tất cả
+                            </button>
+                          ) : (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Dữ liệu sẽ hiển thị khi có giao dịch trong ngày
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
