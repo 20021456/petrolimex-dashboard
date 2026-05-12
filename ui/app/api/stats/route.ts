@@ -4,6 +4,9 @@ import { query } from '@/lib/db';
 // Suy nhiên liệu thực tế từ cot_bom theo bố trí bồn-cột tại trạm
 // (đồng bộ với override trong /api/fuel/tanks). Upstream nhien_lieu
 // trong fuel_pump không đáng tin, nên dùng cot_bom làm nguồn sự thật.
+// ELSE phải là literal — nếu tham chiếu nhien_lieu thì sql_mode
+// only_full_group_by sẽ từ chối vì CASE không còn phụ thuộc duy nhất
+// vào cot_bom.
 const FUEL_BY_COT_BOM_SQL = `
   CASE COALESCE(cot_bom, 0)
     WHEN 1 THEN 'DO 0,001S-V'
@@ -11,7 +14,7 @@ const FUEL_BY_COT_BOM_SQL = `
     WHEN 3 THEN 'RON95-III'
     WHEN 4 THEN 'E5'
     WHEN 5 THEN 'DO 0,05S-II'
-    ELSE nhien_lieu
+    ELSE 'Khác'
   END`
 
 export async function GET(request: Request) {
