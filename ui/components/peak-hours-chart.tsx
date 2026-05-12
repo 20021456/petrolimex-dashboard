@@ -47,13 +47,17 @@ const PUMP_COLORS: Record<number, string> = {
   8: '#84cc16',  // lime-500
 }
 
-// Màu cho từng loại nhiên liệu
+// Màu cho từng loại nhiên liệu (alias cho cả tên upstream cũ và tên chuẩn từ bồn)
 const FUEL_COLORS: Record<string, string> = {
-  'DO 0.05S': '#22c55e',     // green-500
-  'E5 RON 92-II': '#3b82f6', // blue-500
-  'RON 95-III': '#f59e0b',   // amber-500
-  'RON 95-IV': '#ef4444',    // red-500
-  'RON 95-V': '#8b5cf6',     // violet-500
+  'DO 0.05S': '#22c55e',
+  'DO 0,05S-II': '#22c55e',
+  'DO 0,001S-V': '#06b6d4',
+  'E5': '#3b82f6',
+  'E5 RON 92-II': '#3b82f6',
+  'RON 95-III': '#f59e0b',
+  'RON95-III': '#f59e0b',
+  'RON 95-IV': '#ef4444',
+  'RON 95-V': '#8b5cf6',
 }
 
 function formatCurrency(amount: number): string {
