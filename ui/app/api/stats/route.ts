@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+// Suy nhiên liệu thực tế từ cot_bom theo bố trí bồn-cột tại trạm
+// (đồng bộ với override trong /api/fuel/tanks). Upstream nhien_lieu
+// trong fuel_pump không đáng tin, nên dùng cot_bom làm nguồn sự thật.
+const FUEL_BY_COT_BOM_SQL = `
+  CASE COALESCE(cot_bom, 0)
+    WHEN 1 THEN 'DO 0,001S-V'
+    WHEN 2 THEN 'RON95-III'
+    WHEN 3 THEN 'RON95-III'
+    WHEN 4 THEN 'E5'
+    WHEN 5 THEN 'DO 0,05S-II'
+    ELSE nhien_lieu
+  END`
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -74,17 +87,18 @@ export async function GET(request: Request) {
     
     // Doanh thu theo ngày (30 ngày gần nhất hoặc trong khoảng được chọn)
     // ⚡ FIX: Format date rõ ràng thành YYYY-MM-DD để tránh timezone issues
+    // ⚡ FIX: Gộp theo fuel suy ra từ cot_bom, không tin nhien_lieu upstream
     const chartData = await query<any[]>(`
-      SELECT 
+      SELECT
         DATE_FORMAT(DATE(ket_thuc_bom), '%Y-%m-%d') as date,
-        nhien_lieu as fuelType,
+        ${FUEL_BY_COT_BOM_SQL} as fuelType,
         SUM(tien) as revenue,
         SUM(lit) as liters,
         COUNT(*) as count
       FROM fuel_pump
       ${chartFullWhere}
-      GROUP BY DATE_FORMAT(DATE(ket_thuc_bom), '%Y-%m-%d'), nhien_lieu
-      ORDER BY date ASC, nhien_lieu ASC
+      GROUP BY DATE_FORMAT(DATE(ket_thuc_bom), '%Y-%m-%d'), ${FUEL_BY_COT_BOM_SQL}
+      ORDER BY date ASC, fuelType ASC
     `);
     
     // DEBUG: Log để kiểm tra duplicate
@@ -103,33 +117,33 @@ export async function GET(request: Request) {
       });
     }
 
-    // Doanh thu theo loại nhiên liệu
+    // Doanh thu theo loại nhiên liệu — suy từ cot_bom (xem FUEL_BY_COT_BOM_SQL)
     const byFuelType = await query<any[]>(`
-      SELECT 
-        nhien_lieu as fuelType,
+      SELECT
+        ${FUEL_BY_COT_BOM_SQL} as fuelType,
         SUM(tien) as revenue,
         SUM(lit) as liters,
         COUNT(*) as count
       FROM fuel_pump
       ${chartFullWhere}
-      GROUP BY nhien_lieu
+      GROUP BY ${FUEL_BY_COT_BOM_SQL}
       ORDER BY revenue DESC
     `);
 
     // Doanh thu theo giờ trong ngày - ⚡ FIX: Dùng chartFullWhere thay vì fullWhere
-    // Thêm cot_bom để phân biệt theo cột bơm
+    // Gộp theo (giờ, cột) — fuel suy ra từ cot_bom nên 1 cột chỉ có 1 fuel.
     const byHourOfDay = await query<any[]>(`
-      SELECT 
+      SELECT
         HOUR(ket_thuc_bom) as hour,
         COALESCE(cot_bom, 0) as cotBom,
-        nhien_lieu as fuelType,
+        ${FUEL_BY_COT_BOM_SQL} as fuelType,
         SUM(tien) as revenue,
         SUM(lit) as liters,
         COUNT(*) as count
       FROM fuel_pump
       ${chartFullWhere}
-      GROUP BY HOUR(ket_thuc_bom), cot_bom, nhien_lieu
-      ORDER BY hour ASC, cot_bom ASC, nhien_lieu ASC
+      GROUP BY HOUR(ket_thuc_bom), cot_bom
+      ORDER BY hour ASC, cot_bom ASC
     `);
 
     // Count unique days for average calculation - ⚡ FIX: Dùng chartFullWhere
@@ -140,11 +154,11 @@ export async function GET(request: Request) {
     `);
     const uniqueDays = uniqueDaysResult?.uniqueDays || 1;
 
-    // Top 30 giao dịch gần nhất
+    // Top 30 giao dịch gần nhất — fuelType suy từ cot_bom
     const recentTransactions = await query<any[]>(`
-      SELECT 
+      SELECT
         ma_bom as pumpCode,
-        nhien_lieu as fuelType,
+        ${FUEL_BY_COT_BOM_SQL} as fuelType,
         gia as price,
         lit as liters,
         tien as amount,
