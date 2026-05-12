@@ -15,6 +15,21 @@ interface TankData {
   cot_bom: string
 }
 
+// Override cot_bom theo ánh xạ thực tế tại trạm.
+// Dữ liệu upstream từ Fuel API trả về cot_bom không khớp thực tế,
+// nên ép theo bảng dưới đây trước khi trả ra client.
+const TANK_COT_BOM_OVERRIDES: Record<string, string> = {
+  'BỒN 1': '2,3',
+  'BỒN 2': '5',
+  'BỒN 3': '4',
+  'BỒN 4': '1',
+}
+
+function applyCotBomOverride(tenBon: string, cotBom: string): string {
+  const key = (tenBon || '').trim().toUpperCase()
+  return TANK_COT_BOM_OVERRIDES[key] ?? cotBom
+}
+
 export async function GET() {
   try {
     // Detect Docker/Production environment
@@ -40,14 +55,17 @@ export async function GET() {
         `)
         
         // Map dữ liệu sang format chuẩn
-        const tankData: TankData[] = rows.map((row: any) => ({
-          ten_bon: row.ten_bon || '',
-          nhien_lieu: row.nhien_lieu || '',
-          ton_kho: parseFloat(row.ton_kho) || 0,
-          dung_tich: parseFloat(row.dung_tich) || 0,
-          ty_le: row.ty_le || 'N/A',
-          cot_bom: row.cot_bom || ''
-        }))
+        const tankData: TankData[] = rows.map((row: any) => {
+          const tenBon = row.ten_bon || ''
+          return {
+            ten_bon: tenBon,
+            nhien_lieu: row.nhien_lieu || '',
+            ton_kho: parseFloat(row.ton_kho) || 0,
+            dung_tich: parseFloat(row.dung_tich) || 0,
+            ty_le: row.ty_le || 'N/A',
+            cot_bom: applyCotBomOverride(tenBon, row.cot_bom || '')
+          }
+        })
         
         return NextResponse.json({
           success: true,
@@ -113,6 +131,12 @@ export async function GET() {
     
     try {
       const data = JSON.parse(jsonLine)
+      if (data && Array.isArray(data.data)) {
+        data.data = data.data.map((tank: any) => ({
+          ...tank,
+          cot_bom: applyCotBomOverride(tank.ten_bon || '', tank.cot_bom || '')
+        }))
+      }
       return NextResponse.json(data)
     } catch (parseError) {
       console.error('Parse error:', parseError)
