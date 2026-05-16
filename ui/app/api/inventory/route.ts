@@ -8,6 +8,8 @@ interface InventoryItem {
   category?: string;
   quantity: number;
   unit?: string;
+  unit_price?: number;
+  total_amount?: number;
   sale_time?: string;
   payment_status?: 'unpaid' | 'paid' | 'partial';
   paid_amount?: number;
@@ -27,6 +29,28 @@ async function addSellerNameColumn() {
       return true;
     }
     return false;
+  }
+}
+
+// Thêm cột unit_price + total_amount nếu chưa có
+async function addPricingColumns() {
+  try {
+    await query(`SELECT unit_price FROM inventory_items LIMIT 1`);
+  } catch (error: any) {
+    if (error.code === 'ER_BAD_FIELD_ERROR') {
+      console.log('🔄 Adding unit_price column...');
+      await query(`ALTER TABLE inventory_items ADD COLUMN unit_price DECIMAL(15, 2) DEFAULT 0 AFTER unit`);
+      console.log('✅ Added unit_price column');
+    }
+  }
+  try {
+    await query(`SELECT total_amount FROM inventory_items LIMIT 1`);
+  } catch (error: any) {
+    if (error.code === 'ER_BAD_FIELD_ERROR') {
+      console.log('🔄 Adding total_amount column...');
+      await query(`ALTER TABLE inventory_items ADD COLUMN total_amount DECIMAL(15, 2) DEFAULT 0 AFTER unit_price`);
+      console.log('✅ Added total_amount column');
+    }
   }
 }
 
@@ -82,6 +106,7 @@ async function ensureCorrectSchema() {
     // Thêm các cột mới nếu chưa có
     await addSellerNameColumn();
     await addPaidAmountColumn();
+    await addPricingColumns();
     await updatePaymentStatusEnum();
     
     return true;
@@ -98,6 +123,8 @@ async function ensureCorrectSchema() {
           category VARCHAR(50) NOT NULL DEFAULT 'fuel',
           quantity DECIMAL(10, 2) NOT NULL DEFAULT 0,
           unit VARCHAR(20) NOT NULL DEFAULT 'lít',
+          unit_price DECIMAL(15, 2) DEFAULT 0,
+          total_amount DECIMAL(15, 2) DEFAULT 0,
           sale_time DATETIME,
           payment_status ENUM('unpaid', 'paid', 'partial') NOT NULL DEFAULT 'unpaid',
           paid_amount DECIMAL(15, 2) DEFAULT 0,
@@ -122,9 +149,10 @@ export async function GET() {
     await ensureCorrectSchema();
     
     const items = await query<any[]>(`
-      SELECT id, customer_name, seller_name, item_name, category, quantity, unit, 
-             sale_time, payment_status, paid_amount, created_at 
-      FROM inventory_items 
+      SELECT id, customer_name, seller_name, item_name, category, quantity, unit,
+             unit_price, total_amount,
+             sale_time, payment_status, paid_amount, created_at
+      FROM inventory_items
       ORDER BY created_at DESC
     `);
 
@@ -168,11 +196,16 @@ export async function POST(request: NextRequest) {
       ? data.payment_status 
       : 'unpaid';
 
+    const unitPrice = Number(data.unit_price) > 0 ? Number(data.unit_price) : 0;
+    const totalAmount = unitPrice > 0
+      ? unitPrice * Number(data.quantity)
+      : (Number(data.total_amount) > 0 ? Number(data.total_amount) : 0);
+
     // Insert vào database
     await query(`
-      INSERT INTO inventory_items 
-      (id, customer_name, seller_name, item_name, category, quantity, unit, sale_time, payment_status, paid_amount, last_updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      INSERT INTO inventory_items
+      (id, customer_name, seller_name, item_name, category, quantity, unit, unit_price, total_amount, sale_time, payment_status, paid_amount, last_updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `, [
       id,
       data.customer_name || '',
@@ -181,6 +214,8 @@ export async function POST(request: NextRequest) {
       data.category || 'fuel',
       data.quantity,
       data.unit || 'lít',
+      unitPrice,
+      totalAmount,
       saleTime,
       paymentStatus,
       data.paid_amount || 0
