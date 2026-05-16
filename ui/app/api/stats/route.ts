@@ -157,9 +157,10 @@ export async function GET(request: Request) {
     `);
     const uniqueDays = uniqueDaysResult?.uniqueDays || 1;
 
-    // Top 30 giao dịch gần nhất — fuelType suy từ cot_bom
+    // Top 30 giao dịch gần nhất — fuelType suy từ cot_bom, kèm id để PATCH
     const recentTransactions = await query<any[]>(`
       SELECT
+        id,
         ma_bom as pumpCode,
         ${FUEL_BY_COT_BOM_SQL} as fuelType,
         gia as price,

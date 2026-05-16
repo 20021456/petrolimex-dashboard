@@ -15,6 +15,7 @@ import {
   PackageIcon,
   WarehouseIcon,
   RefreshCwIcon,
+  UsersIcon,
 } from "lucide-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -80,6 +81,12 @@ const data = {
       url: "#",
       icon: RefreshCwIcon,
       id: "giaoca",
+    },
+    {
+      name: "Khách Quen",
+      url: "#",
+      icon: UsersIcon,
+      id: "khachquen",
     },
     {
       name: "Báo Cáo",
