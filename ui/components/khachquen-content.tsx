@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2, UsersIcon, Banknote } from "lucide-react"
 import { KhachQuenDetailDialog } from "@/components/khachquen-detail-dialog"
+import { invalidateKhachQuenCache } from "@/lib/khachquen-cache"
 
 export interface KhachQuen {
   id: number
@@ -134,6 +135,7 @@ export function KhachQuenContent() {
       const json = await res.json()
       if (!json.success) throw new Error(json.error || "Lỗi khi lưu")
       setEdit((s) => ({ ...s, open: false, saving: false }))
+      invalidateKhachQuenCache()
       await refresh()
     } catch (e: any) {
       setEdit((s) => ({ ...s, saving: false, error: e.message }))
@@ -147,6 +149,7 @@ export function KhachQuenContent() {
       const res = await fetch(`/api/khachquen/${k.id}`, { method: "DELETE" })
       const json = await res.json()
       if (!json.success) throw new Error(json.error || "Lỗi khi xoá")
+      invalidateKhachQuenCache()
       await refresh()
     } catch (e: any) {
       alert(e.message)
