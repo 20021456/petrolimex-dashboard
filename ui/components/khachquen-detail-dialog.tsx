@@ -52,6 +52,8 @@ interface ActivityKho {
   category: string
   quantity: number
   unit: string
+  unit_price: number
+  total_amount: number
   seller_name: string
   payment_status: "unpaid" | "paid" | "partial" | string
   paid_amount: number
@@ -301,6 +303,7 @@ export function KhachQuenDetailDialog({
                         ) : (
                           <span className="text-muted-foreground">
                             {a.item_name} · {fmtNum(a.quantity)} {a.unit}
+                            {a.unit_price > 0 ? ` @ ${fmtMoney(a.unit_price)}` : ""}
                             {a.seller_name ? ` · ${a.seller_name}` : ""}
                             {" · "}
                             <span
@@ -315,7 +318,7 @@ export function KhachQuenDetailDialog({
                               {a.payment_status === "paid"
                                 ? "Đã trả"
                                 : a.payment_status === "partial"
-                                  ? "Trả 1 phần"
+                                  ? `Trả 1 phần (${fmtMoney(a.paid_amount)})`
                                   : "Ghi nợ"}
                             </span>
                           </span>
@@ -324,19 +327,15 @@ export function KhachQuenDetailDialog({
                       <TableCell
                         className={
                           "text-right font-semibold tabular-nums " +
-                          (a.type === "payment"
-                            ? "text-green-600"
-                            : a.type === "kho" && a.paid_amount > 0
-                              ? "text-green-600"
-                              : "")
+                          (a.type === "payment" ? "text-green-600" : "")
                         }
                       >
                         {a.type === "payment"
                           ? `+${fmtMoney(a.amount)}`
                           : a.type === "sale"
                             ? `−${fmtMoney(a.amount)}`
-                            : a.paid_amount > 0
-                              ? `+${fmtMoney(a.paid_amount)}`
+                            : a.total_amount > 0
+                              ? `−${fmtMoney(a.total_amount)}`
                               : "—"}
                       </TableCell>
                     </TableRow>

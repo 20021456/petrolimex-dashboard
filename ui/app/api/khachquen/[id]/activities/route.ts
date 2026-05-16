@@ -91,7 +91,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     try {
       khoOrders = await query<any[]>(
         `
-        SELECT id, item_name, category, quantity, unit, sale_time, payment_status,
+        SELECT id, item_name, category, quantity, unit,
+               COALESCE(unit_price, 0) AS unit_price,
+               COALESCE(total_amount, 0) AS total_amount,
+               sale_time, payment_status,
                paid_amount, seller_name, created_at
         FROM inventory_items
         WHERE customer_name = ?
@@ -115,22 +118,26 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       [customerId]
     )
 
-    // Tổng paid_amount từ đơn xuất kho (nếu có) — cộng vào "Đã trả" cho thống nhất
+    // Tổng paid_amount + total_amount từ đơn xuất kho — cộng vào tổng mua/trả
     let khoPaidTotal = 0
+    let khoSalesTotal = 0
     let khoCount = 0
     try {
       const [khoAgg] = await query<any[]>(
-        `SELECT COALESCE(SUM(paid_amount), 0) AS total, COUNT(*) AS cnt
+        `SELECT COALESCE(SUM(paid_amount), 0) AS paid,
+                COALESCE(SUM(total_amount), 0) AS total,
+                COUNT(*) AS cnt
          FROM inventory_items WHERE customer_name = ?`,
         [customer.ten]
       )
-      khoPaidTotal = Number(khoAgg?.total) || 0
+      khoPaidTotal = Number(khoAgg?.paid) || 0
+      khoSalesTotal = Number(khoAgg?.total) || 0
       khoCount = Number(khoAgg?.cnt) || 0
     } catch (e: any) {
       if (e.code !== 'ER_NO_SUCH_TABLE') throw e
     }
 
-    const totalSales = Number(salesAgg?.total) || 0
+    const totalSales = (Number(salesAgg?.total) || 0) + khoSalesTotal
     const totalPaid = (Number(paymentsAgg?.total) || 0) + khoPaidTotal
 
     const activities = [
@@ -142,6 +149,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         category: k.category || '',
         quantity: Number(k.quantity) || 0,
         unit: k.unit || '',
+        unit_price: Number(k.unit_price) || 0,
+        total_amount: Number(k.total_amount) || 0,
         seller_name: k.seller_name || '',
         payment_status: k.payment_status || 'unpaid',
         paid_amount: Number(k.paid_amount) || 0,

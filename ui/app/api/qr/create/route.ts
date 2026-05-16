@@ -119,7 +119,7 @@ function generateInventoryId(): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customer_name, seller_name, item_name, quantity, payment_status = 'unpaid', paid_amount = 0 } = body
+    const { customer_name, seller_name, item_name, quantity, unit_price = 0, payment_status = 'unpaid', paid_amount = 0 } = body
 
     // Validate
     if (!customer_name?.trim()) {
@@ -148,11 +148,26 @@ export async function POST(request: NextRequest) {
     const validStatuses = ['unpaid', 'paid', 'partial']
     const validPaymentStatus = validStatuses.includes(payment_status) ? payment_status : 'unpaid'
 
+    const unitPrice = Number(unit_price) > 0 ? Number(unit_price) : 0
+    const totalAmount = unitPrice > 0 ? unitPrice * Number(quantity) : 0
+
+    // Đảm bảo cột unit_price + total_amount tồn tại (tự ALTER nếu thiếu)
+    try { await query(`SELECT unit_price FROM inventory_items LIMIT 1`) } catch (e: any) {
+      if (e.code === 'ER_BAD_FIELD_ERROR') {
+        await query(`ALTER TABLE inventory_items ADD COLUMN unit_price DECIMAL(15, 2) DEFAULT 0 AFTER unit`)
+      }
+    }
+    try { await query(`SELECT total_amount FROM inventory_items LIMIT 1`) } catch (e: any) {
+      if (e.code === 'ER_BAD_FIELD_ERROR') {
+        await query(`ALTER TABLE inventory_items ADD COLUMN total_amount DECIMAL(15, 2) DEFAULT 0 AFTER unit_price`)
+      }
+    }
+
     // Lưu vào inventory_items trước
     await query(
-      `INSERT INTO inventory_items (id, customer_name, seller_name, item_name, category, quantity, unit, sale_time, payment_status, paid_amount, last_updated)
-       VALUES (?, ?, ?, ?, 'fuel', ?, 'lít', ?, ?, ?, NOW())`,
-      [inventoryId, customer_name, seller_name || '', item_name, quantity, saleTime, validPaymentStatus, paid_amount || 0]
+      `INSERT INTO inventory_items (id, customer_name, seller_name, item_name, category, quantity, unit, unit_price, total_amount, sale_time, payment_status, paid_amount, last_updated)
+       VALUES (?, ?, ?, ?, 'fuel', ?, 'lít', ?, ?, ?, ?, ?, NOW())`,
+      [inventoryId, customer_name, seller_name || '', item_name, quantity, unitPrice, totalAmount, saleTime, validPaymentStatus, paid_amount || 0]
     )
 
     // Lưu QR code với reference đến inventory

@@ -8,6 +8,8 @@ interface InventoryItem {
   category: string;
   quantity: number;
   unit: string;
+  unit_price?: number;
+  total_amount?: number;
   sale_time?: string;
   payment_status?: 'unpaid' | 'paid' | 'partial';
   paid_amount?: number;
@@ -24,6 +26,21 @@ async function ensureSchemaUpdated() {
         console.log('🔄 Adding paid_amount column...');
         await query(`ALTER TABLE inventory_items ADD COLUMN paid_amount DECIMAL(15, 2) DEFAULT 0 AFTER payment_status`);
         console.log('✅ Added paid_amount column');
+      }
+    }
+    // unit_price + total_amount
+    try {
+      await query(`SELECT unit_price FROM inventory_items LIMIT 1`);
+    } catch (e: any) {
+      if (e.code === 'ER_BAD_FIELD_ERROR') {
+        await query(`ALTER TABLE inventory_items ADD COLUMN unit_price DECIMAL(15, 2) DEFAULT 0 AFTER unit`);
+      }
+    }
+    try {
+      await query(`SELECT total_amount FROM inventory_items LIMIT 1`);
+    } catch (e: any) {
+      if (e.code === 'ER_BAD_FIELD_ERROR') {
+        await query(`ALTER TABLE inventory_items ADD COLUMN total_amount DECIMAL(15, 2) DEFAULT 0 AFTER unit_price`);
       }
     }
     
@@ -81,16 +98,23 @@ export async function PUT(
       ? data.payment_status 
       : 'unpaid';
 
+    const unitPrice = Number(data.unit_price) > 0 ? Number(data.unit_price) : 0;
+    const totalAmount = unitPrice > 0
+      ? unitPrice * Number(data.quantity)
+      : (Number(data.total_amount) > 0 ? Number(data.total_amount) : 0);
+
     // Update database
     await query(`
-      UPDATE inventory_items 
-      SET 
+      UPDATE inventory_items
+      SET
         customer_name = ?,
         seller_name = ?,
         item_name = ?,
         category = ?,
         quantity = ?,
         unit = ?,
+        unit_price = ?,
+        total_amount = ?,
         sale_time = ?,
         payment_status = ?,
         paid_amount = ?,
@@ -103,6 +127,8 @@ export async function PUT(
       data.category,
       data.quantity,
       data.unit || 'lít',
+      unitPrice,
+      totalAmount,
       saleTime,
       paymentStatus,
       data.paid_amount || 0,
