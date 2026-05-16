@@ -117,11 +117,19 @@ export async function GET(request: Request) {
       ORDER BY nhien_lieu ASC
     `)
 
-    // Giao dịch (mới nhất trước)
+    // Giao dịch (mới nhất trước) — include id để có thể PATCH; fuelType suy từ cot_bom
     const transactions = await query<any[]>(`
       SELECT
+        id,
         ma_bom         AS pumpCode,
-        nhien_lieu     AS fuelType,
+        CASE COALESCE(cot_bom, 0)
+          WHEN 1 THEN 'DO 0,001S-V'
+          WHEN 2 THEN 'RON95-III'
+          WHEN 3 THEN 'RON95-III'
+          WHEN 4 THEN 'E5'
+          WHEN 5 THEN 'DO 0,05S-II'
+          ELSE 'Khác'
+        END            AS fuelType,
         gia            AS price,
         lit            AS liters,
         tien           AS amount,
