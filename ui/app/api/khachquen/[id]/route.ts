@@ -21,13 +21,34 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const sdt = (body.sdt || '').trim() || null
     const ghiChu = (body.ghi_chu || '').trim() || null
 
-    const result = await query<any>(
+    // Lấy tên cũ để đồng bộ khach_hang trong fuel_pump nếu đổi tên
+    const existingRows = await query<any[]>(
+      `SELECT ten FROM regular_customers WHERE id = ?`,
+      [customerId]
+    )
+    if (!existingRows.length) {
+      return NextResponse.json({ success: false, error: 'Không tìm thấy khách hàng' }, { status: 404 })
+    }
+    const oldName = existingRows[0].ten
+
+    await query<any>(
       `UPDATE regular_customers SET ten = ?, sdt = ?, ghi_chu = ? WHERE id = ?`,
       [ten, sdt, ghiChu, customerId]
     )
-    if (!result.affectedRows) {
-      return NextResponse.json({ success: false, error: 'Không tìm thấy khách hàng' }, { status: 404 })
+
+    // Nếu tên thay đổi, đồng bộ luôn các giao dịch đã gán tên cũ
+    if (oldName && oldName !== ten) {
+      try {
+        await query(
+          `UPDATE fuel_pump SET khach_hang = ? WHERE khach_hang = ?`,
+          [ten, oldName]
+        )
+      } catch (syncErr) {
+        // Không chặn cập nhật khách hàng nếu sync thất bại
+        console.error('Sync fuel_pump.khach_hang failed:', syncErr)
+      }
     }
+
     return NextResponse.json({ success: true, message: 'Đã cập nhật khách quen' })
   } catch (error: any) {
     if (error.code === 'ER_DUP_ENTRY') {
