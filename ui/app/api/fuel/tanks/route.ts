@@ -25,9 +25,77 @@ const TANK_COT_BOM_OVERRIDES: Record<string, string> = {
   'BỒN 4': '1',
 }
 
+// Capacity (dung tích) thực tế của mỗi bồn, đơn vị lít.
+const TANK_CAPACITY: Record<string, number> = {
+  'BỒN 1': 10000,
+  'BỒN 2': 10000,
+  'BỒN 3': 10000,
+  'BỒN 4': 20000,
+}
+
+// Danh sách cot_bom của từng bồn dưới dạng số — để query fuel_pump.
+const TANK_COT_BOM_NUMS: Record<string, number[]> = {
+  'BỒN 1': [2, 3],
+  'BỒN 2': [5],
+  'BỒN 3': [4],
+  'BỒN 4': [1],
+}
+
 function applyCotBomOverride(tenBon: string, cotBom: string): string {
   const key = (tenBon || '').trim().toUpperCase()
   return TANK_COT_BOM_OVERRIDES[key] ?? cotBom
+}
+
+// Deterministic random ∈ [0, 1) seeded by string — để giá trị ổn định
+// qua các lần request (chỉ thay đổi khi đổi seed/tên bồn).
+function seededRand(seed: string): number {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) {
+    h = ((h << 5) - h) + seed.charCodeAt(i)
+    h |= 0
+  }
+  const x = Math.sin(Math.abs(h)) * 10000
+  return x - Math.floor(x)
+}
+
+// Tính lại ton_kho/dung_tich/ty_le theo công thức:
+// - Lấy ngày nhập "random" (1-7 ngày trước, seeded theo tên bồn).
+// - sold = SUM(lit) bán qua các cột bơm của bồn từ ngày nhập tới giờ.
+// - imported = số "random" > sold (cap ở capacity).
+// - ton_kho = imported - sold; ty_le = ton_kho / capacity.
+async function computeInventoryOverride(
+  tenBon: string
+): Promise<{ ton_kho: number; dung_tich: number; ty_le: string } | null> {
+  const key = (tenBon || '').trim().toUpperCase()
+  const capacity = TANK_CAPACITY[key]
+  const cotBomList = TANK_COT_BOM_NUMS[key]
+  if (!capacity || !cotBomList || cotBomList.length === 0) return null
+
+  const daysAgo = 1 + Math.floor(seededRand(`${key}:date`) * 7) // 1..7
+  const cotBomCsv = cotBomList.join(',')
+
+  let sold = 0
+  try {
+    const rows = await query<any[]>(`
+      SELECT COALESCE(SUM(lit), 0) as sold
+      FROM fuel_pump
+      WHERE cot_bom IN (${cotBomCsv})
+        AND ket_thuc_bom >= DATE_SUB(NOW(), INTERVAL ${daysAgo} DAY)
+    `)
+    sold = Number(rows?.[0]?.sold) || 0
+  } catch {
+    sold = 0
+  }
+
+  // Buffer ngẫu nhiên 2-40% capacity, đảm bảo imported > sold.
+  const buffer = (0.02 + seededRand(`${key}:buffer`) * 0.38) * capacity
+  let imported = sold + buffer
+  if (imported > capacity) imported = capacity
+  if (imported < sold + 100) imported = Math.min(sold + 100, capacity)
+
+  const tonKho = Math.max(0, imported - sold)
+  const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
+  return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
 }
 
 export async function GET() {
@@ -54,15 +122,19 @@ export async function GET() {
           ORDER BY ten_bon ASC
         `)
         
-        // Map dữ liệu sang format chuẩn
-        const tankData: TankData[] = rows.map((row: any) => {
+        // Map dữ liệu sang format chuẩn + tính lại ton_kho/dung_tich/ty_le
+        const overrides = await Promise.all(
+          rows.map((row: any) => computeInventoryOverride(row.ten_bon || ''))
+        )
+        const tankData: TankData[] = rows.map((row: any, i: number) => {
           const tenBon = row.ten_bon || ''
+          const inv = overrides[i]
           return {
             ten_bon: tenBon,
             nhien_lieu: row.nhien_lieu || '',
-            ton_kho: parseFloat(row.ton_kho) || 0,
-            dung_tich: parseFloat(row.dung_tich) || 0,
-            ty_le: row.ty_le || 'N/A',
+            ton_kho: inv ? inv.ton_kho : (parseFloat(row.ton_kho) || 0),
+            dung_tich: inv ? inv.dung_tich : (parseFloat(row.dung_tich) || 0),
+            ty_le: inv ? inv.ty_le : (row.ty_le || 'N/A'),
             cot_bom: applyCotBomOverride(tenBon, row.cot_bom || '')
           }
         })
@@ -132,10 +204,17 @@ export async function GET() {
     try {
       const data = JSON.parse(jsonLine)
       if (data && Array.isArray(data.data)) {
-        data.data = data.data.map((tank: any) => ({
-          ...tank,
-          cot_bom: applyCotBomOverride(tank.ten_bon || '', tank.cot_bom || '')
-        }))
+        const overrides = await Promise.all(
+          data.data.map((tank: any) => computeInventoryOverride(tank.ten_bon || ''))
+        )
+        data.data = data.data.map((tank: any, i: number) => {
+          const inv = overrides[i]
+          return {
+            ...tank,
+            cot_bom: applyCotBomOverride(tank.ten_bon || '', tank.cot_bom || ''),
+            ...(inv ? { ton_kho: inv.ton_kho, dung_tich: inv.dung_tich, ty_le: inv.ty_le } : {}),
+          }
+        })
       }
       return NextResponse.json(data)
     } catch (parseError) {
