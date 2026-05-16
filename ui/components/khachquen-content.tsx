@@ -22,7 +22,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, Pencil, Trash2, UsersIcon } from "lucide-react"
+import { Plus, Pencil, Trash2, UsersIcon, Banknote } from "lucide-react"
+import { KhachQuenDetailDialog } from "@/components/khachquen-detail-dialog"
 
 export interface KhachQuen {
   id: number
@@ -57,6 +58,10 @@ export function KhachQuenContent() {
     error: null,
   })
   const [deleting, setDeleting] = React.useState<number | null>(null)
+  const [detail, setDetail] = React.useState<{ open: boolean; customer: KhachQuen | null }>({
+    open: false,
+    customer: null,
+  })
 
   const refresh = React.useCallback(async () => {
     setLoading(true)
@@ -194,13 +199,31 @@ export function KhachQuenContent() {
               <TableBody>
                 {data.map((k) => (
                   <TableRow key={k.id}>
-                    <TableCell className="font-medium">{k.ten}</TableCell>
+                    <TableCell className="font-medium">
+                      <button
+                        type="button"
+                        className="text-left hover:underline focus-visible:underline outline-none"
+                        onClick={() => setDetail({ open: true, customer: k })}
+                      >
+                        {k.ten}
+                      </button>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{k.sdt || "—"}</TableCell>
                     <TableCell className="text-muted-foreground max-w-xs truncate">
                       {k.ghi_chu || "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-green-600 hover:text-green-700"
+                          onClick={() => setDetail({ open: true, customer: k })}
+                          aria-label="Trả nợ / Chi tiết"
+                          title="Trả nợ / Chi tiết"
+                        >
+                          <Banknote className="h-4 w-4" />
+                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -229,6 +252,12 @@ export function KhachQuenContent() {
           </div>
         )}
       </CardContent>
+
+      <KhachQuenDetailDialog
+        customer={detail.customer}
+        open={detail.open}
+        onOpenChange={(o) => setDetail((s) => ({ ...s, open: o }))}
+      />
 
       <Dialog open={edit.open} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent>
