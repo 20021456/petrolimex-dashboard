@@ -24,8 +24,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { X } from "lucide-react"
+import { CustomerEditPopover } from "@/components/customer-edit-popover"
 
 interface FuelTransaction {
+  id?: number
   pumpCode: string
   fuelType: string
   price: number
@@ -106,6 +108,13 @@ export function FuelDataTable({ dateRange, search, data: initialData }: FuelData
   const [scope, setScope] = React.useState<"today" | "range">("today")
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  function handleCustomerSaved(txId: number | undefined, newName: string) {
+    if (!txId) return
+    setData((prev) =>
+      prev.map((t) => (t.id === txId ? { ...t, customer: newName } : t))
+    )
+  }
 
   // Filter cục bộ của bảng (không ảnh hưởng tới overview/charts ở trên)
   const [hourFrom, setHourFrom] = React.useState<string>("")
@@ -354,7 +363,7 @@ export function FuelDataTable({ dateRange, search, data: initialData }: FuelData
               <TableBody>
                 {data && data.length > 0 ? (
                   data.map((transaction, index) => (
-                    <TableRow key={index}>
+                    <TableRow key={transaction.id ?? index}>
                       <TableCell className="font-medium">
                         <Badge variant="outline">{transaction.pumpCode}</Badge>
                       </TableCell>
@@ -371,7 +380,11 @@ export function FuelDataTable({ dateRange, search, data: initialData }: FuelData
                         {formatCurrency(transaction.amount)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {transaction.customer || "N/A"}
+                        <CustomerEditPopover
+                          transactionId={transaction.id}
+                          currentCustomer={transaction.customer}
+                          onSaved={(name) => handleCustomerSaved(transaction.id, name)}
+                        />
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {formatDateTime(transaction.timestamp)}
@@ -393,7 +406,7 @@ export function FuelDataTable({ dateRange, search, data: initialData }: FuelData
           <div className={`space-y-3 lg:hidden ${isLoading ? "opacity-60" : ""}`}>
             {data && data.length > 0 ? (
               data.map((transaction, index) => (
-                <Card key={index} className="border-l-4 border-l-primary">
+                <Card key={transaction.id ?? index} className="border-l-4 border-l-primary">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div className="flex gap-2">
@@ -419,7 +432,13 @@ export function FuelDataTable({ dateRange, search, data: initialData }: FuelData
                       </div>
                       <div className="col-span-2">
                         <span className="text-muted-foreground text-xs">Khách hàng:</span>
-                        <div className="font-medium">{transaction.customer || "N/A"}</div>
+                        <div className="font-medium">
+                          <CustomerEditPopover
+                            transactionId={transaction.id}
+                            currentCustomer={transaction.customer}
+                            onSaved={(name) => handleCustomerSaved(transaction.id, name)}
+                          />
+                        </div>
                       </div>
                       <div className="col-span-2">
                         <span className="text-muted-foreground text-xs">Thời gian:</span>
