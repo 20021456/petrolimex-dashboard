@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  fetchKhachQuen,
+  invalidateKhachQuenCache,
+  type KhachQuenLite,
+} from "@/lib/khachquen-cache"
 
-interface KhachQuen {
-  id: number
-  ten: string
-  sdt: string | null
-}
+type KhachQuen = KhachQuenLite
 
 interface CustomerEditPopoverProps {
   transactionId?: number
@@ -20,21 +21,7 @@ interface CustomerEditPopoverProps {
   className?: string
 }
 
-let cache: { ts: number; data: KhachQuen[] } | null = null
-const CACHE_MS = 30_000
-
-async function fetchKhachQuen(force = false): Promise<KhachQuen[]> {
-  if (!force && cache && Date.now() - cache.ts < CACHE_MS) return cache.data
-  const res = await fetch("/api/khachquen", { cache: "no-store" })
-  const json = await res.json()
-  const data: KhachQuen[] = json?.success && Array.isArray(json.data) ? json.data : []
-  cache = { ts: Date.now(), data }
-  return data
-}
-
-export function invalidateKhachQuenCache() {
-  cache = null
-}
+export { invalidateKhachQuenCache }
 
 export function CustomerEditPopover({
   transactionId,

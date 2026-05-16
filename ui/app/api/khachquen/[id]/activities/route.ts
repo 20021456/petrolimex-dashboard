@@ -85,6 +85,25 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       [customerId]
     )
 
+    // Đơn xuất kho khớp tên khách (bảng inventory_items có thể chưa tồn tại,
+    // bọc try để khỏi 500 khi user chưa từng dùng module Xuất Kho)
+    let khoOrders: any[] = []
+    try {
+      khoOrders = await query<any[]>(
+        `
+        SELECT id, item_name, category, quantity, unit, sale_time, payment_status,
+               paid_amount, seller_name, created_at
+        FROM inventory_items
+        WHERE customer_name = ?
+        ORDER BY COALESCE(sale_time, created_at) DESC
+        LIMIT 200
+        `,
+        [customer.ten]
+      )
+    } catch (e: any) {
+      if (e.code !== 'ER_NO_SUCH_TABLE') throw e
+    }
+
     const [salesAgg] = await query<any[]>(
       `SELECT COALESCE(SUM(tien), 0) AS total, COUNT(*) AS cnt
        FROM fuel_pump WHERE khach_hang = ?`,
@@ -96,10 +115,37 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       [customerId]
     )
 
+    // Tổng paid_amount từ đơn xuất kho (nếu có) — cộng vào "Đã trả" cho thống nhất
+    let khoPaidTotal = 0
+    let khoCount = 0
+    try {
+      const [khoAgg] = await query<any[]>(
+        `SELECT COALESCE(SUM(paid_amount), 0) AS total, COUNT(*) AS cnt
+         FROM inventory_items WHERE customer_name = ?`,
+        [customer.ten]
+      )
+      khoPaidTotal = Number(khoAgg?.total) || 0
+      khoCount = Number(khoAgg?.cnt) || 0
+    } catch (e: any) {
+      if (e.code !== 'ER_NO_SUCH_TABLE') throw e
+    }
+
     const totalSales = Number(salesAgg?.total) || 0
-    const totalPaid = Number(paymentsAgg?.total) || 0
+    const totalPaid = (Number(paymentsAgg?.total) || 0) + khoPaidTotal
 
     const activities = [
+      ...khoOrders.map((k) => ({
+        type: 'kho' as const,
+        id: k.id,
+        timestamp: k.sale_time || k.created_at,
+        item_name: k.item_name || '',
+        category: k.category || '',
+        quantity: Number(k.quantity) || 0,
+        unit: k.unit || '',
+        seller_name: k.seller_name || '',
+        payment_status: k.payment_status || 'unpaid',
+        paid_amount: Number(k.paid_amount) || 0,
+      })),
       ...sales.map((s) => ({
         type: 'sale' as const,
         id: s.id,
@@ -133,6 +179,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           debt: totalSales - totalPaid,
           sales_count: Number(salesAgg?.cnt) || 0,
           payments_count: Number(paymentsAgg?.cnt) || 0,
+          kho_count: khoCount,
+          kho_paid: khoPaidTotal,
         },
         activities,
       },

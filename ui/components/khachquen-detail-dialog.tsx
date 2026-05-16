@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Banknote, ShoppingCart } from "lucide-react"
+import { Banknote, ShoppingCart, PackageIcon } from "lucide-react"
 import type { KhachQuen } from "@/components/khachquen-content"
 
 interface ActivitySale {
@@ -44,7 +44,20 @@ interface ActivityPayment {
   note: string
 }
 
-type Activity = ActivitySale | ActivityPayment
+interface ActivityKho {
+  type: "kho"
+  id: string | number
+  timestamp: string
+  item_name: string
+  category: string
+  quantity: number
+  unit: string
+  seller_name: string
+  payment_status: "unpaid" | "paid" | "partial" | string
+  paid_amount: number
+}
+
+type Activity = ActivitySale | ActivityPayment | ActivityKho
 
 interface Summary {
   total_sales: number
@@ -52,6 +65,8 @@ interface Summary {
   debt: number
   sales_count: number
   payments_count: number
+  kho_count?: number
+  kho_paid?: number
 }
 
 interface KhachQuenDetailDialogProps {
@@ -181,14 +196,30 @@ export function KhachQuenDetailDialog({
             <SummaryCard
               label="Đã mua"
               value={summary ? fmtMoney(summary.total_sales) : "—"}
-              sub={summary ? `${summary.sales_count} giao dịch` : ""}
+              sub={
+                summary
+                  ? `${summary.sales_count} giao dịch${
+                      summary.kho_count
+                        ? ` · ${summary.kho_count} đơn xuất kho`
+                        : ""
+                    }`
+                  : ""
+              }
               tone="neutral"
               loading={loading}
             />
             <SummaryCard
               label="Đã trả"
               value={summary ? fmtMoney(summary.total_paid) : "—"}
-              sub={summary ? `${summary.payments_count} lần` : ""}
+              sub={
+                summary
+                  ? `${summary.payments_count} lần${
+                      summary.kho_paid
+                        ? ` + ${fmtMoney(summary.kho_paid)} từ xuất kho`
+                        : ""
+                    }`
+                  : ""
+              }
               tone="positive"
               loading={loading}
             />
@@ -246,10 +277,15 @@ export function KhachQuenDetailDialog({
                             <ShoppingCart className="h-3 w-3" />
                             Mua
                           </Badge>
-                        ) : (
+                        ) : a.type === "payment" ? (
                           <Badge className="gap-1 bg-green-600 hover:bg-green-600 text-white">
                             <Banknote className="h-3 w-3" />
                             Trả nợ
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1">
+                            <PackageIcon className="h-3 w-3" />
+                            Xuất kho
                           </Badge>
                         )}
                       </TableCell>
@@ -258,19 +294,50 @@ export function KhachQuenDetailDialog({
                           <span className="text-muted-foreground">
                             {a.fuelType} · {fmtNum(a.liters)} L @ {fmtMoney(a.price)} · Bơm {a.pumpCode}
                           </span>
-                        ) : (
+                        ) : a.type === "payment" ? (
                           <span className="text-muted-foreground">
                             {a.note || "—"}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {a.item_name} · {fmtNum(a.quantity)} {a.unit}
+                            {a.seller_name ? ` · ${a.seller_name}` : ""}
+                            {" · "}
+                            <span
+                              className={
+                                a.payment_status === "paid"
+                                  ? "text-green-600"
+                                  : a.payment_status === "partial"
+                                    ? "text-amber-500"
+                                    : "text-destructive"
+                              }
+                            >
+                              {a.payment_status === "paid"
+                                ? "Đã trả"
+                                : a.payment_status === "partial"
+                                  ? "Trả 1 phần"
+                                  : "Ghi nợ"}
+                            </span>
                           </span>
                         )}
                       </TableCell>
                       <TableCell
                         className={
                           "text-right font-semibold tabular-nums " +
-                          (a.type === "payment" ? "text-green-600" : "")
+                          (a.type === "payment"
+                            ? "text-green-600"
+                            : a.type === "kho" && a.paid_amount > 0
+                              ? "text-green-600"
+                              : "")
                         }
                       >
-                        {a.type === "payment" ? "+" : "−"}{fmtMoney(a.amount)}
+                        {a.type === "payment"
+                          ? `+${fmtMoney(a.amount)}`
+                          : a.type === "sale"
+                            ? `−${fmtMoney(a.amount)}`
+                            : a.paid_amount > 0
+                              ? `+${fmtMoney(a.paid_amount)}`
+                              : "—"}
                       </TableCell>
                     </TableRow>
                   ))

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CustomerNameInput } from "@/components/customer-name-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -327,11 +328,11 @@ export function KhoContent() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="customer_name">Tên khách hàng *</Label>
-              <Input
+              <CustomerNameInput
                 id="customer_name"
                 value={formData.customer_name}
-                onChange={(e) => handleInputChange('customer_name', e.target.value)}
-                placeholder="Nhập tên khách hàng"
+                onChange={(v) => handleInputChange('customer_name', v)}
+                placeholder="Nhập hoặc chọn khách quen..."
                 required
               />
             </div>
