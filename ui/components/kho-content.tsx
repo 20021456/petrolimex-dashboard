@@ -19,6 +19,8 @@ interface InventoryItem {
   quantity: number
   customer_name?: string
   seller_name?: string
+  unit_price?: number
+  total_amount?: number
   sale_time?: string
   payment_status: 'unpaid' | 'paid' | 'partial'
   paid_amount?: number
@@ -30,6 +32,7 @@ interface FormData {
   seller_name: string
   item_name: string
   quantity: number
+  unit_price: number
   payment_status: 'unpaid' | 'paid' | 'partial'
   paid_amount: number
 }
@@ -62,6 +65,7 @@ export function KhoContent() {
     seller_name: 'Hà Khánh',
     item_name: '',
     quantity: 1,
+    unit_price: 0,
     payment_status: 'unpaid',
     paid_amount: 0
   })
@@ -115,12 +119,20 @@ export function KhoContent() {
     loadProducts()
   }, [])
 
-  // Xử lý thay đổi form
+  // Xử lý thay đổi form. Khi đổi sản phẩm: auto-fill unit_price từ bảng giá
+  // nếu user chưa chỉnh đơn giá thủ công (unit_price === 0).
   const handleInputChange = (field: keyof FormData, value: string | number) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    setFormData(prev => {
+      if (field === 'item_name' && typeof value === 'string') {
+        const product = products.find(p => p.fuel_name === value)
+        return {
+          ...prev,
+          item_name: value,
+          unit_price: prev.unit_price > 0 ? prev.unit_price : (product?.price || 0),
+        }
+      }
+      return { ...prev, [field]: value }
+    })
   }
 
   // Thêm/Sửa vật tư
@@ -161,6 +173,7 @@ export function KhoContent() {
           category: 'fuel',
           quantity: formData.quantity,
           unit: 'lít',
+          unit_price: formData.unit_price,
           sale_time: getLocalDateTime(),
           payment_status: formData.payment_status,
           paid_amount: formData.payment_status === 'partial' ? formData.paid_amount : 0
@@ -187,11 +200,13 @@ export function KhoContent() {
 
   // Reset form
   const resetForm = () => {
+    const firstProduct = products[0]
     setFormData({
       customer_name: '',
       seller_name: 'Hà Khánh',
-      item_name: products[0]?.fuel_name || '',
+      item_name: firstProduct?.fuel_name || '',
       quantity: 1,
+      unit_price: firstProduct?.price || 0,
       payment_status: 'unpaid',
       paid_amount: 0
     })
@@ -207,6 +222,7 @@ export function KhoContent() {
       seller_name: item.seller_name || 'Hà Khánh',
       item_name: item.item_name,
       quantity: item.quantity,
+      unit_price: Number(item.unit_price) || 0,
       payment_status: item.payment_status || 'unpaid',
       paid_amount: item.paid_amount || 0
     })
@@ -264,6 +280,7 @@ export function KhoContent() {
           seller_name: formData.seller_name,
           item_name: formData.item_name,
           quantity: formData.quantity,
+          unit_price: formData.unit_price,
           payment_status: formData.payment_status,
           paid_amount: formData.payment_status === 'partial' ? formData.paid_amount : 0
         })
@@ -382,17 +399,42 @@ export function KhoContent() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Số lượng *</Label>
-              <Input
-                id="quantity"
-                type="number"
-                value={formData.quantity}
-                onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 1)}
-                min="1"
-                required
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Số lượng *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  value={formData.quantity}
+                  onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 1)}
+                  min="1"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="unit_price">Đơn giá (₫) *</Label>
+                <Input
+                  id="unit_price"
+                  type="number"
+                  value={formData.unit_price || ''}
+                  onChange={(e) => handleInputChange('unit_price', parseFloat(e.target.value) || 0)}
+                  placeholder="VD: 25000"
+                  min="0"
+                  required
+                />
+              </div>
             </div>
+            {formData.unit_price > 0 && formData.quantity > 0 && (
+              <p className="text-xs text-muted-foreground -mt-1">
+                Tổng tiền:{" "}
+                <span className="font-semibold text-foreground">
+                  {new Intl.NumberFormat('vi-VN').format(
+                    Math.round(formData.unit_price * formData.quantity)
+                  )}{" "}
+                  ₫
+                </span>
+              </p>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="payment_status">Trạng thái thanh toán</Label>
@@ -553,6 +595,7 @@ export function KhoContent() {
                   <TableHead className="min-w-[100px]">Người bán</TableHead>
                   <TableHead className="min-w-[100px]">Tên sản phẩm</TableHead>
                   <TableHead className="text-right min-w-[80px]">Số lượng</TableHead>
+                  <TableHead className="text-right min-w-[110px]">Thành tiền</TableHead>
                   <TableHead className="min-w-[140px]">Thời gian bán</TableHead>
                   <TableHead className="min-w-[90px]">Thanh toán</TableHead>
                   <TableHead className="text-right min-w-[100px]">Thao tác</TableHead>
@@ -561,7 +604,7 @@ export function KhoContent() {
               <TableBody>
                 {filteredItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       Chưa có dữ liệu
                     </TableCell>
                   </TableRow>
@@ -576,8 +619,13 @@ export function KhoContent() {
                       <TableCell className="text-right">
                         {item.quantity}
                       </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {Number(item.total_amount) > 0
+                          ? new Intl.NumberFormat('vi-VN').format(Math.round(Number(item.total_amount))) + ' ₫'
+                          : '—'}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
-                        {item.sale_time 
+                        {item.sale_time
                           ? new Date(item.sale_time).toLocaleString('vi-VN')
                           : '-'
                         }
