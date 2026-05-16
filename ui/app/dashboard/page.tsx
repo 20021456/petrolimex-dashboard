@@ -9,6 +9,7 @@ import { ChiTietContent } from "@/components/chitiet-content"
 import { KhoContent } from "@/components/kho-content"
 import { TonkhoContent } from "@/components/tonkho-content"
 import { GiaoCaContent } from "@/components/giaoca-content"
+import { KhachQuenContent } from "@/components/khachquen-content"
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { DashboardSection } from "@/components/dashboard-section"
 import { DateRangePicker } from "@/components/date-range-picker"
@@ -209,6 +210,8 @@ export default function Page() {
         return ["overview", "charts", "table"]
       case "chitiet":
         return [] // Chi tiết có UI riêng, không dùng sections
+      case "khachquen":
+        return [] // Khách quen có UI riêng
       case "revenue":
         return ["overview", "charts"]
       case "statistics":
@@ -246,6 +249,7 @@ export default function Page() {
     kho: "Xuất Kho",
     tonkho: "Quản Lý Tồn Kho",
     giaoca: "Giao Ca",
+    khachquen: "Khách Quen",
     revenue: "Doanh Thu",
     statistics: "Thống Kê & Biểu Đồ",
     pumps: "Quản Lý Cột Bơm",
@@ -401,6 +405,8 @@ export default function Page() {
             <TonkhoContent />
           ) : activeView === "giaoca" ? (
             <GiaoCaContent />
+          ) : activeView === "khachquen" ? (
+            <KhachQuenContent />
           ) : !stats ? (
             <div className="flex flex-1 items-center justify-center">
               <div className="text-muted-foreground">Đang tải dữ liệu...</div>
