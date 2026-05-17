@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { ensureKhachHangPaidColumn } from '@/lib/fuel-pump-schema'
 
 /**
  * API: Giao dịch gần đây (theo ngày + filter chi tiết)
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
     // Test database connection first
     try {
       await query('SELECT 1')
+      await ensureKhachHangPaidColumn()
     } catch (dbError: any) {
       console.error('Database connection error:', dbError)
       return NextResponse.json(
@@ -134,7 +136,8 @@ export async function GET(request: Request) {
         lit            AS liters,
         tien           AS amount,
         ket_thuc_bom   AS timestamp,
-        khach_hang     AS customer
+        khach_hang     AS customer,
+        COALESCE(khach_hang_paid, 1) AS customer_paid
       FROM fuel_pump
       ${where}
       ORDER BY ket_thuc_bom DESC
