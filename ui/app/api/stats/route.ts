@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { ensureKhachHangPaidColumn } from '@/lib/fuel-pump-schema';
 
 // Suy nhiên liệu thực tế từ cot_bom theo bố trí bồn-cột tại trạm
 // (đồng bộ với override trong /api/fuel/tanks). Upstream nhien_lieu
@@ -158,6 +159,7 @@ export async function GET(request: Request) {
     const uniqueDays = uniqueDaysResult?.uniqueDays || 1;
 
     // Top 30 giao dịch gần nhất — fuelType suy từ cot_bom, kèm id để PATCH
+    await ensureKhachHangPaidColumn();
     const recentTransactions = await query<any[]>(`
       SELECT
         id,
@@ -167,7 +169,8 @@ export async function GET(request: Request) {
         lit as liters,
         tien as amount,
         ket_thuc_bom as timestamp,
-        khach_hang as customer
+        khach_hang as customer,
+        COALESCE(khach_hang_paid, 1) as customer_paid
       FROM fuel_pump
       ${fullWhere}
       ORDER BY ket_thuc_bom DESC

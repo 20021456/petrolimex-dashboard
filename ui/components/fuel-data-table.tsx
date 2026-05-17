@@ -35,6 +35,7 @@ interface FuelTransaction {
   amount: number
   timestamp: string
   customer: string
+  customer_paid?: boolean | number
 }
 
 interface Summary {
@@ -109,10 +110,18 @@ export function FuelDataTable({ dateRange, search, data: initialData }: FuelData
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  function handleCustomerSaved(txId: number | undefined, newName: string) {
+  function handleCustomerSaved(
+    txId: number | undefined,
+    newName: string,
+    newPaid: boolean
+  ) {
     if (!txId) return
     setData((prev) =>
-      prev.map((t) => (t.id === txId ? { ...t, customer: newName } : t))
+      prev.map((t) =>
+        t.id === txId
+          ? { ...t, customer: newName, customer_paid: newPaid }
+          : t
+      )
     )
   }
 
@@ -383,7 +392,10 @@ export function FuelDataTable({ dateRange, search, data: initialData }: FuelData
                         <CustomerEditPopover
                           transactionId={transaction.id}
                           currentCustomer={transaction.customer}
-                          onSaved={(name) => handleCustomerSaved(transaction.id, name)}
+                          currentPaid={Number(transaction.customer_paid ?? 1) === 1}
+                          onSaved={(name, paid) =>
+                            handleCustomerSaved(transaction.id, name, paid)
+                          }
                         />
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
@@ -436,7 +448,10 @@ export function FuelDataTable({ dateRange, search, data: initialData }: FuelData
                           <CustomerEditPopover
                             transactionId={transaction.id}
                             currentCustomer={transaction.customer}
-                            onSaved={(name) => handleCustomerSaved(transaction.id, name)}
+                            currentPaid={Number(transaction.customer_paid ?? 1) === 1}
+                            onSaved={(name, paid) =>
+                              handleCustomerSaved(transaction.id, name, paid)
+                            }
                           />
                         </div>
                       </div>

@@ -4,7 +4,8 @@ import * as React from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Pencil } from "lucide-react"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { AlertTriangle, Check, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   fetchKhachQuen,
@@ -17,7 +18,8 @@ type KhachQuen = KhachQuenLite
 interface CustomerEditPopoverProps {
   transactionId?: number
   currentCustomer: string
-  onSaved: (newCustomer: string) => void
+  currentPaid?: boolean
+  onSaved: (newCustomer: string, paid: boolean) => void
   className?: string
 }
 
@@ -26,6 +28,7 @@ export { invalidateKhachQuenCache }
 export function CustomerEditPopover({
   transactionId,
   currentCustomer,
+  currentPaid = true,
   onSaved,
   className,
 }: CustomerEditPopoverProps) {
@@ -33,19 +36,21 @@ export function CustomerEditPopover({
   const [list, setList] = React.useState<KhachQuen[]>([])
   const [loadingList, setLoadingList] = React.useState(false)
   const [value, setValue] = React.useState(currentCustomer || "")
+  const [paid, setPaid] = React.useState<boolean>(currentPaid)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!open) return
     setValue(currentCustomer || "")
+    setPaid(currentPaid)
     setError(null)
     setLoadingList(true)
     fetchKhachQuen()
       .then(setList)
       .catch(() => setList([]))
       .finally(() => setLoadingList(false))
-  }, [open, currentCustomer])
+  }, [open, currentCustomer, currentPaid])
 
   const filtered = React.useMemo(() => {
     const v = value.trim().toLowerCase()
@@ -57,7 +62,7 @@ export function CustomerEditPopover({
     )
   }, [list, value])
 
-  async function save(newValue: string) {
+  async function save(newValue: string, newPaid: boolean = paid) {
     if (!transactionId) {
       setError("Giao dịch không có ID — không thể cập nhật")
       return
@@ -68,11 +73,11 @@ export function CustomerEditPopover({
       const res = await fetch(`/api/transactions/${transactionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ khach_hang: newValue }),
+        body: JSON.stringify({ khach_hang: newValue, khach_hang_paid: newPaid }),
       })
       const json = await res.json()
       if (!json.success) throw new Error(json.error || "Lỗi khi lưu")
-      onSaved(newValue)
+      onSaved(newValue, newPaid)
       setOpen(false)
     } catch (e: any) {
       setError(e.message)
@@ -95,6 +100,12 @@ export function CustomerEditPopover({
           )}
           aria-label="Gán khách hàng"
         >
+          {currentCustomer && !currentPaid && (
+            <span
+              className="inline-block h-1.5 w-1.5 rounded-full bg-destructive"
+              title="Ghi nợ"
+            />
+          )}
           <span className={currentCustomer ? "" : "text-muted-foreground italic"}>
             {currentCustomer || "N/A"}
           </span>
@@ -145,24 +156,51 @@ export function CustomerEditPopover({
             )}
           </div>
           {error && <div className="text-xs text-destructive">{error}</div>}
-          <div className="flex justify-end gap-2 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setOpen(false)}
-              disabled={saving}
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <ToggleGroup
+              type="single"
+              value={paid ? "paid" : "debt"}
+              onValueChange={(v) => v && setPaid(v === "paid")}
+              className="gap-0.5"
             >
-              Huỷ
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => save(value.trim())}
-              disabled={saving}
-            >
-              {saving ? "Đang lưu..." : "Lưu"}
-            </Button>
+              <ToggleGroupItem
+                value="paid"
+                size="sm"
+                aria-label="Đã trả"
+                className="h-7 px-2 text-xs gap-1 data-[state=on]:bg-green-600 data-[state=on]:text-white"
+              >
+                <Check className="h-3 w-3" />
+                Đã trả
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="debt"
+                size="sm"
+                aria-label="Ghi nợ"
+                className="h-7 px-2 text-xs gap-1 data-[state=on]:bg-destructive data-[state=on]:text-white"
+              >
+                <AlertTriangle className="h-3 w-3" />
+                Ghi nợ
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setOpen(false)}
+                disabled={saving}
+              >
+                Huỷ
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => save(value.trim())}
+                disabled={saving}
+              >
+                {saving ? "Đang lưu..." : "Lưu"}
+              </Button>
+            </div>
           </div>
         </div>
       </PopoverContent>

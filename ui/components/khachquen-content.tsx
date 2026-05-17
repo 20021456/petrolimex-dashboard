@@ -33,6 +33,13 @@ export interface KhachQuen {
   ghi_chu: string | null
   created_at?: string
   updated_at?: string
+  debt?: number
+  total_sales?: number
+  total_paid?: number
+}
+
+function fmtMoney(n: number): string {
+  return new Intl.NumberFormat("vi-VN").format(Math.round(n)) + " ₫"
 }
 
 interface EditState {
@@ -195,6 +202,7 @@ export function KhachQuenContent() {
                 <TableRow>
                   <TableHead>Tên</TableHead>
                   <TableHead>SDT</TableHead>
+                  <TableHead className="text-right">Còn nợ</TableHead>
                   <TableHead>Ghi chú</TableHead>
                   <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
@@ -212,6 +220,16 @@ export function KhachQuenContent() {
                       </button>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{k.sdt || "—"}</TableCell>
+                    <TableCell
+                      className={
+                        "text-right tabular-nums font-semibold " +
+                        (typeof k.debt === "number" && k.debt > 0
+                          ? "text-destructive"
+                          : "text-green-600")
+                      }
+                    >
+                      {typeof k.debt === "number" ? fmtMoney(k.debt) : "—"}
+                    </TableCell>
                     <TableCell className="text-muted-foreground max-w-xs truncate">
                       {k.ghi_chu || "—"}
                     </TableCell>

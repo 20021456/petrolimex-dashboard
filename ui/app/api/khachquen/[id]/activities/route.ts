@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { ensureKhachHangPaidColumn } from '@/lib/fuel-pump-schema'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -38,6 +39,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     }
 
     await ensurePaymentsTable()
+    await ensureKhachHangPaidColumn()
 
     const customerRows = await query<any[]>(
       `SELECT id, ten, sdt, ghi_chu FROM regular_customers WHERE id = ?`,
@@ -65,7 +67,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         ma_bom AS pumpCode,
         lit AS liters,
         gia AS price,
-        tien AS amount
+        tien AS amount,
+        COALESCE(khach_hang_paid, 1) AS khach_hang_paid
       FROM fuel_pump
       WHERE khach_hang = ?
       ORDER BY ket_thuc_bom DESC
@@ -104,11 +107,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         [customer.ten]
       )
     } catch (e: any) {
-      if (e.code !== 'ER_NO_SUCH_TABLE') throw e
+      if (e.code !== 'ER_NO_SUCH_TABLE' && e.code !== 'ER_BAD_FIELD_ERROR') throw e
     }
 
     const [salesAgg] = await query<any[]>(
-      `SELECT COALESCE(SUM(tien), 0) AS total, COUNT(*) AS cnt
+      `SELECT COALESCE(SUM(tien), 0) AS total,
+              COALESCE(SUM(CASE WHEN khach_hang_paid = 1 THEN tien ELSE 0 END), 0) AS paid_total,
+              COALESCE(SUM(CASE WHEN khach_hang_paid = 0 THEN tien ELSE 0 END), 0) AS unpaid_total,
+              COUNT(*) AS cnt
        FROM fuel_pump WHERE khach_hang = ?`,
       [customer.ten]
     )
@@ -134,11 +140,15 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       khoSalesTotal = Number(khoAgg?.total) || 0
       khoCount = Number(khoAgg?.cnt) || 0
     } catch (e: any) {
-      if (e.code !== 'ER_NO_SUCH_TABLE') throw e
+      if (e.code !== 'ER_NO_SUCH_TABLE' && e.code !== 'ER_BAD_FIELD_ERROR') throw e
     }
 
-    const totalSales = (Number(salesAgg?.total) || 0) + khoSalesTotal
-    const totalPaid = (Number(paymentsAgg?.total) || 0) + khoPaidTotal
+    // total_sales: tổng tiền mua (cả fuel paid & unpaid + kho)
+    // total_paid: paid-at-pump (fuel paid) + customer_payments + kho.paid_amount
+    const fuelTotal = Number(salesAgg?.total) || 0
+    const fuelPaidAtPos = Number(salesAgg?.paid_total) || 0
+    const totalSales = fuelTotal + khoSalesTotal
+    const totalPaid = fuelPaidAtPos + (Number(paymentsAgg?.total) || 0) + khoPaidTotal
 
     const activities = [
       ...khoOrders.map((k) => ({
@@ -162,6 +172,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         amount: Number(s.amount) || 0,
         fuelType: s.fuelType,
         pumpCode: s.pumpCode,
+        paid: Number(s.khach_hang_paid) === 1,
         liters: Number(s.liters) || 0,
         price: Number(s.price) || 0,
       })),

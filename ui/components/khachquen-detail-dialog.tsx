@@ -34,6 +34,7 @@ interface ActivitySale {
   pumpCode: string
   liters: number
   price: number
+  paid: boolean
 }
 
 interface ActivityPayment {
@@ -295,6 +296,14 @@ export function KhachQuenDetailDialog({
                         {a.type === "sale" ? (
                           <span className="text-muted-foreground">
                             {a.fuelType} · {fmtNum(a.liters)} L @ {fmtMoney(a.price)} · Bơm {a.pumpCode}
+                            {" · "}
+                            <span
+                              className={
+                                a.paid ? "text-green-600" : "text-destructive"
+                              }
+                            >
+                              {a.paid ? "Đã trả" : "Ghi nợ"}
+                            </span>
                           </span>
                         ) : a.type === "payment" ? (
                           <span className="text-muted-foreground">
