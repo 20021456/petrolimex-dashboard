@@ -417,14 +417,8 @@ export default function Page() {
             <GiaoCaContent />
           ) : activeView === "khachquen" ? (
             <KhachQuenContent />
-          ) : !stats ? (
-            <div className="flex flex-1 items-center justify-center">
-              <div className="text-muted-foreground">Đang tải dữ liệu...</div>
-            </div>
           ) : (
-            <div className={isLoading ? "opacity-50 pointer-events-none" : ""}>
-              <DashboardHome stats={stats} onNavigate={setActiveView} />
-            </div>
+            <DashboardHome onNavigate={setActiveView} />
           )}
         </div>
       </SidebarInset>
