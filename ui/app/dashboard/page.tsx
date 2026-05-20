@@ -11,6 +11,7 @@ import { TonkhoContent } from "@/components/tonkho-content"
 import { GiaoCaContent } from "@/components/giaoca-content"
 import { KhachQuenContent } from "@/components/khachquen-content"
 import { DashboardHome } from "@/components/dashboard-home"
+import { StockPage } from "@/components/stock-page"
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { DashboardSection } from "@/components/dashboard-section"
 import { DateRangePicker } from "@/components/date-range-picker"
@@ -412,7 +413,7 @@ export default function Page() {
           ) : activeView === "kho" ? (
             <KhoContent />
           ) : activeView === "tonkho" ? (
-            <TonkhoContent />
+            <StockPage onNavigate={setActiveView} />
           ) : activeView === "giaoca" ? (
             <GiaoCaContent />
           ) : activeView === "khachquen" ? (
