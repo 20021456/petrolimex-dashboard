@@ -21,9 +21,23 @@ import {
   WSection,
 } from "@/components/htx-kit"
 import { CustomerEditPopover } from "@/components/customer-edit-popover"
+import { DashboardHomeMobile } from "@/components/dashboard-home-mobile"
 
 interface DashboardHomeProps {
   onNavigate?: (view: string) => void
+}
+
+// Theo dõi viewport để chọn bản desktop / mobile.
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = React.useState(false)
+  React.useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)")
+    const update = () => setMobile(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
+  return mobile
 }
 
 const KIND_COLOR: Record<string, string> = {
@@ -69,6 +83,7 @@ function GhostBtn({ children, onClick }: { children: React.ReactNode; onClick?: 
 const TX_COLS = "70px 1fr 100px 110px 160px 130px 40px"
 
 export function DashboardHome({ onNavigate }: DashboardHomeProps) {
+  const isMobile = useIsMobile()
   const [home, setHome] = React.useState<any>(null)
   const [tanksRaw, setTanksRaw] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -126,6 +141,17 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
       >
         {error || "Không có dữ liệu"}
       </div>
+    )
+  }
+
+  if (isMobile) {
+    return (
+      <DashboardHomeMobile
+        home={home}
+        tanksRaw={tanksRaw}
+        onNavigate={onNavigate}
+        reload={load}
+      />
     )
   }
 
