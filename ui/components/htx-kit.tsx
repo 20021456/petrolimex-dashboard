@@ -37,7 +37,7 @@ export const HX = {
 type IconName =
   | "home" | "fuel" | "chart" | "receipt" | "bell" | "user"
   | "chevron" | "chevronDown" | "refresh" | "plus" | "clock"
-  | "alert" | "search"
+  | "alert" | "search" | "download" | "filter" | "drop" | "settings"
 
 const ICON_PATHS: Record<IconName, React.ReactNode> = {
   home: <path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-8.5Z" />,
@@ -53,6 +53,15 @@ const ICON_PATHS: Record<IconName, React.ReactNode> = {
   clock: <g><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></g>,
   alert: <g><path d="m12 3 10 18H2L12 3Z" /><path d="M12 10v5M12 18h.01" /></g>,
   search: <g><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></g>,
+  download: <g><path d="M12 4v12M6 12l6 6 6-6M5 20h14" /></g>,
+  filter: <path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z" />,
+  drop: <path d="M12 3s-7 8-7 12a7 7 0 0 0 14 0c0-4-7-12-7-12Z" />,
+  settings: (
+    <g>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+    </g>
+  ),
 }
 
 export function Icon({
