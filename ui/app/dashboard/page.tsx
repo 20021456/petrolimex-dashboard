@@ -10,6 +10,7 @@ import { KhoContent } from "@/components/kho-content"
 import { TonkhoContent } from "@/components/tonkho-content"
 import { GiaoCaContent } from "@/components/giaoca-content"
 import { KhachQuenContent } from "@/components/khachquen-content"
+import { DashboardHome } from "@/components/dashboard-home"
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { DashboardSection } from "@/components/dashboard-section"
 import { DateRangePicker } from "@/components/date-range-picker"
@@ -422,26 +423,7 @@ export default function Page() {
             </div>
           ) : (
             <div className={isLoading ? "opacity-50 pointer-events-none" : ""}>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={visibleSections}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {visibleSections.map((sectionId) => (
-                    <SortableSection
-                      key={sectionId}
-                      id={sectionId}
-                      title={sectionTitles[sectionId as keyof typeof sectionTitles]}
-                    >
-                      {sectionContent && sectionContent[sectionId as keyof typeof sectionContent]}
-                    </SortableSection>
-                  ))}
-                </SortableContext>
-              </DndContext>
+              <DashboardHome stats={stats} onNavigate={setActiveView} />
             </div>
           )}
         </div>
