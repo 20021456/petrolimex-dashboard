@@ -1,9 +1,9 @@
 "use client"
 
 // ════════════════════════════════════════════════════════════════
-// Trang chủ — pixel-perfect port of the design's WHomePage body.
-// Real fuel_pump data is wired where stats provides it; the tank
-// figures are placeholders pending a tank feed (số liệu chỉnh sau).
+// Trang chủ — pixel-perfect port of the design's WHomePage body,
+// wired to live data: /api/home (fuel_pump + retail) and
+// /api/fuel/tanks (tank levels).
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
@@ -22,9 +22,16 @@ import {
 } from "@/components/htx-kit"
 
 interface DashboardHomeProps {
-  stats: any
   onNavigate?: (view: string) => void
 }
+
+const KIND_COLOR: Record<string, string> = {
+  RON95: HX.ron95,
+  E5: HX.e5,
+  DO: HX.do,
+  "DO+": HX.doPlus,
+}
+const KIND_ORDER = ["RON95", "E5", "DO", "DO+"]
 
 const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
 
@@ -58,95 +65,146 @@ function GhostBtn({ children, onClick }: { children: React.ReactNode; onClick?: 
   )
 }
 
-const TX_COLS = "70px 1fr 100px 110px 150px 120px 40px"
+const TX_COLS = "70px 1fr 100px 110px 160px 130px 40px"
 
-export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
-  const totalRevenue = Number(stats?.overview?.totalRevenue) || 0
-  const totalLiters = Number(stats?.overview?.totalLiters) || 0
-  const totalTx = Number(stats?.overview?.totalTransactions) || 0
-  const avgPerTx = totalTx > 0 ? totalRevenue / totalTx : 0
+export function DashboardHome({ onNavigate }: DashboardHomeProps) {
+  const [home, setHome] = React.useState<any>(null)
+  const [tanksRaw, setTanksRaw] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
 
-  // ── Hourly revenue (drives hero sparkline + peak-hours chart) ──
-  const hourly = React.useMemo(() => {
-    const arr = new Array(24).fill(0)
-    ;(stats?.chartData?.byHourOfDay || []).forEach((it: any) => {
-      const h = Number(it.hour)
-      if (h >= 0 && h < 24) arr[h] += Number(it.revenue) || 0
-    })
-    return arr
-  }, [stats])
-
-  const heroSpark = React.useMemo(() => {
-    if (totalRevenue <= 0) return [42, 48, 55, 58, 62, 67, 72, 78, 80, 82, 85, 87]
-    let cum = 0
-    return hourly.slice(5, 23).map((v) => (cum += v))
-  }, [hourly, totalRevenue])
-
-  // Peak-hours bars, 05:00 → 22:00
-  const peak = React.useMemo(() => {
-    const data: number[] = []
-    const labels: string[] = []
-    for (let h = 5; h <= 22; h++) {
-      data.push(hourly[h])
-      labels.push([5, 8, 11, 14, 17, 20].includes(h) ? `${h}h` : "")
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [h, t] = await Promise.all([
+        fetch("/api/home", { cache: "no-store" }).then((r) => r.json()),
+        fetch("/api/fuel/tanks", { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => ({ success: false })),
+      ])
+      if (!h?.success) throw new Error(h?.error || "Không tải được dữ liệu")
+      setHome(h.data)
+      setTanksRaw(t?.success && Array.isArray(t.data) ? t.data : [])
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
     }
-    const max = Math.max(...data)
-    const hiIdx = data.indexOf(max)
-    const nonZero = data.filter((v) => v > 0)
-    const min = nonZero.length ? Math.min(...nonZero) : 0
-    const loIdx = data.indexOf(min)
-    return {
-      data,
-      labels,
-      hiIdx,
-      hiHour: 5 + (hiIdx < 0 ? 0 : hiIdx),
-      hiVal: max,
-      loHour: 5 + (loIdx < 0 ? 0 : loIdx),
-      loVal: min,
-    }
-  }, [hourly])
+  }, [])
 
-  // ── By fuel type ──
-  const byFuel = React.useMemo(() => {
-    const rows = [...((stats?.chartData?.byFuelType as any[]) || [])]
-      .map((r) => ({
-        name: String(r.fuelType || ""),
-        revenue: Number(r.revenue) || 0,
-        liters: Number(r.liters) || 0,
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 4)
-    const total = rows.reduce((s, r) => s + r.revenue, 0) || 1
-    return rows.map((r) => ({ ...r, pct: Math.round((r.revenue / total) * 100) }))
-  }, [stats])
+  React.useEffect(() => {
+    load()
+  }, [load])
 
-  const recent = ((stats?.recentTransactions as any[]) || []).slice(0, 5)
-
-  // Tank figures — placeholder pending a live tank feed.
-  const tanks = [
-    { name: "RON95", vol: 1620, cap: 9000, pct: 18, hrs: 14, low: true, color: HX.ron95 },
-    { name: "E5", vol: 7020, cap: 9000, pct: 78, hrs: 72, low: false, color: HX.e5 },
-    { name: "DO", vol: 5760, cap: 9000, pct: 64, hrs: 48, low: false, color: HX.do },
-    { name: "DO+", vol: 4140, cap: 4500, pct: 92, hrs: 120, low: false, color: HX.doPlus },
-  ]
-  const tankTotal = tanks.reduce((s, t) => s + t.vol, 0)
-  const tankCap = tanks.reduce((s, t) => s + t.cap, 0)
-  const tankPct = Math.round((tankTotal / tankCap) * 100)
-
-  return (
-    <div
-      className="hxw"
-      style={{ maxWidth: 1280, margin: "0 auto", width: "100%", color: HX.text }}
-    >
-      {/* ─── HERO ─── */}
+  if (loading) {
+    return (
       <div
+        className="hxw"
+        style={{ padding: 80, textAlign: "center", color: HX.text3, fontSize: 14 }}
+      >
+        Đang tải dữ liệu…
+      </div>
+    )
+  }
+  if (error || !home) {
+    return (
+      <div
+        className="hxw"
         style={{
-          display: "grid",
-          gridTemplateColumns: "1.6fr 1fr",
-          gap: 20,
-          marginBottom: 24,
+          maxWidth: 1280,
+          margin: "0 auto",
+          padding: 40,
+          textAlign: "center",
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 14,
+          color: HX.bad,
+          fontSize: 14,
         }}
       >
+        {error || "Không có dữ liệu"}
+      </div>
+    )
+  }
+
+  const today = home.today || {}
+  const deltas = home.deltas || {}
+  const byHour: number[] = Array.isArray(home.byHour) ? home.byHour : new Array(24).fill(0)
+  const byFuel: any[] = Array.isArray(home.byFuel) ? home.byFuel : []
+  const recent: any[] = Array.isArray(home.recent) ? home.recent : []
+
+  // ── Tank cards ──
+  const tankCards = tanksRaw
+    .map((t) => {
+      const kind = fuelKind(t.nhien_lieu)
+      const vol = Number(t.ton_kho) || 0
+      const cap = Number(t.dung_tich) || 0
+      const tpct = cap > 0 ? Math.round((vol / cap) * 100) : 0
+      const litersToday =
+        byFuel.find((f) => fuelKind(f.fuelType) === kind)?.liters || 0
+      const hoursElapsed = Math.max(new Date().getHours() - 5, 1)
+      const rate = litersToday / hoursElapsed
+      const hrs = rate > 0 ? Math.round(vol / rate) : 999
+      return {
+        name: kind || t.ten_bon || "Bồn",
+        kind,
+        vol,
+        cap,
+        pct: tpct,
+        hrs,
+        low: tpct < 25,
+        color: KIND_COLOR[kind] || HX.text2,
+      }
+    })
+    .sort((a, b) => {
+      const ia = KIND_ORDER.indexOf(a.kind)
+      const ib = KIND_ORDER.indexOf(b.kind)
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+    })
+
+  const tankTotal = tankCards.reduce((s, t) => s + t.vol, 0)
+  const tankCap = tankCards.reduce((s, t) => s + t.cap, 0)
+  const tankPct = tankCap > 0 ? Math.round((tankTotal / tankCap) * 100) : 0
+  const lowestTank = [...tankCards].sort((a, b) => a.pct - b.pct)[0]
+
+  // ── Hero sparkline: cumulative hourly revenue 05:00 → 22:00 ──
+  const heroSpark = (() => {
+    if ((today.revenue || 0) <= 0) return [42, 48, 55, 58, 62, 67, 72, 78, 80, 82, 85, 87]
+    let cum = 0
+    return byHour.slice(5, 23).map((v) => (cum += v))
+  })()
+
+  // ── Peak hours ──
+  const peakData: number[] = []
+  const peakLabels: string[] = []
+  for (let h = 5; h <= 22; h++) {
+    peakData.push(byHour[h] || 0)
+    peakLabels.push([5, 8, 11, 14, 17, 20].includes(h) ? `${h}h` : "")
+  }
+  const peakMax = Math.max(...peakData)
+  const peakHiIdx = peakData.indexOf(peakMax)
+  const peakNonZero = peakData.filter((v) => v > 0)
+  const peakMin = peakNonZero.length ? Math.min(...peakNonZero) : 0
+  const peakLoIdx = peakData.indexOf(peakMin)
+
+  // ── By fuel (with percentage) ──
+  const fuelTotal = byFuel.reduce((s, r) => s + (Number(r.revenue) || 0), 0) || 1
+  const byFuelRows = byFuel
+    .slice(0, 4)
+    .map((r) => ({
+      name: String(r.fuelType || ""),
+      revenue: Number(r.revenue) || 0,
+      liters: Number(r.liters) || 0,
+      pct: Math.round(((Number(r.revenue) || 0) / fuelTotal) * 100),
+    }))
+
+  const heroDelta = Number(deltas.revenue) || 0
+
+  return (
+    <div className="hxw" style={{ maxWidth: 1280, margin: "0 auto", width: "100%", color: HX.text }}>
+      {/* ─── HERO ─── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20, marginBottom: 24 }}>
         {/* Revenue hero */}
         <div
           style={{
@@ -189,11 +247,12 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
                   lineHeight: 1,
                 }}
               >
-                {fmtVN(totalRevenue)}
+                {fmtVN(today.revenue)}
                 <span style={{ fontSize: 22, fontWeight: 500, opacity: 0.85, marginLeft: 4 }}>₫</span>
               </div>
               <div style={{ fontSize: 14, opacity: 0.9, marginTop: 6 }}>
-                {fmtVN(totalLiters)} lít · {fmtVN(totalTx)} giao dịch · {byFuel.length || 4} loại nhiên liệu
+                {fmtVN(today.liters)} lít · {fmtVN(today.transactions)} giao dịch ·{" "}
+                {today.fuelTypes || byFuelRows.length} loại nhiên liệu
               </div>
             </div>
             <div
@@ -210,9 +269,14 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
               }}
             >
               <svg width="12" height="12" viewBox="0 0 10 10" fill="none">
-                <path d="M2 7 5 3l3 4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                {heroDelta >= 0 ? (
+                  <path d="M2 7 5 3l3 4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                ) : (
+                  <path d="M2 3 5 7l3-4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                )}
               </svg>
-              +12% vs hôm qua
+              {heroDelta >= 0 ? "+" : ""}
+              {heroDelta}% vs hôm qua
             </div>
           </div>
           <div style={{ marginLeft: -4, marginRight: -4 }}>
@@ -265,7 +329,7 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
                   textTransform: "uppercase",
                 }}
               >
-                Tổng tồn 4 bồn
+                Tổng tồn {tankCards.length || 4} bồn
               </div>
               <div
                 className="hx-num"
@@ -289,59 +353,91 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
             </Donut>
           </div>
 
-          <div
-            className="hxw-press"
-            onClick={() => onNavigate?.("tonkho")}
-            style={{
-              marginTop: "auto",
-              padding: "12px 14px",
-              background: HX.badSoft,
-              border: "1px solid rgba(255,69,58,0.24)",
-              borderRadius: 10,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              cursor: "pointer",
-            }}
-          >
-            <Icon name="alert" size={18} color={HX.bad} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: HX.bad }}>RON95 còn 18%</div>
-              <div style={{ fontSize: 11, color: HX.text2, marginTop: 1 }}>Dự kiến hết sau ~14 giờ</div>
+          {lowestTank && (
+            <div
+              className="hxw-press"
+              onClick={() => onNavigate?.("tonkho")}
+              style={{
+                marginTop: "auto",
+                padding: "12px 14px",
+                background: lowestTank.low ? HX.badSoft : HX.elevated,
+                border: `1px solid ${lowestTank.low ? "rgba(255,69,58,0.24)" : HX.hairline}`,
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                cursor: "pointer",
+              }}
+            >
+              <Icon name="alert" size={18} color={lowestTank.low ? HX.bad : HX.text2} />
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: lowestTank.low ? HX.bad : HX.text,
+                  }}
+                >
+                  {lowestTank.name} còn {lowestTank.pct}%
+                </div>
+                <div style={{ fontSize: 11, color: HX.text2, marginTop: 1 }}>
+                  {lowestTank.hrs < 999
+                    ? `Dự kiến hết sau ~${
+                        lowestTank.hrs < 24
+                          ? `${lowestTank.hrs} giờ`
+                          : `${Math.round(lowestTank.hrs / 24)} ngày`
+                      }`
+                    : "Bồn còn nhiều"}
+                </div>
+              </div>
+              <Icon name="chevron" size={14} color={lowestTank.low ? HX.bad : HX.text3} />
             </div>
-            <Icon name="chevron" size={14} color={HX.bad} />
-          </div>
+          )}
         </div>
       </div>
 
       {/* ─── 4 KPIs ─── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 16,
-          marginBottom: 28,
-        }}
-      >
-        <WKpi label="Lít bán" value={fmtVN(totalLiters)} suffix="L" delta={8} icon="fuel" color={HX.accent} hint="so với hôm qua" />
-        <WKpi label="Giao dịch" value={fmtVN(totalTx)} delta={5} icon="receipt" color={HX.do} hint="so với hôm qua" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
+        <WKpi
+          label="Lít bán"
+          value={fmtVN(today.liters)}
+          suffix="L"
+          delta={Number(deltas.liters) || 0}
+          icon="fuel"
+          color={HX.accent}
+          hint="so với hôm qua"
+        />
+        <WKpi
+          label="Giao dịch"
+          value={fmtVN(today.transactions)}
+          delta={Number(deltas.transactions) || 0}
+          icon="receipt"
+          color={HX.do}
+          hint="so với hôm qua"
+        />
         <WKpi
           label="TB/GD"
-          value={fmtVN(avgPerTx / 1000)}
+          value={fmtVN((today.avgPerTx || 0) / 1000)}
           suffix="nghìn ₫"
-          delta={-2}
-          deltaInverted
+          delta={Number(deltas.revenue) || 0}
           icon="chart"
           color={HX.e5}
           hint="so với hôm qua"
         />
-        <WKpi label="Khách lẻ" value="106" delta={11} icon="user" color={HX.doPlus} hint="so với hôm qua" />
+        <WKpi
+          label="Khách lẻ"
+          value={fmtVN(today.khachLe)}
+          delta={Number(deltas.khachLe) || 0}
+          icon="user"
+          color={HX.doPlus}
+          hint="so với hôm qua"
+        />
       </div>
 
       {/* ─── Tanks row ─── */}
       <WSection
         title="Tồn kho theo bồn"
-        sub="Cập nhật trực tiếp từ cảm biến bồn · 2 phút/lần"
+        sub="Mức tồn từ bảng bồn bể · ước tính thời gian còn lại theo nhịp bán hôm nay"
         right={<GhostBtn onClick={() => onNavigate?.("tonkho")}>Xem chi tiết →</GhostBtn>}
       >
         <div
@@ -351,13 +447,18 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
             borderRadius: 14,
             padding: 20,
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: `repeat(${Math.max(tankCards.length, 1)}, 1fr)`,
             gap: 18,
           }}
         >
-          {tanks.map((t, i, arr) => (
+          {tankCards.length === 0 && (
+            <div style={{ padding: "24px 0", textAlign: "center", color: HX.text3, fontSize: 13 }}>
+              Chưa có dữ liệu bồn bể
+            </div>
+          )}
+          {tankCards.map((t, i, arr) => (
             <div
-              key={t.name}
+              key={t.name + i}
               style={{
                 display: "flex",
                 gap: 14,
@@ -368,7 +469,7 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
               <Tank pct={t.pct} color={t.color} w={48} h={104} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <FuelDot kind={t.name} size={8} />
+                  <FuelDot kind={t.kind} size={8} />
                   <div style={{ fontSize: 14, fontWeight: 600, color: HX.text }}>{t.name}</div>
                   {t.low && (
                     <span
@@ -405,7 +506,11 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
                   }}
                 >
                   <Icon name="clock" size={11} color={t.low ? HX.bad : HX.text3} />
-                  {t.hrs < 24 ? `~${t.hrs} giờ` : `~${Math.round(t.hrs / 24)} ngày`}
+                  {t.hrs >= 999
+                    ? "còn nhiều"
+                    : t.hrs < 24
+                      ? `~${t.hrs} giờ`
+                      : `~${Math.round(t.hrs / 24)} ngày`}
                 </div>
               </div>
             </div>
@@ -445,10 +550,10 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
                 <span className="hx-num" style={{ fontSize: 22, fontWeight: 700, color: HX.accent }}>
-                  {String(peak.hiHour).padStart(2, "0")}:00
+                  {String(5 + Math.max(peakHiIdx, 0)).padStart(2, "0")}:00
                 </span>
                 <span className="hx-num" style={{ fontSize: 13, color: HX.text2 }}>
-                  · {(peak.hiVal / 1_000_000).toFixed(1)} tr ₫
+                  · {(peakMax / 1_000_000).toFixed(1)} tr ₫
                 </span>
               </div>
             </div>
@@ -466,15 +571,15 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
                 <span className="hx-num" style={{ fontSize: 22, fontWeight: 600, color: HX.text2 }}>
-                  {String(peak.loHour).padStart(2, "0")}:00
+                  {String(5 + Math.max(peakLoIdx, 0)).padStart(2, "0")}:00
                 </span>
                 <span className="hx-num" style={{ fontSize: 13, color: HX.text3 }}>
-                  · {(peak.loVal / 1_000_000).toFixed(1)} tr ₫
+                  · {(peakMin / 1_000_000).toFixed(1)} tr ₫
                 </span>
               </div>
             </div>
           </div>
-          <BarChart data={peak.data} labels={peak.labels} w={560} h={180} highlight={peak.hiIdx} color={HX.accent} />
+          <BarChart data={peakData} labels={peakLabels} w={560} h={180} highlight={peakHiIdx} color={HX.accent} />
         </div>
 
         {/* By product */}
@@ -483,15 +588,12 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
             <div style={{ fontSize: 16, fontWeight: 600 }}>Theo loại nhiên liệu</div>
             <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>Tỷ trọng doanh thu hôm nay</div>
           </div>
-          {(byFuel.length
-            ? byFuel
+          {(byFuelRows.length
+            ? byFuelRows
             : [{ name: "Chưa có dữ liệu", revenue: 0, liters: 0, pct: 0 }]
           ).map((r, i, arr) => {
             const kind = fuelKind(r.name)
-            const color =
-              ({ RON95: HX.ron95, E5: HX.e5, DO: HX.do, "DO+": HX.doPlus } as Record<string, string>)[
-                kind
-              ] || HX.text2
+            const color = KIND_COLOR[kind] || HX.text2
             return (
               <div
                 key={i}
@@ -509,12 +611,24 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
                     marginBottom: 7,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     <FuelDot kind={kind} />
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</span>
-                    <span style={{ fontSize: 12, color: HX.text3 }}>· {fmtVN(r.liters)} L</span>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {r.name}
+                    </span>
+                    <span style={{ fontSize: 12, color: HX.text3, whiteSpace: "nowrap" }}>
+                      · {fmtVN(r.liters)} L
+                    </span>
                   </div>
-                  <div className="hx-num" style={{ fontSize: 13, fontWeight: 600 }}>
+                  <div className="hx-num" style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
                     {fmtVN(r.revenue)}
                     <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}> ₫</span>
                   </div>
@@ -529,7 +643,7 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
       {/* ─── Recent transactions ─── */}
       <WSection
         title="Giao dịch gần đây"
-        sub={`${recent.length} giao dịch mới nhất`}
+        sub={`${recent.length} giao dịch mới nhất từ fuel_pump`}
         right={<GhostBtn onClick={() => onNavigate?.("chitiet")}>Xem tất cả →</GhostBtn>}
       >
         <div
@@ -564,69 +678,70 @@ export function DashboardHome({ stats, onNavigate }: DashboardHomeProps) {
             <span style={{ textAlign: "right" }}>Số tiền</span>
             <span />
           </div>
-          {recent.length === 0 ? (
-            <div style={{ padding: "28px 20px", textAlign: "center", fontSize: 13, color: HX.text3 }}>
-              Chưa có giao dịch
-            </div>
-          ) : (
-            recent.map((tx: any, i: number) => {
-              const kind = fuelKind(tx.fuelType)
-              return (
-                <div
-                  key={tx.id ?? i}
-                  className="hxw-row"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: TX_COLS,
-                    alignItems: "center",
-                    columnGap: 12,
-                    padding: "14px 20px",
-                    fontSize: 13,
-                    color: HX.text,
-                    borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
-                  }}
-                >
-                  <span className="hx-num" style={{ color: HX.text2 }}>
-                    {fmtTime(tx.timestamp)}
-                  </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <FuelDot kind={kind} />
+          <div style={{ maxHeight: 460, overflowY: "auto" }} className="hxw-scroll">
+            {recent.length === 0 ? (
+              <div style={{ padding: "28px 20px", textAlign: "center", fontSize: 13, color: HX.text3 }}>
+                Chưa có giao dịch
+              </div>
+            ) : (
+              recent.map((tx: any, i: number) => {
+                const kind = fuelKind(tx.fuelType)
+                return (
+                  <div
+                    key={tx.id ?? i}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: TX_COLS,
+                      alignItems: "center",
+                      columnGap: 12,
+                      padding: "14px 20px",
+                      fontSize: 13,
+                      color: HX.text,
+                      borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
+                    }}
+                  >
+                    <span className="hx-num" style={{ color: HX.text2 }}>
+                      {fmtTime(tx.timestamp)}
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <FuelDot kind={kind} />
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {tx.fuelType || "—"}
+                      </span>
+                    </span>
+                    <span className="hx-num" style={{ color: HX.text2 }}>
+                      {fmtVN(Number(tx.liters) || 0)} L
+                    </span>
+                    <span style={{ color: HX.text2 }}>{tx.pumpCode || "—"}</span>
                     <span
                       style={{
-                        fontWeight: 600,
+                        color: HX.text2,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {tx.fuelType || "—"}
+                      {tx.customer || "Khách lẻ"}
                     </span>
-                  </span>
-                  <span className="hx-num" style={{ color: HX.text2 }}>
-                    {fmtVN(Number(tx.liters) || 0)} L
-                  </span>
-                  <span style={{ color: HX.text2 }}>{tx.pumpCode || "—"}</span>
-                  <span
-                    style={{
-                      color: HX.text2,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {tx.customer || "Khách lẻ"}
-                  </span>
-                  <span className="hx-num" style={{ fontWeight: 700, textAlign: "right" }}>
-                    {fmtVN(Number(tx.amount) || 0)}
-                    <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> ₫</span>
-                  </span>
-                  <span style={{ textAlign: "right" }}>
-                    <Icon name="chevron" size={14} color={HX.text3} />
-                  </span>
-                </div>
-              )
-            })
-          )}
+                    <span className="hx-num" style={{ fontWeight: 700, textAlign: "right" }}>
+                      {fmtVN(Number(tx.amount) || 0)}
+                      <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> ₫</span>
+                    </span>
+                    <span style={{ textAlign: "right" }}>
+                      <Icon name="chevron" size={14} color={HX.text3} />
+                    </span>
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
       </WSection>
     </div>
