@@ -20,6 +20,7 @@ import {
   WKpi,
   WSection,
 } from "@/components/htx-kit"
+import { CustomerEditPopover } from "@/components/customer-edit-popover"
 
 interface DashboardHomeProps {
   onNavigate?: (view: string) => void
@@ -720,15 +721,13 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
                       {fmtVN(Number(tx.liters) || 0)} L
                     </span>
                     <span style={{ color: HX.text2 }}>{tx.pumpCode || "—"}</span>
-                    <span
-                      style={{
-                        color: HX.text2,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {tx.customer || "Khách lẻ"}
+                    <span style={{ minWidth: 0, color: HX.text2 }}>
+                      <CustomerEditPopover
+                        transactionId={tx.id}
+                        currentCustomer={tx.customer || "Khách lẻ"}
+                        currentPaid={Number(tx.customer_paid ?? 1) === 1}
+                        onSaved={() => load()}
+                      />
                     </span>
                     <span className="hx-num" style={{ fontWeight: 700, textAlign: "right" }}>
                       {fmtVN(Number(tx.amount) || 0)}

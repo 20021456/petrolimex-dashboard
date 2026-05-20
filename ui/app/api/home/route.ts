@@ -13,9 +13,6 @@ const FUEL_CASE = `
     ELSE 'Khác'
   END`
 
-// Giao dịch khách lẻ = chưa gán khách quen.
-const KHACH_LE = `(khach_hang IS NULL OR khach_hang = '' OR khach_hang = 'N/A')`
-
 function pct(today: number, yest: number): number {
   if (yest > 0) return Math.round(((today - yest) / yest) * 100)
   return today > 0 ? 100 : 0
@@ -26,15 +23,31 @@ export async function GET() {
     await query('SELECT 1')
     await ensureKhachHangPaidColumn()
 
+    // Danh sách khách quen — mọi giao dịch KHÔNG khớp tên trong đây = khách lẻ.
+    let regularNames: string[] = []
+    try {
+      const rc = await query<any[]>(`SELECT ten FROM regular_customers`)
+      regularNames = rc.map((r: any) => r.ten).filter(Boolean)
+    } catch (e: any) {
+      if (e?.code !== 'ER_NO_SUCH_TABLE') throw e
+    }
+    const khachleExpr = regularNames.length
+      ? `COALESCE(SUM(CASE WHEN khach_hang IN (${regularNames.map(() => '?').join(',')}) THEN 0 ELSE 1 END),0)`
+      : `COUNT(*)`
+
     // ── Xăng dầu: hôm nay & hôm qua ──
-    const [ft] = await query<any[]>(`
-      SELECT COALESCE(SUM(tien),0) rev, COALESCE(SUM(lit),0) lit, COUNT(*) cnt,
-             COALESCE(SUM(CASE WHEN ${KHACH_LE} THEN 1 ELSE 0 END),0) khachle
-      FROM fuel_pump WHERE DATE(ket_thuc_bom) = CURDATE()`)
-    const [fy] = await query<any[]>(`
-      SELECT COALESCE(SUM(tien),0) rev, COALESCE(SUM(lit),0) lit, COUNT(*) cnt,
-             COALESCE(SUM(CASE WHEN ${KHACH_LE} THEN 1 ELSE 0 END),0) khachle
-      FROM fuel_pump WHERE DATE(ket_thuc_bom) = CURDATE() - INTERVAL 1 DAY`)
+    const [ft] = await query<any[]>(
+      `SELECT COALESCE(SUM(tien),0) rev, COALESCE(SUM(lit),0) lit, COUNT(*) cnt,
+              ${khachleExpr} khachle
+       FROM fuel_pump WHERE DATE(ket_thuc_bom) = CURDATE()`,
+      regularNames
+    )
+    const [fy] = await query<any[]>(
+      `SELECT COALESCE(SUM(tien),0) rev, COALESCE(SUM(lit),0) lit, COUNT(*) cnt,
+              ${khachleExpr} khachle
+       FROM fuel_pump WHERE DATE(ket_thuc_bom) = CURDATE() - INTERVAL 1 DAY`,
+      regularNames
+    )
 
     // ── Bán lẻ (inventory_items): hôm nay & hôm qua ──
     let retailToday = 0
