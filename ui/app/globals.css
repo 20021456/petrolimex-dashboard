@@ -10,7 +10,7 @@ svg[data-darkreader-inline-stroke],
 }
 
 @layer base {
-  /* HTX Thành Sơn design system — dark #0a0d12, petrol-orange #ff7a3b accent.
+  /* HTX Thành Sơn design system — dark #0a0d12, green #06d6a0 accent.
      Ported from the design bundle's HX tokens (hifi-kit.jsx). The app is
      always rendered in dark mode, so :root and .dark carry the same palette. */
   :root,
@@ -21,7 +21,7 @@ svg[data-darkreader-inline-stroke],
     --card-foreground: 240 11% 96%;
     --popover: 217 19% 14%;            /* HX.elevated #1c2129 */
     --popover-foreground: 240 11% 96%;
-    --primary: 19 100% 62%;            /* HX.accent #ff7a3b */
+    --primary: 164 95% 43%;            /* HX.accent #06d6a0 */
     --primary-foreground: 0 0% 100%;
     --secondary: 217 19% 14%;
     --secondary-foreground: 240 11% 96%;
@@ -33,17 +33,17 @@ svg[data-darkreader-inline-stroke],
     --destructive-foreground: 0 0% 100%;
     --border: 218 16% 15%;             /* HX.hairline */
     --input: 218 16% 15%;
-    --ring: 19 100% 62%;
+    --ring: 164 95% 43%;
     --radius: 0.875rem;
     --sidebar-background: 218 29% 5%;
     --sidebar-foreground: 240 5% 65%;
-    --sidebar-primary: 19 100% 62%;
+    --sidebar-primary: 164 95% 43%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 217 19% 14%;
     --sidebar-accent-foreground: 240 11% 96%;
     --sidebar-border: 218 16% 15%;
-    --sidebar-ring: 19 100% 62%;
-    --chart-1: 19 100% 62%;            /* RON95 */
+    --sidebar-ring: 164 95% 43%;
+    --chart-1: 164 95% 43%;            /* RON95 */
     --chart-2: 135 64% 50%;            /* E5 */
     --chart-3: 209 100% 68%;           /* DO */
     --chart-4: 268 100% 76%;           /* DO+ */

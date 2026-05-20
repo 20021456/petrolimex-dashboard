@@ -167,11 +167,11 @@ export function DashboardHomeMobile({ home, tanksRaw, onNavigate, reload }: Mobi
       {/* HERO */}
       <div
         style={{
-          background: `linear-gradient(135deg, ${HX.accent} 0%, #ff5a1f 100%)`,
+          background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
           borderRadius: 18,
           padding: 20,
           color: "#fff",
-          boxShadow: "0 12px 32px -8px rgba(255,90,31,0.45)",
+          boxShadow: "0 12px 32px -8px rgba(6,214,160,0.4)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

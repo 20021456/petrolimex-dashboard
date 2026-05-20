@@ -235,11 +235,11 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
         {/* Revenue hero */}
         <div
           style={{
-            background: `linear-gradient(135deg, ${HX.accent} 0%, #ff5a1f 100%)`,
+            background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
             borderRadius: 18,
             padding: 28,
             color: "#fff",
-            boxShadow: "0 18px 40px -16px rgba(255,90,31,0.45)",
+            boxShadow: "0 18px 40px -16px rgba(6,214,160,0.4)",
             position: "relative",
             overflow: "hidden",
           }}

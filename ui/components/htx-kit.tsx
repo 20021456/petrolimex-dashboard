@@ -17,20 +17,34 @@ export const HX = {
   text: "#f5f5f7",
   text2: "rgba(235,235,245,0.6)",
   text3: "rgba(235,235,245,0.38)",
-  accent: "#ff7a3b",
-  accent2: "#ffb158",
-  accentSoft: "rgba(255,122,59,0.14)",
+  accent: "#06d6a0",
+  accent2: "#4fe3c4",
+  accentDark: "#04b386",
+  accentSoft: "rgba(6,214,160,0.14)",
   good: "#30d158",
   goodSoft: "rgba(48,209,88,0.14)",
   warn: "#ffd60a",
   warnSoft: "rgba(255,214,10,0.14)",
   bad: "#ff453a",
   badSoft: "rgba(255,69,58,0.14)",
-  ron95: "#ff7a3b",
+  ron95: "#06d6a0",
   e5: "#30d158",
   do: "#5eb1ff",
   doPlus: "#bf85ff",
   font: 'Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
+}
+
+// ── Viewport hook ─────────────────────────────────────────────
+export function useIsMobile(breakpoint = 768): boolean {
+  const [mobile, setMobile] = React.useState(false)
+  React.useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`)
+    const update = () => setMobile(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [breakpoint])
+  return mobile
 }
 
 // ── Icons (24px stroke) ───────────────────────────────────────

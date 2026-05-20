@@ -306,7 +306,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
                   height: 32,
                   padding: "0 14px",
                   borderRadius: 10,
-                  background: `linear-gradient(135deg, ${HX.accent} 0%, #ff5a1f 100%)`,
+                  background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
                   color: "#fff",
                   border: "none",
                   fontSize: 13,
