@@ -12,6 +12,8 @@ import { GiaoCaContent } from "@/components/giaoca-content"
 import { KhachQuenContent } from "@/components/khachquen-content"
 import { DashboardHome } from "@/components/dashboard-home"
 import { StockPage } from "@/components/stock-page"
+import { MobileTabBar } from "@/components/mobile-tab-bar"
+import { useIsMobile } from "@/components/htx-kit"
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { DashboardSection } from "@/components/dashboard-section"
 import { DateRangePicker } from "@/components/date-range-picker"
@@ -98,6 +100,7 @@ function SortableSection({
 
 export default function Page() {
   const { openPriceDialog } = usePriceDialog()
+  const isMobile = useIsMobile()
   const [stats, setStats] = React.useState<any>(null)
   const [sections, setSections] = React.useState([
     "overview",
@@ -380,7 +383,7 @@ export default function Page() {
         </header>
 
         {/* Dashboard content - Mobile Responsive */}
-        <div className="flex flex-1 flex-col gap-3 overflow-auto p-3 sm:gap-4 sm:p-4 md:p-6">
+        <div className="flex flex-1 flex-col gap-3 overflow-auto p-3 pb-24 sm:gap-4 sm:p-4 md:p-6 md:pb-6">
           {error && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
               <div className="flex items-start gap-3">
@@ -422,6 +425,13 @@ export default function Page() {
             <DashboardHome onNavigate={setActiveView} />
           )}
         </div>
+        {isMobile && (
+          <MobileTabBar
+            activeView={activeView}
+            onNavigate={setActiveView}
+            onPriceClick={openPriceDialog}
+          />
+        )}
       </SidebarInset>
     </SidebarProvider>
   )
