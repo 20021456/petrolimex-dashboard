@@ -10,75 +10,44 @@ svg[data-darkreader-inline-stroke],
 }
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    --chart-1: 217 91% 60%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-  }
-
+  /* HTX Thành Sơn design system — dark #0a0d12, petrol-orange #ff7a3b accent.
+     Ported from the design bundle's HX tokens (hifi-kit.jsx). The app is
+     always rendered in dark mode, so :root and .dark carry the same palette. */
+  :root,
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --background: 218 29% 5%;          /* HX.bg     #0a0d12 */
+    --foreground: 240 11% 96%;         /* HX.text   #f5f5f7 */
+    --card: 218 22% 10%;               /* HX.surface #14181f */
+    --card-foreground: 240 11% 96%;
+    --popover: 217 19% 14%;            /* HX.elevated #1c2129 */
+    --popover-foreground: 240 11% 96%;
+    --primary: 19 100% 62%;            /* HX.accent #ff7a3b */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 19% 14%;
+    --secondary-foreground: 240 11% 96%;
+    --muted: 218 22% 10%;
+    --muted-foreground: 240 5% 65%;    /* HX.text2 */
+    --accent: 217 19% 17%;
+    --accent-foreground: 240 11% 96%;
+    --destructive: 3 100% 61%;         /* HX.bad #ff453a */
+    --destructive-foreground: 0 0% 100%;
+    --border: 218 16% 15%;             /* HX.hairline */
+    --input: 218 16% 15%;
+    --ring: 19 100% 62%;
+    --radius: 0.875rem;
+    --sidebar-background: 218 29% 5%;
+    --sidebar-foreground: 240 5% 65%;
+    --sidebar-primary: 19 100% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    --chart-1: 217 91% 60%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --sidebar-accent: 217 19% 14%;
+    --sidebar-accent-foreground: 240 11% 96%;
+    --sidebar-border: 218 16% 15%;
+    --sidebar-ring: 19 100% 62%;
+    --chart-1: 19 100% 62%;            /* RON95 */
+    --chart-2: 135 64% 50%;            /* E5 */
+    --chart-3: 209 100% 68%;           /* DO */
+    --chart-4: 268 100% 76%;           /* DO+ */
+    --chart-5: 32 100% 67%;            /* accent2 */
   }
 }
 
@@ -88,7 +57,36 @@ svg[data-darkreader-inline-stroke],
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont,
+      "SF Pro Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
+  /* Tabular numerals for figures, matching the design's .hx-num treatment */
+  .tabular-nums,
+  .hx-num {
+    font-feature-settings: "tnum" 1, "ss01" 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* HTX design — interaction helpers ported from web-shell.jsx */
+.hxw-press {
+  transition: transform 0.1s ease, opacity 0.1s, background 0.12s;
+}
+.hxw-press:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.hxw-press:active {
+  transform: scale(0.985);
+}
+.hxw-link {
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.hxw-link:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 /* Dark mode calendar styles */
