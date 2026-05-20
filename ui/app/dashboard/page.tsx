@@ -257,21 +257,30 @@ export default function Page() {
   }
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      <AppSidebar 
-        variant="inset" 
+    <SidebarProvider
+      defaultOpen={true}
+      style={{ "--sidebar-width": "248px" } as React.CSSProperties}
+    >
+      <AppSidebar
         activeView={activeView}
         onViewChange={setActiveView}
         onPriceClick={openPriceDialog}
       />
       <SidebarInset>
-        {/* Header with filters - Mobile Responsive */}
-        <header className="flex shrink-0 flex-col border-b overflow-hidden">
+        {/* Header with filters - HTX topbar (sticky, blur) */}
+        <header
+          className="sticky top-0 z-20 flex shrink-0 flex-col overflow-hidden border-b"
+          style={{
+            background: "rgba(10,13,18,0.78)",
+            backdropFilter: "saturate(140%) blur(14px)",
+            WebkitBackdropFilter: "saturate(140%) blur(14px)",
+          }}
+        >
           {/* Top row - Always visible */}
-          <div className="flex h-12 items-center gap-1 px-3 sm:gap-2 sm:px-4 lg:px-6">
+          <div className="flex min-h-[64px] items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-5 lg:px-9">
             <SidebarToggleButton />
-            <Separator orientation="vertical" className="mx-1 h-4 sm:mx-2" />
-            <h1 className="truncate text-sm font-medium sm:text-base">
+            <Separator orientation="vertical" className="mx-1 h-5 sm:mx-2" />
+            <h1 className="truncate text-base font-bold tracking-[-0.02em] sm:text-[22px]">
               {viewTitles[activeView] || "Fuel Dashboard"}
             </h1>
 
