@@ -21,7 +21,7 @@ const HX = {
   surface: "#14181f",
   hairline: "rgba(255,255,255,0.06)",
   accent: "#06d6a0",
-  accentDark: "#04b386",
+  accentDark: "#ff5a1f",
   accentSoft: "rgba(6,214,160,0.14)",
   text: "#f5f5f7",
   text2: "rgba(235,235,245,0.6)",
@@ -184,7 +184,7 @@ export function AppSidebar({
               fontWeight: 800,
               fontSize: 16,
               letterSpacing: "-0.04em",
-              boxShadow: "0 6px 16px -6px rgba(6,214,160,0.5)",
+              boxShadow: "0 6px 16px -6px rgba(255,90,31,0.55)",
             }}
           >
             TS
@@ -259,7 +259,7 @@ export function AppSidebar({
                 width: 36,
                 height: 36,
                 borderRadius: 36,
-                background: `linear-gradient(135deg, ${HX.accent} 0%, #4fe3c4 100%)`,
+                background: `linear-gradient(135deg, ${HX.accent} 0%, #ffb158 100%)`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

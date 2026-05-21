@@ -352,7 +352,7 @@ export default function Page() {
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: "pointer",
-                boxShadow: "0 6px 18px -6px rgba(6,214,160,0.5)",
+                boxShadow: "0 6px 18px -6px rgba(255,90,31,0.5)",
               }}
             >
               <Plus className="h-4 w-4" />

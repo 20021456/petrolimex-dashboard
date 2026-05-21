@@ -108,7 +108,7 @@ export function MobileTabBar({ activeView, onNavigate, onPriceClick }: MobileTab
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: "0 10px 24px -6px rgba(6,214,160,0.55), 0 0 0 4px rgba(10,13,18,1)",
+                    boxShadow: "0 10px 24px -6px rgba(255,90,31,0.55), 0 0 0 4px rgba(10,13,18,1)",
                     color: "#fff",
                     cursor: "pointer",
                   }}
