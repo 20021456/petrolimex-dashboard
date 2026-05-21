@@ -746,7 +746,9 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
                     <span className="hx-num" style={{ color: HX.text2 }}>
                       {fmtVN(Number(tx.liters) || 0)} L
                     </span>
-                    <span style={{ color: HX.text2 }}>{tx.pumpCode || "—"}</span>
+                    <span style={{ color: HX.text2 }}>
+                      {tx.cotBom ? `Cột ${tx.cotBom}` : "—"}
+                    </span>
                     <span style={{ minWidth: 0, color: HX.text2 }}>
                       <CustomerEditPopover
                         transactionId={tx.id}

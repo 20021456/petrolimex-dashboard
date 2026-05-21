@@ -8,6 +8,7 @@
 
 import * as React from "react"
 import { HX, Icon, FuelDot, fuelKind, WKpi } from "@/components/htx-kit"
+import { CustomerEditPopover } from "@/components/customer-edit-popover"
 
 interface TxPageProps {
   onNavigate?: (view: string) => void
@@ -57,35 +58,36 @@ function dayLabel(key: string): string {
 
 const FUEL_COLS = "120px 86px 1fr 80px 100px 84px 1fr 116px 132px"
 
+function todayStr(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 export function TxPage({ onNavigate }: TxPageProps) {
   const [tab, setTab] = React.useState<"fuel" | "retail">("fuel")
   const [filter, setFilter] = React.useState<string>("all")
   const [search, setSearch] = React.useState("")
+  const [dateFrom, setDateFrom] = React.useState(todayStr)
+  const [dateTo, setDateTo] = React.useState(todayStr)
   const [fuelTxs, setFuelTxs] = React.useState<any[]>([])
   const [retailTxs, setRetailTxs] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
+  // Xăng dầu — refetch khi đổi khoảng ngày
   React.useEffect(() => {
     let alive = true
-    const from = new Date()
-    from.setDate(from.getDate() - 6)
-    const pad = (n: number) => String(n).padStart(2, "0")
-    const fromStr = `${from.getFullYear()}-${pad(from.getMonth() + 1)}-${pad(from.getDate())} 00:00:00`
-    Promise.all([
-      fetch(`/api/recent-transactions?from=${encodeURIComponent(fromStr)}&limit=1000`, {
-        cache: "no-store",
-      })
-        .then((r) => r.json())
-        .catch(() => ({ success: false })),
-      fetch("/api/inventory", { cache: "no-store" })
-        .then((r) => r.json())
-        .catch(() => ({ success: false })),
-    ])
-      .then(([f, r]) => {
+    setLoading(true)
+    setError(null)
+    const from = encodeURIComponent(`${dateFrom} 00:00:00`)
+    const to = encodeURIComponent(`${dateTo} 23:59:59`)
+    fetch(`/api/recent-transactions?from=${from}&to=${to}&limit=2000`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((f) => {
         if (!alive) return
-        setFuelTxs(f?.success && Array.isArray(f.data?.transactions) ? f.data.transactions : [])
-        setRetailTxs(r?.success && Array.isArray(r.data) ? r.data : [])
+        if (!f?.success) throw new Error(f?.error || "Không tải được dữ liệu")
+        setFuelTxs(Array.isArray(f.data?.transactions) ? f.data.transactions : [])
         setLoading(false)
       })
       .catch((e) => {
@@ -97,7 +99,27 @@ export function TxPage({ onNavigate }: TxPageProps) {
     return () => {
       alive = false
     }
+  }, [dateFrom, dateTo])
+
+  // Bán lẻ — tải một lần
+  React.useEffect(() => {
+    let alive = true
+    fetch("/api/inventory", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((r) => {
+        if (alive && r?.success && Array.isArray(r.data)) setRetailTxs(r.data)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
   }, [])
+
+  function handleCustomerSaved(txId: number, name: string, paid: boolean) {
+    setFuelTxs((prev) =>
+      prev.map((t) => (t.id === txId ? { ...t, customer: name, customer_paid: paid ? 1 : 0 } : t))
+    )
+  }
 
   // ── Xăng dầu filtering + grouping ──
   const fuelFiltered = React.useMemo(() => {
@@ -105,7 +127,7 @@ export function TxPage({ onNavigate }: TxPageProps) {
     return fuelTxs.filter((t) => {
       if (filter !== "all" && fuelKind(t.fuelType) !== filter) return false
       if (q) {
-        const hay = `${t.id} ${t.fuelType} ${t.pumpCode} ${t.customer} ${t.amount}`.toLowerCase()
+        const hay = `${t.pumpCode} ${t.fuelType} ${t.cotBom} ${t.customer} ${t.amount}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -122,12 +144,10 @@ export function TxPage({ onNavigate }: TxPageProps) {
     return Array.from(m.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1))
   }, [fuelFiltered])
 
-  // ── KPIs (hôm nay) ──
-  const todayKey = dayKey(new Date().toISOString())
-  const todayTxs = fuelTxs.filter((t) => dayKey(t.timestamp) === todayKey)
-  const todayRevenue = todayTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0)
-  const todayDebt = todayTxs.filter((t) => Number(t.customer_paid ?? 1) === 0)
-  const avgTx = todayTxs.length ? todayRevenue / todayTxs.length : 0
+  // ── KPIs — theo khoảng ngày đang lọc ──
+  const rangeRevenue = fuelTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0)
+  const rangeDebt = fuelTxs.filter((t) => Number(t.customer_paid ?? 1) === 0)
+  const avgTx = fuelTxs.length ? rangeRevenue / fuelTxs.length : 0
 
   // fuel filter chip counts
   const fuelCounts: Record<string, number> = { all: fuelTxs.length }
@@ -190,29 +210,24 @@ export function TxPage({ onNavigate }: TxPageProps) {
       </div>
 
       {error && <div style={{ color: HX.bad, fontSize: 13, marginBottom: 16 }}>{error}</div>}
-      {loading && (
-        <div style={{ padding: 60, textAlign: "center", color: HX.text3, fontSize: 14 }}>
-          Đang tải dữ liệu…
-        </div>
-      )}
 
       {/* ─── XĂNG DẦU ─── */}
-      {!loading && tab === "fuel" && (
+      {tab === "fuel" && (
         <>
-          {/* KPIs */}
+          {/* KPIs — theo khoảng ngày */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
-            <WKpi label="Giao dịch hôm nay" value={fmtVN(todayTxs.length)} icon="receipt" color={HX.do} hint="từ POS bơm" />
+            <WKpi label="Giao dịch" value={fmtVN(fuelTxs.length)} icon="receipt" color={HX.do} hint="trong khoảng đã lọc" />
             <WKpi
-              label="Doanh thu hôm nay"
-              value={(todayRevenue / 1_000_000).toFixed(2)}
+              label="Doanh thu"
+              value={(rangeRevenue / 1_000_000).toFixed(2)}
               suffix="triệu ₫"
               icon="chart"
               color={HX.accent}
             />
             <WKpi
-              label="GD ghi nợ hôm nay"
-              value={fmtVN(todayDebt.length)}
-              suffix={`GD · ${fmtVN(todayDebt.reduce((s, t) => s + (Number(t.amount) || 0), 0) / 1000)}k`}
+              label="GD ghi nợ"
+              value={fmtVN(rangeDebt.length)}
+              suffix={`GD · ${fmtVN(rangeDebt.reduce((s, t) => s + (Number(t.amount) || 0), 0) / 1000)}k`}
               icon="alert"
               color={HX.warn}
             />
@@ -299,9 +314,86 @@ export function TxPage({ onNavigate }: TxPageProps) {
                 </div>
               ))}
             </div>
+
+            {/* Date range filter */}
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon name="calendar" size={15} color={HX.text3} />
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={{
+                  height: 38,
+                  padding: "0 10px",
+                  borderRadius: 10,
+                  background: HX.bg,
+                  border: `1px solid ${HX.hairline}`,
+                  color: HX.text,
+                  fontSize: 13,
+                  outline: "none",
+                  colorScheme: "dark",
+                }}
+              />
+              <span style={{ color: HX.text3, fontSize: 13 }}>—</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={{
+                  height: 38,
+                  padding: "0 10px",
+                  borderRadius: 10,
+                  background: HX.bg,
+                  border: `1px solid ${HX.hairline}`,
+                  color: HX.text,
+                  fontSize: 13,
+                  outline: "none",
+                  colorScheme: "dark",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom(todayStr())
+                  setDateTo(todayStr())
+                }}
+                className="hxw-press"
+                style={{
+                  height: 38,
+                  padding: "0 12px",
+                  borderRadius: 10,
+                  background: "transparent",
+                  border: `1px solid ${HX.hairlineStrong}`,
+                  color: HX.text2,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Hôm nay
+              </button>
+            </div>
           </div>
 
           {/* Table */}
+          {loading ? (
+            <div
+              style={{
+                padding: 60,
+                textAlign: "center",
+                color: HX.text3,
+                fontSize: 14,
+                background: HX.surface,
+                border: `1px solid ${HX.hairline}`,
+                borderRadius: 14,
+              }}
+            >
+              Đang tải dữ liệu…
+            </div>
+          ) : (
           <div
             style={{
               background: HX.surface,
@@ -387,8 +479,17 @@ export function TxPage({ onNavigate }: TxPageProps) {
                               borderBottom: `1px solid ${HX.hairline}`,
                             }}
                           >
-                            <span className="hx-num" style={{ color: HX.text3, fontSize: 12 }}>
-                              GD-{tx.id}
+                            <span
+                              className="hx-num"
+                              style={{
+                                color: HX.text3,
+                                fontSize: 12,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {tx.pumpCode || `GD-${tx.id}`}
                             </span>
                             <span className="hx-num" style={{ color: HX.text2 }}>
                               {fmtTime(tx.timestamp)}
@@ -412,16 +513,16 @@ export function TxPage({ onNavigate }: TxPageProps) {
                             <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
                               {fmtVN(Number(tx.price) || 0)}
                             </span>
-                            <span style={{ color: HX.text2, fontSize: 12 }}>{tx.pumpCode || "—"}</span>
-                            <span
-                              style={{
-                                color: HX.text2,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {tx.customer || "Khách lẻ"}
+                            <span style={{ color: HX.text2, fontSize: 12 }}>
+                              {tx.cotBom ? `Cột ${tx.cotBom}` : "—"}
+                            </span>
+                            <span style={{ minWidth: 0, color: HX.text2 }}>
+                              <CustomerEditPopover
+                                transactionId={tx.id}
+                                currentCustomer={tx.customer || "Khách lẻ"}
+                                currentPaid={Number(tx.customer_paid ?? 1) === 1}
+                                onSaved={(name, p) => handleCustomerSaved(tx.id, name, p)}
+                              />
                             </span>
                             <span>
                               <span
@@ -451,14 +552,15 @@ export function TxPage({ onNavigate }: TxPageProps) {
               </div>
             </div>
           </div>
+          )}
           <div style={{ marginTop: 12, fontSize: 12, color: HX.text3 }}>
-            {fuelFiltered.length} / {fuelTxs.length} giao dịch · 7 ngày gần nhất
+            {fuelFiltered.length} / {fuelTxs.length} giao dịch trong khoảng đã chọn
           </div>
         </>
       )}
 
       {/* ─── BÁN LẺ ─── */}
-      {!loading && tab === "retail" && <RetailTxTable txs={retailTxs} />}
+      {tab === "retail" && <RetailTxTable txs={retailTxs} />}
     </div>
   )
 }
