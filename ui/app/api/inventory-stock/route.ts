@@ -34,30 +34,34 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fuelName = searchParams.get('fuel_name');
 
-    // Lấy danh sách tất cả nhiên liệu từ bảng giá (bao gồm unit)
+    // Lấy danh sách tất cả nhiên liệu/sản phẩm từ bảng giá (kèm unit + price)
     const fuelPrices = await query<any[]>(`
-      SELECT fuel_name, unit FROM fuel_prices ORDER BY fuel_name
+      SELECT fuel_name, unit, price FROM fuel_prices ORDER BY fuel_name
     `);
 
     // Nếu chỉ query cho 1 loại nhiên liệu cụ thể
     if (fuelName) {
-      // Tìm unit từ bảng giá
+      // Tìm unit + price từ bảng giá
       const [fuelInfo] = await query<any[]>(`
-        SELECT unit FROM fuel_prices WHERE fuel_name = ?
+        SELECT unit, price FROM fuel_prices WHERE fuel_name = ?
       `, [fuelName]);
       const unit = fuelInfo?.unit || 'lít';
-      const stockData = await calculateStockForFuel(fuelName, unit);
+      const stockData = await calculateStockForFuel(fuelName, unit, Number(fuelInfo?.price) || 0);
       return NextResponse.json({
         success: true,
         data: stockData
       });
     }
 
-    // Tính tồn kho cho tất cả các loại nhiên liệu (chỉ từ bảng đơn giá)
+    // Tính tồn kho cho tất cả các sản phẩm
     const stockResults = [];
 
     for (const fuel of fuelPrices) {
-      const stockData = await calculateStockForFuel(fuel.fuel_name, fuel.unit);
+      const stockData = await calculateStockForFuel(
+        fuel.fuel_name,
+        fuel.unit,
+        Number(fuel.price) || 0
+      );
       stockResults.push(stockData);
     }
 
@@ -74,8 +78,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper function để tính tồn kho cho 1 loại nhiên liệu
-async function calculateStockForFuel(fuelName: string, unit: string = 'lít') {
+// Helper function để tính tồn kho cho 1 loại nhiên liệu/sản phẩm
+async function calculateStockForFuel(fuelName: string, unit: string = 'lít', price: number = 0) {
   // Tổng số lượng nhập
   const [importResult] = await query<any[]>(`
     SELECT COALESCE(SUM(quantity), 0) as total_import
@@ -106,6 +110,7 @@ async function calculateStockForFuel(fuelName: string, unit: string = 'lít') {
   return {
     fuel_name: fuelName,
     unit: unit,
+    price: price,
     total_import: totalImport,
     total_export: totalManualExport,
     current_stock: currentStock,

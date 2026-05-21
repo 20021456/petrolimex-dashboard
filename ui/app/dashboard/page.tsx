@@ -122,12 +122,22 @@ export default function Page() {
     })
   )
 
+  // Thời gian cập nhật = mốc dữ liệu mới nhất (giao dịch gần nhất trong DB).
   React.useEffect(() => {
-    const d = new Date()
+    const last = stats?.overview?.lastUpdate
+    if (!last) {
+      setUpdatedLabel("")
+      return
+    }
+    const d = new Date(last)
+    if (isNaN(d.getTime())) {
+      setUpdatedLabel("")
+      return
+    }
     const t = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
     const dt = d.toLocaleDateString("vi-VN")
     setUpdatedLabel(`${t} · ${dt}`)
-  }, [activeView])
+  }, [stats])
 
   React.useEffect(() => {
     async function fetchStats() {
