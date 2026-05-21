@@ -35,22 +35,58 @@ const KIND_ORDER = ["RON95", "E5", "DO", "DO+"]
 
 const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
 
-// Sản phẩm bán lẻ kèm tồn kho thật (suy từ /api/inventory-stock).
-export interface RetailItem {
-  name: string
-  unit: string
-  price: number
-  stock: number
-  lastImport: string | null
-  low: boolean
-}
+// ── Sản phẩm bán lẻ (theo sổ kho xăng dầu) ──
+// Tồn / min / bán hôm nay là số liệu mẫu — sẽ chỉnh theo thực tế sau.
+export const RETAIL_STOCK = [
+  // Dầu nhớt / dầu máy
+  { sku: "DN-DC4L", name: "Dầu động cơ 4L (trắng/vàng)", cat: "Dầu nhớt", stock: 14, min: 6, sold: 2, price: 250000 },
+  { sku: "DN-CASTBM", name: "Castrol Turbomax (can 18L)", cat: "Dầu nhớt", stock: 5, min: 3, sold: 1, price: 1850000 },
+  { sku: "DN-NIKO", name: "Dầu máy Niko (can 18L)", cat: "Dầu nhớt", stock: 8, min: 4, sold: 0, price: 1450000 },
+  { sku: "DN-SHE-DEN", name: "Dầu Shell đen (can 18L)", cat: "Dầu nhớt", stock: 6, min: 4, sold: 1, price: 1650000 },
+  { sku: "DN-SHE-DO", name: "Dầu Shell đỏ (can 18L)", cat: "Dầu nhớt", stock: 4, min: 4, sold: 2, price: 1700000, low: true },
+  { sku: "DN-SHE-XAM", name: "Dầu Shell xám R4 (can 18L)", cat: "Dầu nhớt", stock: 7, min: 4, sold: 0, price: 1750000 },
+  { sku: "DN-CAU-DAC", name: "Dầu cầu đặc rẻ (can 18L)", cat: "Dầu nhớt", stock: 3, min: 4, sold: 1, price: 1200000, low: true },
+  { sku: "DN-CAU-90", name: "Dầu cầu 90/140 (can 4L đỏ)", cat: "Dầu nhớt", stock: 12, min: 6, sold: 3, price: 400000 },
+  { sku: "DN-TL-XAM", name: "Dầu thủy lực xám (xô 18L)", cat: "Dầu nhớt", stock: 9, min: 4, sold: 1, price: 980000 },
+  { sku: "DN-TL-CTEX", name: "Dầu thủy lực Ctex (18L)", cat: "Dầu nhớt", stock: 6, min: 4, sold: 0, price: 1050000 },
+  { sku: "DN-TL-CAS", name: "Dầu thủy lực Castrol (can 18L)", cat: "Dầu nhớt", stock: 4, min: 3, sold: 1, price: 1900000 },
+  { sku: "DN-DC-CTEX", name: "Dầu động cơ Ctex (18L)", cat: "Dầu nhớt", stock: 7, min: 4, sold: 2, price: 1100000 },
+  { sku: "DN-XM-CTX", name: "Dầu xe máy Catex", cat: "Dầu nhớt", stock: 28, min: 12, sold: 6, price: 75000 },
+  { sku: "DN-OTO", name: "Dầu ôtô con 4L / dầu 5L", cat: "Dầu nhớt", stock: 10, min: 5, sold: 2, price: 450000 },
+  // Dầu pha xăng
+  { sku: "PX-DO", name: "Dầu pha xăng đỏ (xe máy)", cat: "Dầu pha xăng", stock: 22, min: 10, sold: 8, price: 90000 },
+  { sku: "PX-MEKONG", name: "Dầu xe máy Mêkong", cat: "Dầu pha xăng", stock: 30, min: 12, sold: 10, price: 55000 },
+  { sku: "PX-CATEX", name: "Dầu pha xăng Catex đen", cat: "Dầu pha xăng", stock: 18, min: 10, sold: 5, price: 90000 },
+  { sku: "PX-HP", name: "Dầu pha xăng HP", cat: "Dầu pha xăng", stock: 14, min: 8, sold: 3, price: 170000 },
+  { sku: "PX-HP-DO", name: "Dầu pha xăng HP rẻ đỏ (2 nắp)", cat: "Dầu pha xăng", stock: 9, min: 10, sold: 4, price: 75000, low: true },
+  { sku: "PX-HP-XANH", name: "Dầu pha xăng HP rẻ xanh (2 nắp)", cat: "Dầu pha xăng", stock: 16, min: 8, sold: 2, price: 100000 },
+  // Mỡ
+  { sku: "MO-XO", name: "Mỡ xô (xô 17kg)", cat: "Mỡ", stock: 6, min: 3, sold: 1, price: 320000 },
+  { sku: "MO-GOI", name: "Mỡ gói", cat: "Mỡ", stock: 40, min: 20, sold: 12, price: 75000 },
+  { sku: "MO-SAU", name: "Mỡ sâu", cat: "Mỡ", stock: 60, min: 24, sold: 18, price: 25000 },
+  // Khác
+  { sku: "KH-PHANH", name: "Dầu phanh", cat: "Khác", stock: 24, min: 12, sold: 5, price: 50000 },
+  { sku: "KH-TROLUC", name: "Dầu trợ lực tay lái", cat: "Khác", stock: 20, min: 10, sold: 4, price: 40000 },
+  { sku: "KH-NUOC", name: "Nước khoáng", cat: "Khác", stock: 96, min: 48, sold: 30, price: 8000 },
+  { sku: "KH-THAI", name: "Dầu thải (can)", cat: "Khác", stock: 8, min: 0, sold: 0, price: 30000 },
+]
+
+export const RETAIL_CATS = [
+  { k: "all", l: "Tất cả" },
+  { k: "Dầu nhớt", l: "Dầu nhớt" },
+  { k: "Dầu pha xăng", l: "Dầu pha xăng" },
+  { k: "Mỡ", l: "Mỡ" },
+  { k: "Khác", l: "Khác" },
+]
+
+const RETAIL_COLS = "40px 1.6fr 130px 110px 120px 110px 130px 44px"
 
 export function StockPage({ onNavigate }: StockPageProps) {
   const isMobile = useIsMobile()
   const [tab, setTab] = React.useState<"fuel" | "retail">("fuel")
+  const [cat, setCat] = React.useState("all")
   const [tanksRaw, setTanksRaw] = React.useState<any[]>([])
   const [home, setHome] = React.useState<any>(null)
-  const [stockRaw, setStockRaw] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -59,13 +95,11 @@ export function StockPage({ onNavigate }: StockPageProps) {
     Promise.all([
       fetch("/api/fuel/tanks", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ success: false })),
       fetch("/api/home", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ success: false })),
-      fetch("/api/inventory-stock", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ success: false })),
     ])
-      .then(([t, h, s]) => {
+      .then(([t, h]) => {
         if (!alive) return
         setTanksRaw(t?.success && Array.isArray(t.data) ? t.data : [])
         setHome(h?.success ? h.data : null)
-        setStockRaw(s?.success && Array.isArray(s.data) ? s.data : [])
         setLoading(false)
       })
       .catch((e) => {
@@ -79,29 +113,11 @@ export function StockPage({ onNavigate }: StockPageProps) {
     }
   }, [])
 
-  // Sản phẩm bán lẻ = mục trong bảng giá không phải nhiên liệu, kèm tồn kho thật.
-  const retailProducts = React.useMemo(
-    () =>
-      stockRaw
-        .filter((s) => fuelKind(s.fuel_name) === "")
-        .map((s) => ({
-          name: String(s.fuel_name || ""),
-          unit: String(s.unit || ""),
-          price: Number(s.price) || 0,
-          stock: Number(s.current_stock) || 0,
-          lastImport: s.last_import_time || null,
-          low: (Number(s.current_stock) || 0) <= 0,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name, "vi")),
-    [stockRaw]
-  )
-
   if (isMobile) {
     return (
       <StockPageMobile
         tanksRaw={tanksRaw}
         home={home}
-        retailProducts={retailProducts}
         loading={loading}
         onNavigate={onNavigate}
       />
@@ -166,7 +182,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
       >
         {[
           { k: "fuel" as const, t: "Xăng dầu", c: `${tankCards.length || 4} bồn` },
-          { k: "retail" as const, t: "Bán lẻ", c: `${retailProducts.length} SP` },
+          { k: "retail" as const, t: "Bán lẻ", c: `${RETAIL_STOCK.length} SP` },
         ].map((o) => (
           <div
             key={o.k}
@@ -474,51 +490,61 @@ export function StockPage({ onNavigate }: StockPageProps) {
       )}
 
       {/* ─── BÁN LẺ TAB ─── */}
-      {!loading && tab === "retail" && <StockRetail products={retailProducts} />}
+      {!loading && tab === "retail" && (
+        <StockRetail cat={cat} setCat={setCat} />
+      )}
     </div>
   )
 }
 
-const RETAIL_COLS = "44px 1.8fr 90px 150px 170px 140px"
+function StockRetail({ cat, setCat }: { cat: string; setCat: (c: string) => void }) {
+  const filtered = cat === "all" ? RETAIL_STOCK : RETAIL_STOCK.filter((p) => p.cat === cat)
+  const lowCount = RETAIL_STOCK.filter((p) => p.low).length
+  const soldToday = RETAIL_STOCK.reduce((s, p) => s + p.sold, 0)
+  const stockValue = RETAIL_STOCK.reduce((s, p) => s + p.stock * p.price, 0)
 
-function fmtStockDate(s: string | null): string {
-  if (!s) return "—"
-  const d = new Date(s)
-  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("vi-VN")
-}
-
-function StockRetail({ products }: { products: RetailItem[] }) {
-  const lowCount = products.filter((p) => p.low).length
-  const totalValue = products.reduce((s, p) => s + Math.max(0, p.stock) * p.price, 0)
+  const catCounts: Record<string, number> = { all: RETAIL_STOCK.length }
+  RETAIL_STOCK.forEach((p) => {
+    catCounts[p.cat] = (catCounts[p.cat] || 0) + 1
+  })
 
   return (
     <>
-      {/* Summary — tính từ bảng tồn kho thật */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
-        <WKpi
-          label="Tổng sản phẩm"
-          value={String(products.length)}
-          suffix="mặt hàng"
-          icon="receipt"
-          color={HX.do}
-          hint="từ bảng đơn giá"
-        />
-        <WKpi
-          label="Hết / âm kho"
-          value={String(lowCount)}
-          suffix="sản phẩm"
-          icon="alert"
-          color={HX.bad}
-          hint="tồn ≤ 0"
-        />
-        <WKpi
-          label="Giá trị tồn"
-          value={(totalValue / 1_000_000).toFixed(1)}
-          suffix="triệu ₫"
-          icon="chart"
-          color={HX.good}
-          hint="tồn × đơn giá"
-        />
+      {/* Summary */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
+        <WKpi label="Tổng sản phẩm" value={String(RETAIL_STOCK.length)} suffix="mặt hàng" icon="receipt" color={HX.do} hint={`${RETAIL_CATS.length - 1} nhóm hàng`} />
+        <WKpi label="Sắp hết" value={String(lowCount)} suffix="sản phẩm" icon="alert" color={HX.bad} hint="Dưới mức tối thiểu" />
+        <WKpi label="Giá trị tồn" value={(stockValue / 1_000_000).toFixed(1)} suffix="triệu ₫" icon="chart" color={HX.good} hint="Tồn × giá bán" />
+        <WKpi label="Bán hôm nay" value={String(soldToday)} suffix="lượt" icon="fuel" color={HX.accent} hint="số liệu mẫu" />
+      </div>
+
+      {/* Filter chips */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {RETAIL_CATS.map((o) => (
+            <div
+              key={o.k}
+              onClick={() => setCat(o.k)}
+              className="hxw-press"
+              style={{
+                padding: "7px 14px",
+                borderRadius: 999,
+                background: cat === o.k ? HX.accentSoft : "transparent",
+                border: `1px solid ${cat === o.k ? "transparent" : HX.hairlineStrong}`,
+                color: cat === o.k ? HX.accent : HX.text2,
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {o.l}
+              <span style={{ fontSize: 11, opacity: 0.7 }}>{catCounts[o.k] || 0}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -541,92 +567,130 @@ function StockRetail({ products }: { products: RetailItem[] }) {
         >
           <span />
           <span>Sản phẩm</span>
-          <span>Đơn vị</span>
-          <span style={{ textAlign: "right" }}>Tồn kho</span>
-          <span style={{ textAlign: "right" }}>Nhập gần nhất</span>
+          <span>Mã SKU</span>
+          <span>Nhóm</span>
+          <span style={{ textAlign: "right" }}>Tồn / Min</span>
+          <span style={{ textAlign: "right" }}>Bán hôm nay</span>
           <span style={{ textAlign: "right" }}>Giá bán</span>
+          <span />
         </div>
-        {products.map((p, i) => (
-          <div
-            key={p.name}
-            style={{
-              display: "grid",
-              gridTemplateColumns: RETAIL_COLS,
-              alignItems: "center",
-              columnGap: 12,
-              padding: "14px 20px",
-              fontSize: 13,
-              color: HX.text,
-              borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
-            }}
-          >
-            <span>
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  background: "rgba(235,235,245,0.08)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Icon name="drop" size={15} color={HX.text2} />
-              </div>
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-              <span
-                style={{
-                  fontWeight: 600,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {p.name}
+        {filtered.map((p, i) => {
+          const catBg =
+            p.cat === "Dầu nhớt"
+              ? "rgba(255,177,88,0.16)"
+              : p.cat === "Dầu pha xăng"
+                ? "rgba(94,177,255,0.16)"
+                : p.cat === "Mỡ"
+                  ? "rgba(191,133,255,0.16)"
+                  : "rgba(235,235,245,0.08)"
+          const catColor =
+            p.cat === "Dầu nhớt"
+              ? HX.accent2
+              : p.cat === "Dầu pha xăng"
+                ? HX.do
+                : p.cat === "Mỡ"
+                  ? HX.doPlus
+                  : HX.text2
+          return (
+            <div
+              key={p.sku}
+              style={{
+                display: "grid",
+                gridTemplateColumns: RETAIL_COLS,
+                alignItems: "center",
+                columnGap: 12,
+                padding: "14px 20px",
+                fontSize: 13,
+                color: HX.text,
+                borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
+              }}
+            >
+              <span>
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: catBg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Icon name="drop" size={15} color={catColor} />
+                </div>
               </span>
-              {p.low && (
+              <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                 <span
                   style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: HX.bad,
-                    padding: "2px 6px",
-                    background: HX.badSoft,
-                    borderRadius: 4,
+                    fontWeight: 600,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                   }}
                 >
-                  HẾT KHO
+                  {p.name}
                 </span>
-              )}
-            </span>
-            <span style={{ color: HX.text2 }}>{p.unit || "—"}</span>
-            <span
-              className="hx-num"
-              style={{ textAlign: "right", fontWeight: 600, color: p.low ? HX.bad : HX.text }}
-            >
-              {fmtVN(p.stock)}
-            </span>
-            <span className="hx-num" style={{ textAlign: "right", color: HX.text2, fontSize: 12 }}>
-              {fmtStockDate(p.lastImport)}
-            </span>
-            <span className="hx-num" style={{ textAlign: "right", fontWeight: 600 }}>
-              {fmtVN(p.price)}
-              <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> ₫</span>
-            </span>
-          </div>
-        ))}
-        {products.length === 0 && (
+                {p.low && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: HX.bad,
+                      padding: "2px 6px",
+                      background: HX.badSoft,
+                      borderRadius: 4,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    SẮP HẾT
+                  </span>
+                )}
+              </span>
+              <span className="hx-num" style={{ color: HX.text3, fontSize: 12 }}>
+                {p.sku}
+              </span>
+              <span style={{ color: HX.text2 }}>{p.cat}</span>
+              <span className="hx-num" style={{ textAlign: "right", fontWeight: 600, color: p.low ? HX.bad : HX.text }}>
+                {p.stock}
+                <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> / {p.min}</span>
+              </span>
+              <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
+                {p.sold}
+              </span>
+              <span className="hx-num" style={{ textAlign: "right", fontWeight: 600 }}>
+                {fmtVN(p.price)}
+                <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> ₫</span>
+              </span>
+              <span style={{ textAlign: "right" }}>
+                <Icon name="chevron" size={14} color={HX.text3} />
+              </span>
+            </div>
+          )
+        })}
+        {filtered.length === 0 && (
           <div style={{ padding: 40, textAlign: "center", color: HX.text3, fontSize: 13 }}>
-            Chưa có sản phẩm bán lẻ trong bảng đơn giá.
+            Không có sản phẩm nào trong nhóm này.
           </div>
         )}
       </div>
 
-      <div style={{ marginTop: 14, fontSize: 12, color: HX.text3 }}>
-        {products.length} sản phẩm · tồn kho = tổng nhập − tổng xuất kho
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 14,
+          fontSize: 12,
+          color: HX.text3,
+        }}
+      >
+        <span>
+          Hiển thị {filtered.length} / {RETAIL_STOCK.length} sản phẩm
+        </span>
+        <span style={{ fontStyle: "italic" }}>
+          Số liệu tồn kho bán lẻ là mẫu — sẽ nối bảng sản phẩm khi có.
+        </span>
       </div>
     </>
   )
