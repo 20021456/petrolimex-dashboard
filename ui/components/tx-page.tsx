@@ -58,10 +58,101 @@ function dayLabel(key: string): string {
 
 const FUEL_COLS = "120px 86px 1fr 80px 100px 84px 1fr 116px 132px"
 
-function todayStr(): string {
-  const d = new Date()
+function ymd(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+function todayStr(): string {
+  return ymd(new Date())
+}
+
+// Dropdown lọc nhanh khoảng ngày.
+function QuickRangeDropdown({
+  label,
+  onPick,
+}: {
+  label: string
+  onPick: (days: number) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [])
+  const opts = [
+    { l: "Hôm nay", d: 1 },
+    { l: "3 ngày qua", d: 3 },
+    { l: "7 ngày qua", d: 7 },
+    { l: "30 ngày qua", d: 30 },
+  ]
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="hxw-press"
+        style={{
+          height: 38,
+          padding: "0 10px",
+          borderRadius: 10,
+          background: HX.bg,
+          border: `1px solid ${HX.hairline}`,
+          color: HX.text2,
+          fontSize: 13,
+          fontWeight: 500,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <Icon name="calendar" size={14} color={HX.text3} />
+        {label}
+        <Icon name="chevronDown" size={12} color={HX.text3} />
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: 44,
+            right: 0,
+            zIndex: 30,
+            minWidth: 150,
+            background: HX.elevated,
+            border: `1px solid ${HX.hairlineStrong}`,
+            borderRadius: 10,
+            padding: 4,
+            boxShadow: "0 12px 30px -8px rgba(0,0,0,0.6)",
+          }}
+        >
+          {opts.map((o) => (
+            <div
+              key={o.d}
+              className="hxw-link"
+              onClick={() => {
+                onPick(o.d)
+                setOpen(false)
+              }}
+              style={{
+                padding: "8px 10px",
+                borderRadius: 7,
+                fontSize: 13,
+                color: HX.text,
+                cursor: "pointer",
+              }}
+            >
+              {o.l}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function TxPage({ onNavigate }: TxPageProps) {
@@ -155,6 +246,14 @@ export function TxPage({ onNavigate }: TxPageProps) {
     const k = fuelKind(t.fuelType) || "Khác"
     fuelCounts[k] = (fuelCounts[k] || 0) + 1
   })
+
+  // nhãn hiển thị trên dropdown lọc nhanh
+  const rangeLabel =
+    dateFrom === dateTo
+      ? dateFrom === todayStr()
+        ? "Hôm nay"
+        : dateFrom.split("-").reverse().join("/")
+      : `${Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000) + 1} ngày`
 
   return (
     <div className="hxw" style={{ maxWidth: 1280, margin: "0 auto", width: "100%", color: HX.text }}>
@@ -315,32 +414,18 @@ export function TxPage({ onNavigate }: TxPageProps) {
               ))}
             </div>
 
-            {/* Date range filter */}
+            {/* Date filter — chọn 1 ngày + dropdown lọc nhanh */}
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-              <Icon name="calendar" size={15} color={HX.text3} />
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo}
-                onChange={(e) => setDateFrom(e.target.value)}
-                style={{
-                  height: 38,
-                  padding: "0 10px",
-                  borderRadius: 10,
-                  background: HX.bg,
-                  border: `1px solid ${HX.hairline}`,
-                  color: HX.text,
-                  fontSize: 13,
-                  outline: "none",
-                  colorScheme: "dark",
-                }}
-              />
-              <span style={{ color: HX.text3, fontSize: 13 }}>—</span>
               <input
                 type="date"
                 value={dateTo}
-                min={dateFrom}
-                onChange={(e) => setDateTo(e.target.value)}
+                max={todayStr()}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setDateFrom(e.target.value)
+                    setDateTo(e.target.value)
+                  }
+                }}
                 style={{
                   height: 38,
                   padding: "0 10px",
@@ -353,28 +438,16 @@ export function TxPage({ onNavigate }: TxPageProps) {
                   colorScheme: "dark",
                 }}
               />
-              <button
-                type="button"
-                onClick={() => {
-                  setDateFrom(todayStr())
-                  setDateTo(todayStr())
+              <QuickRangeDropdown
+                label={rangeLabel}
+                onPick={(days) => {
+                  const today = new Date()
+                  const from = new Date(today)
+                  from.setDate(from.getDate() - (days - 1))
+                  setDateFrom(ymd(from))
+                  setDateTo(ymd(today))
                 }}
-                className="hxw-press"
-                style={{
-                  height: 38,
-                  padding: "0 12px",
-                  borderRadius: 10,
-                  background: "transparent",
-                  border: `1px solid ${HX.hairlineStrong}`,
-                  color: HX.text2,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Hôm nay
-              </button>
+              />
             </div>
           </div>
 
