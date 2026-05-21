@@ -13,7 +13,7 @@ import { KhachQuenContent } from "@/components/khachquen-content"
 import { DashboardHome } from "@/components/dashboard-home"
 import { StockPage } from "@/components/stock-page"
 import { MobileTabBar } from "@/components/mobile-tab-bar"
-import { useIsMobile } from "@/components/htx-kit"
+import { HX, useIsMobile } from "@/components/htx-kit"
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { DashboardSection } from "@/components/dashboard-section"
 import { DateRangePicker } from "@/components/date-range-picker"
@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { type DateRange } from "react-day-picker"
-import { X, PanelLeftClose, PanelLeftOpen } from "lucide-react"
+import { X, PanelLeftClose, PanelLeftOpen, RefreshCw, Plus, Search } from "lucide-react"
 import { usePriceDialog } from "@/components/global-price-dialog"
 import {
   DndContext,
@@ -101,6 +101,7 @@ function SortableSection({
 export default function Page() {
   const { openPriceDialog } = usePriceDialog()
   const isMobile = useIsMobile()
+  const [updatedLabel, setUpdatedLabel] = React.useState("")
   const [stats, setStats] = React.useState<any>(null)
   const [sections, setSections] = React.useState([
     "overview",
@@ -120,6 +121,13 @@ export default function Page() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   )
+
+  React.useEffect(() => {
+    const d = new Date()
+    const t = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+    const dt = d.toLocaleDateString("vi-VN")
+    setUpdatedLabel(`${t} · ${dt}`)
+  }, [activeView])
 
   React.useEffect(() => {
     async function fetchStats() {
@@ -249,16 +257,25 @@ export default function Page() {
   }
 
   const viewTitles: Record<string, string> = {
-    dashboard: "Fuel Dashboard - Tổng Quan",
-    chitiet: "Chi Tiết Fuel",
-    kho: "Xuất Kho",
-    tonkho: "Quản Lý Tồn Kho",
-    giaoca: "Giao Ca",
-    khachquen: "Khách Quen",
+    dashboard: "Trang chủ",
+    chitiet: "Báo cáo",
+    kho: "Xuất kho",
+    tonkho: "Tồn kho",
+    giaoca: "Giao ca",
+    khachquen: "Khách quen",
     revenue: "Doanh Thu",
     statistics: "Thống Kê & Biểu Đồ",
     pumps: "Quản Lý Cột Bơm",
     history: "Lịch Sử Giao Dịch",
+  }
+
+  const viewSubs: Record<string, string> = {
+    dashboard: "Tổng quan hoạt động",
+    chitiet: "Báo cáo doanh thu & sản lượng",
+    kho: "Ghi nhận xuất kho bán lẻ",
+    tonkho: "Cảm biến bồn + kho bán lẻ",
+    giaoca: "Bàn giao ca làm việc",
+    khachquen: "Quản lý khách quen & công nợ",
   }
 
   return (
@@ -274,118 +291,116 @@ export default function Page() {
         />
       )}
       <SidebarInset>
-        {/* Header with filters - HTX topbar (sticky, blur) */}
+        {/* HTX topbar — sticky, blur */}
         <header
-          className="sticky top-0 z-20 flex shrink-0 flex-col overflow-hidden border-b"
+          className="sticky top-0 z-20 flex min-h-[64px] shrink-0 items-center justify-between gap-4 border-b px-4 py-3 sm:px-6 lg:px-9"
           style={{
             background: "rgba(10,13,18,0.78)",
             backdropFilter: "saturate(140%) blur(14px)",
             WebkitBackdropFilter: "saturate(140%) blur(14px)",
           }}
         >
-          {/* Top row - Always visible */}
-          <div className="flex min-h-[64px] items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-5 lg:px-9">
-            {!isMobile && (
-              <>
-                <SidebarToggleButton />
-                <Separator orientation="vertical" className="mx-1 h-5 sm:mx-2" />
-              </>
-            )}
+          {/* Left — title + sub */}
+          <div className="min-w-0">
             <h1 className="truncate text-base font-bold tracking-[-0.02em] sm:text-[22px]">
               {viewTitles[activeView] || "Fuel Dashboard"}
             </h1>
-
-            {activeView !== "chitiet" && activeView !== "kho" && activeView !== "tonkho" && activeView !== "giaoca" && (
-              <>
-                {/* Desktop filters */}
-                <div className="ml-auto hidden items-center gap-2 lg:flex">
-                  <SearchInput 
-                    onChange={setSearch} 
-                    value={search}
-                    className="w-56 xl:w-64" 
-                  />
-                  <DateRangePicker
-                    value={dateRange}
-                    onChange={setDateRange}
-                    className="w-[260px]"
-                  />
-                  {hasFilters && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleClearFilters}
-                      className="h-8 px-2 lg:px-3"
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      <span className="hidden xl:inline">Xóa bộ lọc</span>
-                      <Badge variant="secondary" className="ml-2">
-                        {[dateRange && 'ngày', search && 'tìm kiếm'].filter(Boolean).length}
-                      </Badge>
-                    </Button>
-                  )}
-                  <Button asChild variant="outline" size="sm" className="shrink-0">
-                    <a href="/api/stats?export=csv" target="_blank" rel="noreferrer">
-                      <span className="hidden xl:inline">Export CSV</span>
-                      <span className="xl:hidden">CSV</span>
-                    </a>
-                  </Button>
-                </div>
-
-                {/* Mobile filter toggle */}
-                <div className="ml-auto flex shrink-0 items-center gap-1 lg:hidden">
-                  {hasFilters && (
-                    <Badge variant="secondary" className="h-6 px-1.5 text-[10px] sm:px-2 sm:text-xs">
-                      {[dateRange && 'ngày', search && 'tìm kiếm'].filter(Boolean).length}
-                    </Badge>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                    className="h-7 px-2 text-xs sm:h-8 sm:text-sm"
-                  >
-                    Bộ lọc
-                  </Button>
-                </div>
-              </>
-            )}
+            <div className="truncate text-[13px]" style={{ color: HX.text2 }}>
+              {viewSubs[activeView] || "HTX Thành Sơn"}
+              {updatedLabel ? ` · cập nhật ${updatedLabel}` : ""}
+            </div>
           </div>
 
-          {/* Mobile filters row - Collapsible */}
-          {activeView !== "chitiet" && activeView !== "kho" && activeView !== "tonkho" && mobileFiltersOpen && (
-            <div className="flex flex-col gap-2 border-t bg-muted/30 p-3 lg:hidden">
-              <SearchInput 
-                onChange={setSearch} 
+          {/* Right — actions + search (desktop) */}
+          <div className="hidden shrink-0 items-center gap-2.5 md:flex">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="hxw-press"
+              style={{
+                height: 40,
+                padding: "0 16px",
+                borderRadius: 10,
+                background: "transparent",
+                color: HX.text2,
+                border: `1px solid ${HX.hairlineStrong}`,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Làm mới
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("kho")}
+              className="hxw-press"
+              style={{
+                height: 40,
+                padding: "0 16px",
+                borderRadius: 10,
+                background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
+                color: "#fff",
+                border: "1px solid transparent",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: "0 6px 18px -6px rgba(6,214,160,0.5)",
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Nhập kho
+            </button>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                height: 40,
+                width: 280,
+                padding: "0 14px",
+                background: HX.surface,
+                border: `1px solid ${HX.hairline}`,
+                borderRadius: 10,
+              }}
+            >
+              <Search className="h-4 w-4" style={{ color: HX.text3 }} />
+              <input
                 value={search}
-                className="w-full" 
-                placeholder="Tìm kiếm..."
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm kiếm…"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  color: HX.text,
+                  fontSize: 13,
+                }}
               />
-              <div className="flex gap-2">
-                <DateRangePicker
-                  value={dateRange}
-                  onChange={setDateRange}
-                  className="flex-1"
-                />
-                {hasFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearFilters}
-                    className="shrink-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button asChild variant="outline" size="sm" className="flex-1">
-                  <a href="/api/stats?export=csv" target="_blank" rel="noreferrer">
-                    📥 Export CSV
-                  </a>
-                </Button>
-              </div>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: HX.text3,
+                  fontWeight: 600,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: HX.bg,
+                  border: `1px solid ${HX.hairline}`,
+                }}
+              >
+                ⌘K
+              </span>
             </div>
-          )}
+          </div>
         </header>
 
         {/* Dashboard content - Mobile Responsive */}
