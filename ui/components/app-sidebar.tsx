@@ -6,6 +6,7 @@ import {
   ClipboardListIcon,
   HomeIcon,
   PackageIcon,
+  ReceiptIcon,
   RefreshCwIcon,
   TrendingUpIcon,
   UsersIcon,
@@ -39,6 +40,7 @@ interface NavEntry {
 
 const NAV_OPERATIONS: NavEntry[] = [
   { id: "dashboard", label: "Trang chủ", icon: HomeIcon },
+  { id: "tx", label: "Giao dịch", icon: ReceiptIcon },
   { id: "kho", label: "Xuất Kho", icon: PackageIcon },
   { id: "tonkho", label: "Tồn Kho", icon: WarehouseIcon },
   { id: "chitiet", label: "Báo Cáo", icon: ClipboardListIcon },

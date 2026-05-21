@@ -12,6 +12,7 @@ import { GiaoCaContent } from "@/components/giaoca-content"
 import { KhachQuenContent } from "@/components/khachquen-content"
 import { DashboardHome } from "@/components/dashboard-home"
 import { StockPage } from "@/components/stock-page"
+import { TxPage } from "@/components/tx-page"
 import { MobileTabBar } from "@/components/mobile-tab-bar"
 import { HX, useIsMobile } from "@/components/htx-kit"
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
@@ -268,6 +269,7 @@ export default function Page() {
 
   const viewTitles: Record<string, string> = {
     dashboard: "Trang chủ",
+    tx: "Giao dịch",
     chitiet: "Báo cáo",
     kho: "Xuất kho",
     tonkho: "Tồn kho",
@@ -281,6 +283,7 @@ export default function Page() {
 
   const viewSubs: Record<string, string> = {
     dashboard: "Tổng quan hoạt động",
+    tx: "Lịch sử giao dịch xăng dầu & bán lẻ",
     chitiet: "Báo cáo doanh thu & sản lượng",
     kho: "Ghi nhận xuất kho bán lẻ",
     tonkho: "Cảm biến bồn + kho bán lẻ",
@@ -448,6 +451,8 @@ export default function Page() {
             <KhoContent />
           ) : activeView === "tonkho" ? (
             <StockPage onNavigate={setActiveView} />
+          ) : activeView === "tx" ? (
+            <TxPage onNavigate={setActiveView} />
           ) : activeView === "giaoca" ? (
             <GiaoCaContent />
           ) : activeView === "khachquen" ? (
