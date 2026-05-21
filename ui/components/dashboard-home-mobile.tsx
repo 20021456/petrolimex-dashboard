@@ -384,7 +384,7 @@ export function DashboardHomeMobile({ home, tanksRaw, onNavigate, reload }: Mobi
 
       {/* Giao dịch gần đây */}
       <div>
-        <SectionHead title="Giao dịch gần đây" action="Xem tất cả" onAction={() => onNavigate?.("chitiet")} />
+        <SectionHead title="Giao dịch gần đây" action="Xem tất cả" onAction={() => onNavigate?.("tx")} />
         <MCard padding={0}>
           {recentShown.length === 0 ? (
             <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: HX.text3 }}>

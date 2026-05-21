@@ -31,7 +31,7 @@ const SLOTS: Slot[] = [
   { k: "more", icon: "home", label: "Khác" },
 ]
 
-const MORE_KEYS = ["chitiet", "giaoca", "gia"]
+const MORE_KEYS = ["tx", "chitiet", "giaoca", "gia"]
 
 interface MoreItem {
   k: string
@@ -43,6 +43,7 @@ interface MoreItem {
 }
 
 const MORE_ITEMS: MoreItem[] = [
+  { k: "tx", icon: "receipt", label: "Giao dịch", sub: "Lịch sử bán hàng", color: HX.accent2 },
   { k: "chitiet", icon: "chart", label: "Báo cáo", sub: "Doanh thu · sản lượng", color: HX.do },
   { k: "giaoca", icon: "refresh", label: "Giao ca", sub: "Bàn giao ca làm việc", color: HX.accent },
   { k: "gia", icon: "chart", label: "Đơn giá", sub: "Cập nhật giá bán", color: HX.doPlus, action: "price" },

@@ -671,7 +671,7 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
       <WSection
         title="Giao dịch gần đây"
         sub={`${recent.length} giao dịch mới nhất từ fuel_pump`}
-        right={<GhostBtn onClick={() => onNavigate?.("chitiet")}>Xem tất cả →</GhostBtn>}
+        right={<GhostBtn onClick={() => onNavigate?.("tx")}>Xem tất cả →</GhostBtn>}
       >
         <div
           style={{
