@@ -7,12 +7,11 @@
 
 import * as React from "react"
 import { HX, Icon, fuelKind, Tank, Donut, ProgressBar } from "@/components/htx-kit"
-import type { RetailItem } from "@/components/stock-page"
+import { RETAIL_STOCK, RETAIL_CATS } from "@/components/stock-page"
 
 interface StockPageMobileProps {
   tanksRaw: any[]
   home: any
-  retailProducts: RetailItem[]
   loading: boolean
   onNavigate?: (view: string) => void
 }
@@ -50,14 +49,9 @@ function MCard({
   )
 }
 
-export function StockPageMobile({
-  tanksRaw,
-  home,
-  retailProducts,
-  loading,
-  onNavigate,
-}: StockPageMobileProps) {
+export function StockPageMobile({ tanksRaw, home, loading, onNavigate }: StockPageMobileProps) {
   const [tab, setTab] = React.useState<"fuel" | "retail">("fuel")
+  const [cat, setCat] = React.useState("all")
 
   const byFuel: any[] = Array.isArray(home?.byFuel) ? home.byFuel : []
 
@@ -94,7 +88,12 @@ export function StockPageMobile({
   const tankPct = tankCap > 0 ? Math.round((tankTotal / tankCap) * 100) : 0
   const lowCount = tankCards.filter((t) => t.low).length
 
-  const retailLow = retailProducts.filter((p) => p.low).length
+  const retailFiltered = cat === "all" ? RETAIL_STOCK : RETAIL_STOCK.filter((p) => p.cat === cat)
+  const retailLow = RETAIL_STOCK.filter((p) => p.low).length
+  const catCounts: Record<string, number> = { all: RETAIL_STOCK.length }
+  RETAIL_STOCK.forEach((p) => {
+    catCounts[p.cat] = (catCounts[p.cat] || 0) + 1
+  })
 
   return (
     <div className="hxw" style={{ color: HX.text, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -110,7 +109,7 @@ export function StockPageMobile({
       >
         {[
           { k: "fuel" as const, t: "Xăng dầu", c: tankCards.length || 4 },
-          { k: "retail" as const, t: "Bán lẻ", c: retailProducts.length },
+          { k: "retail" as const, t: "Bán lẻ", c: RETAIL_STOCK.length },
         ].map((o) => (
           <div
             key={o.k}
@@ -253,9 +252,9 @@ export function StockPageMobile({
           <MCard padding={16}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontSize: 13, color: HX.text2 }}>{retailProducts.length} sản phẩm</div>
+                <div style={{ fontSize: 13, color: HX.text2 }}>{RETAIL_STOCK.length} sản phẩm</div>
                 <div className="hx-num" style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
-                  {retailLow} hết kho
+                  {retailLow} sắp hết
                 </div>
               </div>
               <div
@@ -274,90 +273,133 @@ export function StockPageMobile({
             </div>
           </MCard>
 
-          {retailProducts.map((p) => (
-            <MCard
-              key={p.name}
-              padding={14}
-              style={p.low ? { border: "1px solid rgba(255,69,58,0.32)" } : undefined}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 10,
-                    background: HX.elevated,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon name="drop" size={22} color={HX.text2} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Category chips */}
+          <div className="hxw-scroll" style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+            {RETAIL_CATS.map((o) => (
+              <div
+                key={o.k}
+                onClick={() => setCat(o.k)}
+                className="hxw-press"
+                style={{
+                  padding: "6px 13px",
+                  borderRadius: 999,
+                  background: cat === o.k ? HX.accentSoft : "transparent",
+                  border: `1px solid ${cat === o.k ? "transparent" : HX.hairlineStrong}`,
+                  color: cat === o.k ? HX.accent : HX.text2,
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                {o.l}
+                <span style={{ fontSize: 10.5, opacity: 0.7 }}>{catCounts[o.k] || 0}</span>
+              </div>
+            ))}
+          </div>
+
+          {retailFiltered.map((p) => {
+            const icon: "drop" | "settings" = "drop"
+            const iconColor =
+              p.cat === "Dầu nhớt"
+                ? HX.accent2
+                : p.cat === "Dầu pha xăng"
+                  ? HX.do
+                  : p.cat === "Mỡ"
+                    ? HX.doPlus
+                    : HX.text2
+            return (
+              <MCard
+                key={p.sku}
+                padding={14}
+                style={p.low ? { border: "1px solid rgba(255,69,58,0.32)" } : undefined}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div
                     style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 10,
+                      background: HX.elevated,
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
+                      justifyContent: "center",
+                      flexShrink: 0,
                     }}
                   >
+                    <Icon name={icon} size={22} color={iconColor} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: HX.text,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
                       }}
                     >
-                      {p.name}
-                    </div>
-                    {p.low && (
-                      <span
+                      <div
                         style={{
-                          fontSize: 10,
+                          fontSize: 14,
                           fontWeight: 600,
-                          color: HX.bad,
-                          padding: "2px 6px",
-                          background: HX.badSoft,
-                          borderRadius: 5,
-                          flexShrink: 0,
+                          color: HX.text,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        Hết kho
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "baseline",
-                      marginTop: 4,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: HX.text2 }}>
-                      {fmtVN(p.price)} ₫{p.unit ? ` / ${p.unit}` : ""}
-                    </span>
-                    <span
-                      className="hx-num"
-                      style={{ fontSize: 14, fontWeight: 600, color: p.low ? HX.bad : HX.text }}
+                        {p.name}
+                      </div>
+                      {p.low && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: HX.bad,
+                            padding: "2px 6px",
+                            background: HX.badSoft,
+                            borderRadius: 5,
+                            flexShrink: 0,
+                          }}
+                        >
+                          Sắp hết
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "baseline",
+                        marginTop: 4,
+                      }}
                     >
-                      Tồn: {fmtVN(p.stock)}
-                    </span>
+                      <span style={{ fontSize: 12, color: HX.text2 }}>
+                        {p.cat} · {fmtVN(p.price)} ₫
+                      </span>
+                      <span
+                        className="hx-num"
+                        style={{ fontSize: 14, fontWeight: 600, color: p.low ? HX.bad : HX.text }}
+                      >
+                        {p.stock}
+                        <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}>
+                          {" "}
+                          / min {p.min}
+                        </span>
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </MCard>
-          ))}
-          {retailProducts.length === 0 && (
+              </MCard>
+            )
+          })}
+          {retailFiltered.length === 0 && (
             <MCard>
               <div style={{ padding: "12px 0", textAlign: "center", color: HX.text3, fontSize: 13 }}>
-                Chưa có sản phẩm bán lẻ trong bảng đơn giá.
+                Không có sản phẩm trong nhóm này.
               </div>
             </MCard>
           )}
