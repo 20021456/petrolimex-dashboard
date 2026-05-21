@@ -413,7 +413,8 @@ export function DashboardHomeMobile({ home, tanksRaw, onNavigate, reload }: Mobi
                       </span>
                     </div>
                     <div style={{ fontSize: 12, color: HX.text3, marginTop: 2 }}>
-                      {fmtTime(tx.timestamp)} · {tx.pumpCode || "—"}
+                      {fmtTime(tx.timestamp)}
+                      {tx.cotBom ? ` · Cột ${tx.cotBom}` : ""}
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>

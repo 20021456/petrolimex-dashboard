@@ -52,6 +52,7 @@ type IconName =
   | "home" | "fuel" | "chart" | "receipt" | "bell" | "user"
   | "chevron" | "chevronDown" | "refresh" | "plus" | "clock"
   | "alert" | "search" | "download" | "filter" | "drop" | "settings"
+  | "calendar"
 
 const ICON_PATHS: Record<IconName, React.ReactNode> = {
   home: <path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-8.5Z" />,
@@ -69,6 +70,7 @@ const ICON_PATHS: Record<IconName, React.ReactNode> = {
   search: <g><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></g>,
   download: <g><path d="M12 4v12M6 12l6 6 6-6M5 20h14" /></g>,
   filter: <path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z" />,
+  calendar: <g><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></g>,
   drop: <path d="M12 3s-7 8-7 12a7 7 0 0 0 14 0c0-4-7-12-7-12Z" />,
   settings: (
     <g>

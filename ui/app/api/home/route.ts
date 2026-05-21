@@ -94,7 +94,7 @@ export async function GET() {
 
     // ── 50 giao dịch gần nhất ──
     const recent = await query<any[]>(`
-      SELECT id, ma_bom pumpCode, ${FUEL_CASE} fuelType,
+      SELECT id, ma_bom pumpCode, COALESCE(cot_bom, 0) cotBom, ${FUEL_CASE} fuelType,
              gia price, lit liters, tien amount,
              ket_thuc_bom timestamp, khach_hang customer,
              COALESCE(khach_hang_paid, 1) customer_paid

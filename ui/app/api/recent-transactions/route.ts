@@ -124,6 +124,7 @@ export async function GET(request: Request) {
       SELECT
         id,
         ma_bom         AS pumpCode,
+        COALESCE(cot_bom, 0) AS cotBom,
         CASE COALESCE(cot_bom, 0)
           WHEN 1 THEN 'DO 0,001S-V'
           WHEN 2 THEN 'RON95-III'
