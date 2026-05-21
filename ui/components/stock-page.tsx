@@ -17,7 +17,9 @@ import {
   Donut,
   ProgressBar,
   WKpi,
+  useIsMobile,
 } from "@/components/htx-kit"
+import { StockPageMobile } from "@/components/stock-page-mobile"
 
 interface StockPageProps {
   onNavigate?: (view: string) => void
@@ -34,7 +36,7 @@ const KIND_ORDER = ["RON95", "E5", "DO", "DO+"]
 const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
 
 // ── Retail product samples (pending a real product-stock table) ──
-const RETAIL_STOCK = [
+export const RETAIL_STOCK = [
   { sku: "NL-CAS-1L", name: "Nhớt Castrol GTX 1L", cat: "Dầu nhớt", stock: 12, min: 20, sold: 8, price: 165000, low: true },
   { sku: "NL-TOT-4L", name: "Nhớt Total Quartz 4L", cat: "Dầu nhớt", stock: 8, min: 6, sold: 2, price: 640000 },
   { sku: "NL-SHE-1L", name: "Nhớt Shell Helix 1L", cat: "Dầu nhớt", stock: 24, min: 12, sold: 5, price: 178000 },
@@ -47,7 +49,7 @@ const RETAIL_STOCK = [
   { sku: "GAS-PET-12", name: "Bình gas Petrolimex 12kg", cat: "Gas", stock: 22, min: 10, sold: 4, price: 445000 },
 ]
 
-const RETAIL_CATS = [
+export const RETAIL_CATS = [
   { k: "all", l: "Tất cả" },
   { k: "Dầu nhớt", l: "Dầu nhớt" },
   { k: "Đồ uống", l: "Đồ uống" },
@@ -58,6 +60,7 @@ const RETAIL_CATS = [
 const RETAIL_COLS = "40px 1.6fr 130px 110px 120px 110px 130px 44px"
 
 export function StockPage({ onNavigate }: StockPageProps) {
+  const isMobile = useIsMobile()
   const [tab, setTab] = React.useState<"fuel" | "retail">("fuel")
   const [cat, setCat] = React.useState("all")
   const [tanksRaw, setTanksRaw] = React.useState<any[]>([])
@@ -87,6 +90,17 @@ export function StockPage({ onNavigate }: StockPageProps) {
       alive = false
     }
   }, [])
+
+  if (isMobile) {
+    return (
+      <StockPageMobile
+        tanksRaw={tanksRaw}
+        home={home}
+        loading={loading}
+        onNavigate={onNavigate}
+      />
+    )
+  }
 
   const byFuel: any[] = Array.isArray(home?.byFuel) ? home.byFuel : []
 
