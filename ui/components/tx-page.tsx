@@ -7,28 +7,29 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
-import { HX, Icon, FuelDot, fuelKind, WKpi } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelKind, WKpi, useIsMobile } from "@/components/htx-kit"
 import { CustomerEditPopover } from "@/components/customer-edit-popover"
+import { TxPageMobile } from "@/components/tx-page-mobile"
 
 interface TxPageProps {
   onNavigate?: (view: string) => void
 }
 
-const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
-const KIND_COLOR: Record<string, string> = {
+export const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
+export const KIND_COLOR: Record<string, string> = {
   RON95: HX.ron95,
   E5: HX.e5,
   DO: HX.do,
   "DO+": HX.doPlus,
 }
 
-function fmtTime(ts: string): string {
+export function fmtTime(ts: string): string {
   if (!ts) return ""
   const d = new Date(ts)
   if (isNaN(d.getTime())) return String(ts)
   return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 }
-function fmtDateTime(ts: string): string {
+export function fmtDateTime(ts: string): string {
   if (!ts) return ""
   const d = new Date(ts)
   if (isNaN(d.getTime())) return String(ts)
@@ -39,12 +40,12 @@ function fmtDateTime(ts: string): string {
     minute: "2-digit",
   })
 }
-function dayKey(ts: string): string {
+export function dayKey(ts: string): string {
   const d = new Date(ts)
   if (isNaN(d.getTime())) return "—"
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
-function dayLabel(key: string): string {
+export function dayLabel(key: string): string {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const yest = new Date(today)
@@ -58,16 +59,16 @@ function dayLabel(key: string): string {
 
 const FUEL_COLS = "120px 86px 1fr 80px 100px 84px 1fr 116px 132px"
 
-function ymd(d: Date): string {
+export function ymd(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
-function todayStr(): string {
+export function todayStr(): string {
   return ymd(new Date())
 }
 
 // Dropdown lọc nhanh khoảng ngày.
-function QuickRangeDropdown({
+export function QuickRangeDropdown({
   label,
   onPick,
 }: {
@@ -156,6 +157,7 @@ function QuickRangeDropdown({
 }
 
 export function TxPage({ onNavigate }: TxPageProps) {
+  const isMobile = useIsMobile()
   const [tab, setTab] = React.useState<"fuel" | "retail">("fuel")
   const [filter, setFilter] = React.useState<string>("all")
   const [search, setSearch] = React.useState("")
@@ -234,6 +236,8 @@ export function TxPage({ onNavigate }: TxPageProps) {
     })
     return Array.from(m.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1))
   }, [fuelFiltered])
+
+  if (isMobile) return <TxPageMobile onNavigate={onNavigate} />
 
   // ── KPIs — theo khoảng ngày đang lọc ──
   const rangeRevenue = fuelTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0)
@@ -653,6 +657,16 @@ function RetailTxTable({ txs }: { txs: any[] }) {
     return map[st] || map.unpaid
   }
 
+  const grouped = React.useMemo(() => {
+    const m = new Map<string, any[]>()
+    txs.forEach((t) => {
+      const k = dayKey(t.sale_time || t.created_at)
+      if (!m.has(k)) m.set(k, [])
+      m.get(k)!.push(t)
+    })
+    return Array.from(m.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1))
+  }, [txs])
+
   return (
     <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
@@ -694,7 +708,7 @@ function RetailTxTable({ txs }: { txs: any[] }) {
               <span style={{ textAlign: "right" }}>Thành tiền</span>
               <span style={{ textAlign: "right" }}>Đã trả</span>
               <span>Trạng thái</span>
-              <span style={{ textAlign: "right" }}>Thời gian</span>
+              <span style={{ textAlign: "right" }}>Giờ</span>
             </div>
             {txs.length === 0 && (
               <div style={{ padding: 40, textAlign: "center", color: HX.text3, fontSize: 13 }}>
@@ -702,65 +716,89 @@ function RetailTxTable({ txs }: { txs: any[] }) {
               </div>
             )}
             <div style={{ maxHeight: "56vh", overflowY: "auto" }} className="hxw-scroll">
-              {txs.map((t, i) => {
-                const sp = statusPill(t.payment_status)
-                return (
+              {grouped.map(([key, rows]) => (
+                <React.Fragment key={key}>
                   <div
-                    key={t.id ?? i}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: RETAIL_TX_COLS,
-                      alignItems: "center",
-                      columnGap: 12,
-                      padding: "14px 20px",
-                      fontSize: 13,
-                      color: HX.text,
+                      padding: "10px 20px",
+                      background: HX.bg,
                       borderBottom: `1px solid ${HX.hairline}`,
+                      fontSize: 11,
+                      color: HX.text2,
+                      fontWeight: 600,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      display: "flex",
+                      justifyContent: "space-between",
                     }}
                   >
-                    <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {t.customer_name || "Khách lẻ"}
-                    </span>
-                    <span style={{ color: HX.text2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {t.seller_name || "—"}
-                    </span>
-                    <span style={{ color: HX.text2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {t.item_name || "—"}
-                    </span>
-                    <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
-                      {fmtVN(Number(t.quantity) || 0)}
-                    </span>
-                    <span className="hx-num" style={{ textAlign: "right", fontWeight: 700 }}>
-                      {fmtVN(Number(t.total_amount) || 0)}
-                      <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> ₫</span>
-                    </span>
-                    <span className="hx-num" style={{ textAlign: "right", color: HX.good }}>
-                      {fmtVN(Number(t.paid_amount) || 0)}
-                    </span>
-                    <span>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          padding: "3px 8px",
-                          borderRadius: 6,
-                          whiteSpace: "nowrap",
-                          background: sp.bg,
-                          color: sp.c,
-                        }}
-                      >
-                        {sp.t}
-                      </span>
-                    </span>
-                    <span
-                      className="hx-num"
-                      style={{ textAlign: "right", color: HX.text3, fontSize: 12 }}
-                    >
-                      {fmtDateTime(t.sale_time || t.created_at)}
+                    <span>{dayLabel(key)}</span>
+                    <span className="hx-num" style={{ color: HX.text3 }}>
+                      {rows.length} đơn ·{" "}
+                      {fmtVN(rows.reduce((s, x) => s + (Number(x.total_amount) || 0), 0))} ₫
                     </span>
                   </div>
-                )
-              })}
+                  {rows.map((t, i) => {
+                    const sp = statusPill(t.payment_status)
+                    return (
+                      <div
+                        key={t.id ?? `${key}-${i}`}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: RETAIL_TX_COLS,
+                          alignItems: "center",
+                          columnGap: 12,
+                          padding: "14px 20px",
+                          fontSize: 13,
+                          color: HX.text,
+                          borderBottom: `1px solid ${HX.hairline}`,
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.customer_name || "Khách lẻ"}
+                        </span>
+                        <span style={{ color: HX.text2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.seller_name || "—"}
+                        </span>
+                        <span style={{ color: HX.text2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.item_name || "—"}
+                        </span>
+                        <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
+                          {fmtVN(Number(t.quantity) || 0)}
+                        </span>
+                        <span className="hx-num" style={{ textAlign: "right", fontWeight: 700 }}>
+                          {fmtVN(Number(t.total_amount) || 0)}
+                          <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> ₫</span>
+                        </span>
+                        <span className="hx-num" style={{ textAlign: "right", color: HX.good }}>
+                          {fmtVN(Number(t.paid_amount) || 0)}
+                        </span>
+                        <span>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: "3px 8px",
+                              borderRadius: 6,
+                              whiteSpace: "nowrap",
+                              background: sp.bg,
+                              color: sp.c,
+                            }}
+                          >
+                            {sp.t}
+                          </span>
+                        </span>
+                        <span
+                          className="hx-num"
+                          style={{ textAlign: "right", color: HX.text3, fontSize: 12 }}
+                        >
+                          {fmtTime(t.sale_time || t.created_at)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </React.Fragment>
+              ))}
             </div>
           </div>
         </div>
