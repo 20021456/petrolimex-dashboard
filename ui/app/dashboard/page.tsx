@@ -266,11 +266,13 @@ export default function Page() {
       defaultOpen={true}
       style={{ "--sidebar-width": "248px" } as React.CSSProperties}
     >
-      <AppSidebar
-        activeView={activeView}
-        onViewChange={setActiveView}
-        onPriceClick={openPriceDialog}
-      />
+      {!isMobile && (
+        <AppSidebar
+          activeView={activeView}
+          onViewChange={setActiveView}
+          onPriceClick={openPriceDialog}
+        />
+      )}
       <SidebarInset>
         {/* Header with filters - HTX topbar (sticky, blur) */}
         <header
@@ -283,8 +285,12 @@ export default function Page() {
         >
           {/* Top row - Always visible */}
           <div className="flex min-h-[64px] items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-5 lg:px-9">
-            <SidebarToggleButton />
-            <Separator orientation="vertical" className="mx-1 h-5 sm:mx-2" />
+            {!isMobile && (
+              <>
+                <SidebarToggleButton />
+                <Separator orientation="vertical" className="mx-1 h-5 sm:mx-2" />
+              </>
+            )}
             <h1 className="truncate text-base font-bold tracking-[-0.02em] sm:text-[22px]">
               {viewTitles[activeView] || "Fuel Dashboard"}
             </h1>
