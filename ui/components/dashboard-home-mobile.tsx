@@ -171,7 +171,7 @@ export function DashboardHomeMobile({ home, tanksRaw, onNavigate, reload }: Mobi
           borderRadius: 18,
           padding: 20,
           color: "#fff",
-          boxShadow: "0 12px 32px -8px rgba(6,214,160,0.4)",
+          boxShadow: "0 12px 32px -8px rgba(255,90,31,0.45)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
