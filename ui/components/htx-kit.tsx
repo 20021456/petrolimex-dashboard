@@ -48,7 +48,7 @@ export function useIsMobile(breakpoint = 768): boolean {
 }
 
 // ── Icons (24px stroke) ───────────────────────────────────────
-type IconName =
+export type IconName =
   | "home" | "fuel" | "chart" | "receipt" | "bell" | "user"
   | "chevron" | "chevronDown" | "refresh" | "plus" | "clock"
   | "alert" | "search" | "download" | "filter" | "drop" | "settings"

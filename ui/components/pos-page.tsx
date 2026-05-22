@@ -339,7 +339,7 @@ function PosPageWeb() {
               return (
                 <div
                   key={p.sku}
-                  onClick={() => addToCart(p.sku)}
+                  onClick={() => (inCart ? removeFromCart(p.sku) : addToCart(p.sku))}
                   className="hxw-press"
                   style={{
                     background: HX.surface,
@@ -425,6 +425,12 @@ function PosPageWeb() {
                       <span style={{ fontSize: 11, color: HX.text3, fontWeight: 400 }}> ₫</span>
                     </span>
                     <div
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        addToCart(p.sku)
+                      }}
+                      className="hxw-press"
+                      title="Thêm 1"
                       style={{
                         width: 28,
                         height: 28,
@@ -435,6 +441,7 @@ function PosPageWeb() {
                         alignItems: "center",
                         justifyContent: "center",
                         color: inCart ? "#fff" : HX.accent,
+                        cursor: "pointer",
                       }}
                     >
                       <svg width="13" height="13" viewBox="0 0 14 14">
