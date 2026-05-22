@@ -145,16 +145,54 @@ export function PosPageMobile() {
               </div>
               <div style={{ fontSize: 10, color: HX.text3 }}>{p.cat}</div>
               <div
-                className="hx-num"
                 style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: inCart ? HX.accent : HX.text,
                   marginTop: 8,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
-                {fmtVN(p.price)}
-                <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}> ₫</span>
+                <span
+                  className="hx-num"
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: inCart ? HX.accent : HX.text,
+                  }}
+                >
+                  {fmtVN(p.price)}
+                  <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}> ₫</span>
+                </span>
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    addToCart(p.sku)
+                  }}
+                  className="hxw-press"
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    flexShrink: 0,
+                    background: inCart ? HX.accent : HX.bg,
+                    border: `1px solid ${inCart ? "transparent" : HX.hairline}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: inCart ? "#fff" : HX.accent,
+                    cursor: "pointer",
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 14 14">
+                    <path
+                      d="M7 2v10M2 7h10"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
               </div>
             </div>
           )
