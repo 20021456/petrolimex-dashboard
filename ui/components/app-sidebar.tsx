@@ -3,14 +3,14 @@
 import * as React from "react"
 import {
   ChevronsUpDown,
-  ClipboardListIcon,
+  FuelIcon,
   HomeIcon,
+  LineChartIcon,
   ReceiptIcon,
   RefreshCwIcon,
   ShoppingCartIcon,
   TrendingUpIcon,
   UsersIcon,
-  WarehouseIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -42,8 +42,8 @@ const NAV_OPERATIONS: NavEntry[] = [
   { id: "dashboard", label: "Trang chủ", icon: HomeIcon },
   { id: "tx", label: "Giao dịch", icon: ReceiptIcon },
   { id: "kho", label: "Bán Hàng", icon: ShoppingCartIcon },
-  { id: "tonkho", label: "Tồn Kho", icon: WarehouseIcon },
-  { id: "chitiet", label: "Báo Cáo", icon: ClipboardListIcon },
+  { id: "tonkho", label: "Tồn Kho", icon: FuelIcon },
+  { id: "chitiet", label: "Báo Cáo", icon: LineChartIcon },
   { id: "khachquen", label: "Khách Quen", icon: UsersIcon },
   { id: "giaoca", label: "Giao Ca", icon: RefreshCwIcon },
 ]
