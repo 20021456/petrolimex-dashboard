@@ -6,7 +6,7 @@ import { FuelDataTable } from "@/components/fuel-data-table"
 import { SectionCards } from "@/components/section-cards"
 import { ChartSection } from "@/components/chart-section"
 import { ChiTietContent } from "@/components/chitiet-content"
-import { KhoContent } from "@/components/kho-content"
+import { PosPage } from "@/components/pos-page"
 import { TonkhoContent } from "@/components/tonkho-content"
 import { GiaoCaContent } from "@/components/giaoca-content"
 import { KhachQuenContent } from "@/components/khachquen-content"
@@ -271,7 +271,7 @@ export default function Page() {
     dashboard: "Trang chủ",
     tx: "Giao dịch",
     chitiet: "Báo cáo",
-    kho: "Nhập kho",
+    kho: "Bán hàng",
     tonkho: "Tồn kho",
     giaoca: "Giao ca",
     khachquen: "Khách quen",
@@ -285,7 +285,7 @@ export default function Page() {
     dashboard: "Tổng quan hoạt động",
     tx: "Lịch sử giao dịch xăng dầu & bán lẻ",
     chitiet: "Báo cáo doanh thu & sản lượng",
-    kho: "Nhập kho xăng dầu & bán lẻ từ nhà cung cấp",
+    kho: "Bán lẻ sản phẩm tại quầy",
     tonkho: "Cảm biến bồn + kho bán lẻ",
     giaoca: "Bàn giao ca làm việc",
     khachquen: "Quản lý khách quen & công nợ",
@@ -369,7 +369,7 @@ export default function Page() {
               }}
             >
               <Plus className="h-4 w-4" />
-              Nhập kho
+              Bán hàng
             </button>
             <div
               style={{
@@ -448,7 +448,7 @@ export default function Page() {
           {activeView === "chitiet" ? (
             <ChiTietContent />
           ) : activeView === "kho" ? (
-            <KhoContent onNavigate={setActiveView} />
+            <PosPage onNavigate={setActiveView} />
           ) : activeView === "tonkho" ? (
             <StockPage onNavigate={setActiveView} />
           ) : activeView === "tx" ? (

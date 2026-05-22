@@ -26,7 +26,7 @@ interface Slot {
 const SLOTS: Slot[] = [
   { k: "dashboard", icon: "home", label: "Trang chủ" },
   { k: "tonkho", icon: "fuel", label: "Tồn kho" },
-  { k: "kho", icon: "plus", label: "Nhập kho", fab: true },
+  { k: "kho", icon: "plus", label: "Bán hàng", fab: true },
   { k: "khachquen", icon: "user", label: "Khách quen" },
   { k: "more", icon: "home", label: "Khác" },
 ]
