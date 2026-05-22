@@ -85,7 +85,7 @@ export function PosPageMobile() {
           return (
             <div
               key={p.sku}
-              onClick={() => addToCart(p.sku)}
+              onClick={() => (inCart ? removeFromCart(p.sku) : addToCart(p.sku))}
               className="hxw-press"
               style={{
                 position: "relative",

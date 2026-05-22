@@ -1,20 +1,10 @@
 "use client"
 
 import * as React from "react"
-import {
-  ChevronsUpDown,
-  FuelIcon,
-  HomeIcon,
-  LineChartIcon,
-  ReceiptIcon,
-  RefreshCwIcon,
-  ShoppingCartIcon,
-  TrendingUpIcon,
-  UsersIcon,
-  type LucideIcon,
-} from "lucide-react"
+import { ChevronsUpDown } from "lucide-react"
 
 import { Sidebar } from "@/components/ui/sidebar"
+import { Icon, type IconName } from "@/components/htx-kit"
 
 // ── HX design tokens (ported from the design bundle's hifi-kit.jsx) ──
 const HX = {
@@ -32,24 +22,24 @@ const HX = {
 interface NavEntry {
   id: string
   label: string
-  icon: LucideIcon
+  icon: IconName
   /** when set to "price", clicking opens the price dialog instead of switching view */
   action?: "price"
   badge?: string
 }
 
 const NAV_OPERATIONS: NavEntry[] = [
-  { id: "dashboard", label: "Trang chủ", icon: HomeIcon },
-  { id: "tx", label: "Giao dịch", icon: ReceiptIcon },
-  { id: "kho", label: "Bán Hàng", icon: ShoppingCartIcon },
-  { id: "tonkho", label: "Tồn Kho", icon: FuelIcon },
-  { id: "chitiet", label: "Báo Cáo", icon: LineChartIcon },
-  { id: "khachquen", label: "Khách Quen", icon: UsersIcon },
-  { id: "giaoca", label: "Giao Ca", icon: RefreshCwIcon },
+  { id: "dashboard", label: "Trang chủ", icon: "home" },
+  { id: "tx", label: "Giao dịch", icon: "receipt" },
+  { id: "kho", label: "Bán Hàng", icon: "receipt" },
+  { id: "tonkho", label: "Tồn Kho", icon: "fuel" },
+  { id: "chitiet", label: "Báo Cáo", icon: "chart" },
+  { id: "khachquen", label: "Khách Quen", icon: "user" },
+  { id: "giaoca", label: "Giao Ca", icon: "clock" },
 ]
 
 const NAV_SYSTEM: NavEntry[] = [
-  { id: "gia", label: "Đơn Giá", icon: TrendingUpIcon, action: "price" },
+  { id: "gia", label: "Đơn Giá", icon: "chart", action: "price" },
 ]
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
@@ -78,7 +68,6 @@ function WNavItem({
   active: boolean
   onClick: () => void
 }) {
-  const Icon = item.icon
   return (
     <div
       onClick={onClick}
@@ -98,6 +87,7 @@ function WNavItem({
       }}
     >
       <Icon
+        name={item.icon}
         size={18}
         strokeWidth={active ? 2 : 1.7}
         color={active ? HX.accent : HX.text2}
