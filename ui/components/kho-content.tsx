@@ -8,43 +8,44 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { HX, Icon, FuelDot, fuelKind, WSection } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelKind, WSection, useIsMobile } from "@/components/htx-kit"
+import { KhoContentMobile } from "@/components/kho-content-mobile"
 
 interface KhoContentProps {
   onNavigate?: (view: string) => void
 }
 
-type Kind = "fuel" | "retail"
+export type Kind = "fuel" | "retail"
 type IconName =
   | "fuel" | "receipt" | "chevron" | "plus" | "search" | "calendar" | "drop" | "settings"
 
-interface PriceItem {
+export interface PriceItem {
   id: number
   fuel_name: string
   price: number
   unit: string
 }
-interface ImportRow {
+export interface ImportRow {
   id: number
   fuel_name: string
   quantity: number
   import_time: string
   note: string
 }
-interface FuelLine {
+export interface FuelLine {
   id: string
   fuel: string
   qty: number
   price: number
 }
-interface RetailLine {
+export interface RetailLine {
   id: string
   name: string
   qty: number
   price: number
   unit: string
 }
-interface GeneralInfo {
+export interface GeneralInfo {
   supplier: string
   invoice: string
   contract: string
@@ -53,34 +54,34 @@ interface GeneralInfo {
 }
 
 const accentBorder = "rgba(6,214,160,0.32)"
-const fmt = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
+export const fmt = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
 
 // Bố trí bồn-cột: bồn 1/2/3 = 10.000 L, bồn 4 = 20.000 L.
-const FUEL_OPTIONS = [
+export const FUEL_OPTIONS = [
   { name: "RON95-III", tank: "Bồn 1", cap: 10000 },
   { name: "E5", tank: "Bồn 3", cap: 10000 },
   { name: "DO 0,05S-II", tank: "Bồn 2", cap: 10000 },
   { name: "DO 0,001S-V", tank: "Bồn 4", cap: 20000 },
 ]
-function fuelMeta(name: string) {
+export function fuelMeta(name: string) {
   return FUEL_OPTIONS.find((f) => f.name === name) || FUEL_OPTIONS[0]
 }
-const KIND_COLOR: Record<string, string> = {
+export const KIND_COLOR: Record<string, string> = {
   RON95: HX.ron95,
   E5: HX.e5,
   DO: HX.do,
   "DO+": HX.doPlus,
 }
 
-function uid() {
+export function uid() {
   return Math.random().toString(36).slice(2, 9)
 }
-function nowLabel() {
+export function nowLabel() {
   const d = new Date()
   const p = (x: number) => String(x).padStart(2, "0")
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} · ${p(d.getHours())}:${p(d.getMinutes())}`
 }
-function fmtDate(ts: string) {
+export function fmtDate(ts: string) {
   const d = new Date(ts)
   if (isNaN(d.getTime())) return "—"
   const p = (x: number) => String(x).padStart(2, "0")
@@ -1351,7 +1352,7 @@ function IntakeRetailForm({
 }
 
 // ── Step 3: Review ────────────────────────────────────────────
-interface ReviewLine {
+export interface ReviewLine {
   name: string
   kindLabel: string
   qty: number
@@ -1697,7 +1698,8 @@ function IntakeReview({
 }
 
 // ── Main ──────────────────────────────────────────────────────
-export function KhoContent({ onNavigate }: KhoContentProps) {
+// ── Shared intake state + logic (web + mobile) ────────────────
+export function useIntake(onNavigate?: (view: string) => void) {
   const [step, setStep] = React.useState(0)
   const [kind, setKind] = React.useState<Kind>("fuel")
   const [products, setProducts] = React.useState<PriceItem[]>([])
@@ -1809,6 +1811,51 @@ export function KhoContent({ onNavigate }: KhoContentProps) {
           price: l.price,
           isFuel: false,
         }))
+
+  return {
+    step,
+    setStep,
+    kind,
+    products,
+    history,
+    submitting,
+    general,
+    setGeneral,
+    fuelLines,
+    setFuelLines,
+    retailLines,
+    setRetailLines,
+    pickKind,
+    handleConfirm,
+    reviewLines,
+  }
+}
+
+export type IntakeState = ReturnType<typeof useIntake>
+
+export function KhoContent({ onNavigate }: KhoContentProps) {
+  const isMobile = useIsMobile()
+  const intake = useIntake(onNavigate)
+
+  if (isMobile) return <KhoContentMobile intake={intake} />
+
+  const {
+    step,
+    setStep,
+    kind,
+    products,
+    history,
+    submitting,
+    general,
+    setGeneral,
+    fuelLines,
+    setFuelLines,
+    retailLines,
+    setRetailLines,
+    pickKind,
+    handleConfirm,
+    reviewLines,
+  } = intake
 
   return (
     <div className="hxw" style={{ maxWidth: 1200, margin: "0 auto", width: "100%", color: HX.text }}>
