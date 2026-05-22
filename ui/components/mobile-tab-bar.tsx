@@ -14,7 +14,7 @@ interface MobileTabBarProps {
   onPriceClick?: () => void
 }
 
-type IconName = "home" | "fuel" | "receipt" | "user" | "chart" | "refresh"
+type IconName = "home" | "fuel" | "receipt" | "user" | "chart" | "refresh" | "plus"
 
 interface Slot {
   k: string
@@ -26,7 +26,7 @@ interface Slot {
 const SLOTS: Slot[] = [
   { k: "dashboard", icon: "home", label: "Trang chủ" },
   { k: "tonkho", icon: "fuel", label: "Tồn kho" },
-  { k: "kho", icon: "receipt", label: "Xuất kho", fab: true },
+  { k: "kho", icon: "plus", label: "Nhập kho", fab: true },
   { k: "khachquen", icon: "user", label: "Khách quen" },
   { k: "more", icon: "home", label: "Khác" },
 ]
@@ -114,7 +114,7 @@ export function MobileTabBar({ activeView, onNavigate, onPriceClick }: MobileTab
                     cursor: "pointer",
                   }}
                 >
-                  <Icon name="receipt" size={22} color="#fff" strokeWidth={1.9} />
+                  <Icon name="plus" size={24} color="#fff" strokeWidth={2.2} />
                 </div>
                 <span
                   style={{
