@@ -271,7 +271,7 @@ export default function Page() {
     dashboard: "Trang chủ",
     tx: "Giao dịch",
     chitiet: "Báo cáo",
-    kho: "Xuất kho",
+    kho: "Nhập kho",
     tonkho: "Tồn kho",
     giaoca: "Giao ca",
     khachquen: "Khách quen",
@@ -285,7 +285,7 @@ export default function Page() {
     dashboard: "Tổng quan hoạt động",
     tx: "Lịch sử giao dịch xăng dầu & bán lẻ",
     chitiet: "Báo cáo doanh thu & sản lượng",
-    kho: "Ghi nhận xuất kho bán lẻ",
+    kho: "Nhập kho xăng dầu & bán lẻ từ nhà cung cấp",
     tonkho: "Cảm biến bồn + kho bán lẻ",
     giaoca: "Bàn giao ca làm việc",
     khachquen: "Quản lý khách quen & công nợ",
@@ -448,7 +448,7 @@ export default function Page() {
           {activeView === "chitiet" ? (
             <ChiTietContent />
           ) : activeView === "kho" ? (
-            <KhoContent />
+            <KhoContent onNavigate={setActiveView} />
           ) : activeView === "tonkho" ? (
             <StockPage onNavigate={setActiveView} />
           ) : activeView === "tx" ? (
