@@ -9,19 +9,7 @@ import { query } from '@/lib/db'
 //     không động vào lịch sử fuel_pump.
 // ════════════════════════════════════════════════════════════════
 
-// CASE để suy fuel_name từ cot_bom — đồng bộ với /api/stats và
-// /api/fuel/tanks.
-const FUEL_BY_COT_BOM_SQL = `
-  CASE COALESCE(cot_bom, 0)
-    WHEN 1 THEN 'DO 0,001S-V'
-    WHEN 2 THEN 'RON95-III'
-    WHEN 3 THEN 'RON95-III'
-    WHEN 4 THEN 'E5'
-    WHEN 5 THEN 'DO 0,05S-II'
-    ELSE 'Khác'
-  END
-`
-
+// Suy fuel_name từ cot_bom — đồng bộ với /api/stats và /api/fuel/tanks.
 const FUEL_BY_COT_BOM: Record<number, string> = {
   1: 'DO 0,001S-V',
   2: 'RON95-III',
@@ -45,13 +33,14 @@ export async function GET() {
   try {
     await ensureOverridesTable()
 
-    // Lấy dòng fuel_pump mới nhất cho mỗi cot_bom (1..5).
+    // Lấy dòng fuel_pump mới nhất cho mỗi cot_bom (1..5). Không
+    // gắn CASE vào SELECT để tránh tham chiếu cot_bom mơ hồ khi
+    // JOIN — suy fuel_name trong JS từ FUEL_BY_COT_BOM map.
     const latest = await query<any[]>(
       `
-      SELECT fp.cot_bom,
-             fp.gia       AS latest_price,
-             fp.ket_thuc_bom AS latest_ts,
-             ${FUEL_BY_COT_BOM_SQL} AS fuel_name
+      SELECT fp.cot_bom        AS cot_bom,
+             fp.gia            AS latest_price,
+             fp.ket_thuc_bom   AS latest_ts
       FROM fuel_pump fp
       INNER JOIN (
         SELECT cot_bom, MAX(ket_thuc_bom) AS max_ts
@@ -86,7 +75,7 @@ export async function GET() {
       const updated_at = o?.updated_at || latest_ts
       return {
         cot_bom: cot,
-        fuel_name: (l?.fuel_name as string) || FUEL_BY_COT_BOM[cot] || 'Khác',
+        fuel_name: FUEL_BY_COT_BOM[cot] || 'Khác',
         current_price,
         latest_pump_price: latest_price,
         latest_pump_ts: latest_ts,

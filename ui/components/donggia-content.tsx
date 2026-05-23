@@ -52,9 +52,28 @@ function fmtDateOnly(ts?: string | null): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
 }
 
+const FUEL_BY_COT_BOM: Record<number, string> = {
+  1: "DO 0,001S-V",
+  2: "RON95-III",
+  3: "RON95-III",
+  4: "E5",
+  5: "DO 0,05S-II",
+}
+
+const EMPTY_PUMPS: PumpPrice[] = [1, 2, 3, 4, 5].map((n) => ({
+  cot_bom: n,
+  fuel_name: FUEL_BY_COT_BOM[n],
+  current_price: null,
+  latest_pump_price: null,
+  latest_pump_ts: null,
+  override_price: null,
+  source: "pump" as const,
+  updated_at: null,
+}))
+
 // ── Hooks ─────────────────────────────────────────────────────
 function usePumpPrices() {
-  const [prices, setPrices] = React.useState<PumpPrice[]>([])
+  const [prices, setPrices] = React.useState<PumpPrice[]>(EMPTY_PUMPS)
   const [loading, setLoading] = React.useState(true)
 
   const reload = React.useCallback(async () => {
