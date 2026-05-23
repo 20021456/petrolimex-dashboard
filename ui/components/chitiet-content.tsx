@@ -7,9 +7,10 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
-import { HX, Icon, FuelDot, fuelKind, Delta, WKpi, WSection } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelKind, Delta, WKpi, WSection, useIsMobile } from "@/components/htx-kit"
+import { ChiTietContentMobile } from "@/components/chitiet-content-mobile"
 
-type Period = "today" | "week" | "month" | "quarter" | "year"
+export type Period = "today" | "week" | "month" | "quarter" | "year"
 
 interface PeriodMeta {
   label: string
@@ -71,7 +72,7 @@ const PERIOD_TABS: { k: Period; t: string }[] = [
   { k: "year", t: "Năm" },
 ]
 
-const KIND_COLOR: Record<string, string> = {
+export const KIND_COLOR: Record<string, string> = {
   RON95: HX.ron95,
   E5: HX.e5,
   DO: HX.do,
@@ -81,8 +82,8 @@ const KIND_COLOR: Record<string, string> = {
 const accentBorder = "rgba(6,214,160,0.32)"
 
 // ── Helpers ───────────────────────────────────────────────────
-const fmtNum = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
-function fmtBig(n: number) {
+export const fmtNum = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
+export function fmtBig(n: number) {
   const v = Math.abs(n)
   if (v >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + " tỷ"
   if (v >= 1_000_000) return (n / 1_000_000).toFixed(1) + " tr"
@@ -158,7 +159,7 @@ function getPeriodRange(p: Period, now = new Date()): { cur: DateRange; prev: Da
   }
 }
 
-function rangeLabel(p: Period, r: DateRange) {
+export function rangeLabel(p: Period, r: DateRange) {
   switch (p) {
     case "today":
       return fmtDMY(r.from)
@@ -264,7 +265,7 @@ function bucketChart(period: Period, stats: any, range: DateRange): ChartSeries 
 }
 
 // ── Area chart (current + optional comparison line) ───────────
-function AreaChart({
+export function AreaChart({
   data,
   prevData,
   w = 1240,
@@ -339,7 +340,7 @@ function AreaChart({
 }
 
 // ── Main ──────────────────────────────────────────────────────
-export function ChiTietContent() {
+export function useReport() {
   const [period, setPeriod] = React.useState<Period>("today")
   const [stats, setStats] = React.useState<any>(null)
   const [prevStats, setPrevStats] = React.useState<any>(null)
@@ -434,6 +435,62 @@ export function ChiTietContent() {
         avg: byPump[0].count > 0 ? byPump[0].revenue / byPump[0].count : 0,
       }
     : null
+
+  return {
+    period,
+    setPeriod,
+    ranges,
+    meta,
+    loading,
+    revenue,
+    prevRevenue,
+    liters,
+    prevLiters,
+    txCount,
+    prevTxCount,
+    revDelta,
+    litDelta,
+    txDelta,
+    diffText,
+    avgPerTx,
+    cur,
+    prev,
+    revenueComma,
+    prevComma,
+    byFuel,
+    byPump,
+    bestPump,
+  }
+}
+
+export type ReportState = ReturnType<typeof useReport>
+
+function ChiTietContentWeb({ report }: { report: ReportState }) {
+  const {
+    period,
+    setPeriod,
+    ranges,
+    meta,
+    loading,
+    revenue,
+    prevRevenue,
+    liters,
+    prevLiters,
+    txCount,
+    prevTxCount,
+    revDelta,
+    litDelta,
+    txDelta,
+    diffText,
+    avgPerTx,
+    cur,
+    prev,
+    revenueComma,
+    prevComma,
+    byFuel,
+    byPump,
+    bestPump,
+  } = report
 
   return (
     <div
@@ -938,4 +995,11 @@ export function ChiTietContent() {
       </WSection>
     </div>
   )
+}
+
+export function ChiTietContent() {
+  const isMobile = useIsMobile()
+  const report = useReport()
+  if (isMobile) return <ChiTietContentMobile report={report} />
+  return <ChiTietContentWeb report={report} />
 }
