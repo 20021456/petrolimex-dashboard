@@ -14,7 +14,7 @@ interface MobileTabBarProps {
   onPriceClick?: () => void
 }
 
-type IconName = "home" | "fuel" | "receipt" | "user" | "chart" | "refresh" | "plus"
+type IconName = "home" | "fuel" | "receipt" | "user" | "chart" | "refresh" | "plus" | "alert"
 
 interface Slot {
   k: string
@@ -27,7 +27,7 @@ const SLOTS: Slot[] = [
   { k: "dashboard", icon: "home", label: "Trang chủ" },
   { k: "tonkho", icon: "fuel", label: "Tồn kho" },
   { k: "kho", icon: "plus", label: "Bán hàng", fab: true },
-  { k: "khachquen", icon: "user", label: "Khách quen" },
+  { k: "khachquen", icon: "alert", label: "Công nợ" },
   { k: "more", icon: "home", label: "Khác" },
 ]
 
