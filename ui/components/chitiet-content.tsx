@@ -1,699 +1,941 @@
 "use client"
 
+// ════════════════════════════════════════════════════════════════
+// Báo cáo — bản web, port từ design web-reports.jsx.
+// Bộ chọn kỳ (Hôm nay/Tuần/Tháng/Quý/Năm) → fetch /api/stats cho
+// kỳ hiện tại + kỳ trước để so sánh. Số liệu DB không có thì để "—".
+// ════════════════════════════════════════════════════════════════
+
 import * as React from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { FuelIcon, DollarSignIcon, ActivityIcon, TrendingUpIcon, BarChart3Icon } from "lucide-react"
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Cell, LabelList, CartesianGrid } from "recharts"
+import { HX, Icon, FuelDot, fuelKind, Delta, WKpi, WSection } from "@/components/htx-kit"
 
-interface PriceData {
-  nhien_lieu: string
-  gia_ban: number
-  gia_nhap: number
-  ngay_ap_dung: string
+type Period = "today" | "week" | "month" | "quarter" | "year"
+
+interface PeriodMeta {
+  label: string
+  compare: string
+  compareLabel: string
+  compareSubLabel: string
+  chartHeader: string
+  chartSub: string
 }
 
-interface TankData {
-  ten_bon: string
-  nhien_lieu: string
-  ton_kho: number
-  dung_tich: number
-  ty_le: string
-  cot_bom: string
+const PERIOD_META: Record<Period, PeriodMeta> = {
+  today: {
+    label: "Hôm nay",
+    compare: "hôm qua",
+    compareLabel: "Hôm nay",
+    compareSubLabel: "Hôm qua",
+    chartHeader: "theo giờ",
+    chartSub: "Theo giờ · Hôm nay so với hôm qua",
+  },
+  week: {
+    label: "Tuần này",
+    compare: "tuần trước",
+    compareLabel: "Tuần này",
+    compareSubLabel: "Tuần trước",
+    chartHeader: "theo ngày",
+    chartSub: "7 ngày · Tuần này so với tuần trước",
+  },
+  month: {
+    label: "Tháng này",
+    compare: "tháng trước",
+    compareLabel: "Tháng này",
+    compareSubLabel: "Tháng trước",
+    chartHeader: "theo tuần",
+    chartSub: "Theo tuần · Tháng này so với tháng trước",
+  },
+  quarter: {
+    label: "Quý này",
+    compare: "quý trước",
+    compareLabel: "Quý này",
+    compareSubLabel: "Quý trước",
+    chartHeader: "theo tháng",
+    chartSub: "3 tháng · Quý này so với quý trước",
+  },
+  year: {
+    label: "Năm nay",
+    compare: "năm trước",
+    compareLabel: "Năm nay",
+    compareSubLabel: "Năm trước",
+    chartHeader: "theo tháng",
+    chartSub: "12 tháng · Năm nay so với năm trước",
+  },
 }
 
-export function ChiTietContent() {
-  const [priceData, setPriceData] = React.useState<PriceData[]>([])
-  const [tankData, setTankData] = React.useState<TankData[]>([])
-  const [dashboardStats, setDashboardStats] = React.useState<any>(null)
-  const [selectedFuels, setSelectedFuels] = React.useState<string[]>([])
+const PERIOD_TABS: { k: Period; t: string }[] = [
+  { k: "today", t: "Hôm nay" },
+  { k: "week", t: "Tuần này" },
+  { k: "month", t: "Tháng này" },
+  { k: "quarter", t: "Quý" },
+  { k: "year", t: "Năm" },
+]
 
-  const [loading, setLoading] = React.useState({
-    prices: false,
-    tanks: false,
-    stats: false
+const KIND_COLOR: Record<string, string> = {
+  RON95: HX.ron95,
+  E5: HX.e5,
+  DO: HX.do,
+  "DO+": HX.doPlus,
+}
+
+const accentBorder = "rgba(6,214,160,0.32)"
+
+// ── Helpers ───────────────────────────────────────────────────
+const fmtNum = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
+function fmtBig(n: number) {
+  const v = Math.abs(n)
+  if (v >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + " tỷ"
+  if (v >= 1_000_000) return (n / 1_000_000).toFixed(1) + " tr"
+  return fmtNum(n)
+}
+const pad2 = (n: number) => String(n).padStart(2, "0")
+function fmtMySql(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(
+    d.getHours()
+  )}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+}
+function fmtDM(d: Date) {
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`
+}
+function fmtDMY(d: Date) {
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+interface DateRange {
+  from: Date
+  to: Date
+}
+
+function getPeriodRange(p: Period, now = new Date()): { cur: DateRange; prev: DateRange } {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  switch (p) {
+    case "today": {
+      const from = new Date(today)
+      const to = new Date(today)
+      to.setHours(23, 59, 59)
+      const prevFrom = new Date(today)
+      prevFrom.setDate(prevFrom.getDate() - 1)
+      const prevTo = new Date(prevFrom)
+      prevTo.setHours(23, 59, 59)
+      return { cur: { from, to }, prev: { from: prevFrom, to: prevTo } }
+    }
+    case "week": {
+      const dow = (today.getDay() + 6) % 7
+      const from = new Date(today)
+      from.setDate(today.getDate() - dow)
+      const to = new Date(from)
+      to.setDate(from.getDate() + 6)
+      to.setHours(23, 59, 59)
+      const prevFrom = new Date(from)
+      prevFrom.setDate(from.getDate() - 7)
+      const prevTo = new Date(prevFrom)
+      prevTo.setDate(prevFrom.getDate() + 6)
+      prevTo.setHours(23, 59, 59)
+      return { cur: { from, to }, prev: { from: prevFrom, to: prevTo } }
+    }
+    case "month": {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1)
+      const to = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59)
+      const prevFrom = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      const prevTo = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59)
+      return { cur: { from, to }, prev: { from: prevFrom, to: prevTo } }
+    }
+    case "quarter": {
+      const q = Math.floor(today.getMonth() / 3)
+      const from = new Date(today.getFullYear(), q * 3, 1)
+      const to = new Date(today.getFullYear(), q * 3 + 3, 0, 23, 59, 59)
+      const prevFrom = new Date(today.getFullYear(), q * 3 - 3, 1)
+      const prevTo = new Date(today.getFullYear(), q * 3, 0, 23, 59, 59)
+      return { cur: { from, to }, prev: { from: prevFrom, to: prevTo } }
+    }
+    case "year": {
+      const from = new Date(today.getFullYear(), 0, 1)
+      const to = new Date(today.getFullYear(), 11, 31, 23, 59, 59)
+      const prevFrom = new Date(today.getFullYear() - 1, 0, 1)
+      const prevTo = new Date(today.getFullYear() - 1, 11, 31, 23, 59, 59)
+      return { cur: { from, to }, prev: { from: prevFrom, to: prevTo } }
+    }
+  }
+}
+
+function rangeLabel(p: Period, r: DateRange) {
+  switch (p) {
+    case "today":
+      return fmtDMY(r.from)
+    case "week":
+      return `${fmtDM(r.from)} — ${fmtDMY(r.to)}`
+    case "month":
+      return `${fmtDM(r.from)} — ${fmtDMY(r.to)}`
+    case "quarter": {
+      const q = Math.floor(r.from.getMonth() / 3) + 1
+      return `Q${q}/${r.from.getFullYear()} · ${fmtDM(r.from)} — ${fmtDM(r.to)}`
+    }
+    case "year":
+      return `01/01 — 31/12/${r.from.getFullYear()}`
+  }
+}
+
+async function fetchStats(r: DateRange) {
+  const url = `/api/stats?from=${encodeURIComponent(fmtMySql(r.from))}&to=${encodeURIComponent(
+    fmtMySql(r.to)
+  )}`
+  const res = await fetch(url, { cache: "no-store" })
+  return res.json()
+}
+
+// ── Chart bucketing ───────────────────────────────────────────
+interface ChartSeries {
+  data: number[]
+  labels: string[]
+}
+
+function bucketChart(period: Period, stats: any, range: DateRange): ChartSeries {
+  if (period === "today") {
+    const byHour: any[] = stats?.chartData?.byHourOfDay || []
+    const m = new Map<number, number>()
+    byHour.forEach((r) => {
+      const h = Number(r.hour)
+      m.set(h, (m.get(h) || 0) + Number(r.revenue || 0))
+    })
+    const data = Array.from({ length: 18 }, (_, i) => m.get(i + 5) || 0)
+    const labels = Array.from({ length: 18 }, (_, i) =>
+      i % 2 === 0 ? `${pad2(i + 5)}h` : ""
+    )
+    return { data, labels }
+  }
+
+  const daily: any[] = stats?.chartData?.last7Days || []
+  const dailyMap = new Map<string, number>()
+  daily.forEach((r) => {
+    dailyMap.set(r.date, (dailyMap.get(r.date) || 0) + Number(r.revenue || 0))
   })
 
-  const fetchAllData = async () => {
-    // Set tất cả loading = true
-    setLoading({ prices: true, tanks: true, stats: true })
-
-    // Chuẩn bị params cho stats
-    const today = new Date()
-    const todayStr = today.getFullYear() + '-' + 
-                    String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                    String(today.getDate()).padStart(2, '0')
-    const statsParams = new URLSearchParams({
-      from: todayStr + ' 00:00:00',
-      to: todayStr + ' 23:59:59'
+  if (period === "week") {
+    const data = Array(7).fill(0)
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(range.from)
+      d.setDate(range.from.getDate() + i)
+      const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+      data[i] = dailyMap.get(key) || 0
+    }
+    return { data, labels: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] }
+  }
+  if (period === "month") {
+    const lastDay = range.to.getDate()
+    const weeks = Math.ceil(lastDay / 7)
+    const data = Array(weeks).fill(0)
+    dailyMap.forEach((v, key) => {
+      const dt = new Date(key)
+      if (dt < range.from || dt > range.to) return
+      const day = dt.getDate()
+      const idx = Math.min(Math.ceil(day / 7) - 1, weeks - 1)
+      data[idx] += v
     })
-
-    // ⚡ GỌI TẤT CẢ API SONG SONG (PARALLEL)
-    const [priceResult, tankResult, statsResult] = await Promise.allSettled([
-      fetch('/api/fuel/prices').then(res => res.json()),
-      fetch('/api/fuel/tanks').then(res => res.json()),
-      fetch(`/api/stats?${statsParams.toString()}`).then(res => res.json())
-    ])
-
-    // Xử lý kết quả price data
-    if (priceResult.status === 'fulfilled' && priceResult.value.success) {
-      setPriceData(priceResult.value.data)
-    } else if (priceResult.status === 'fulfilled' && priceResult.value.error) {
-      console.log('Price data API not available:', priceResult.value.message)
-    } else {
-      console.error('Lỗi khi lấy dữ liệu giá:', priceResult.status === 'rejected' ? priceResult.reason : 'Không thành công')
-    }
-    setLoading(prev => ({ ...prev, prices: false }))
-
-    // Xử lý kết quả tank data
-    if (tankResult.status === 'fulfilled' && tankResult.value.success) {
-      setTankData(tankResult.value.data)
-    } else if (tankResult.status === 'fulfilled' && tankResult.value.error) {
-      console.log('Tank data API not available:', tankResult.value.message)
-    } else {
-      console.error('Lỗi khi lấy dữ liệu bồn bể:', tankResult.status === 'rejected' ? tankResult.reason : 'Không thành công')
-    }
-    setLoading(prev => ({ ...prev, tanks: false }))
-
-    // Xử lý kết quả dashboard stats
-    if (statsResult.status === 'fulfilled' && statsResult.value.success) {
-      setDashboardStats(statsResult.value.data)
-    } else {
-      console.error('Lỗi khi lấy dữ liệu dashboard:', statsResult.status === 'rejected' ? statsResult.reason : 'Không thành công')
-    }
-    setLoading(prev => ({ ...prev, stats: false }))
-  }
-
-  // Fetch tất cả dữ liệu khi component mount
-  React.useEffect(() => {
-    fetchAllData()
-  }, [])
-
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(value)
-  }
-
-  const formatNumber = (value: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(value)
-  }
-
-  // Format số cho bồn bể - giữ nguyên số thập phân từ nguồn
-  // Dùng dấu chấm (.) làm phân cách hàng nghìn, dấu phẩy (,) làm thập phân
-  const formatTankNumber = (value: number) => {
-    // Lấy phần thập phân từ số gốc
-    const decimalStr = value.toString()
-    const decimalPart = decimalStr.includes('.') ? decimalStr.split('.')[1] : ''
-    const decimalPlaces = decimalPart.length
-    
-    // Format với số thập phân gốc
-    const formatted = new Intl.NumberFormat('de-DE', {
-      minimumFractionDigits: decimalPlaces,
-      maximumFractionDigits: decimalPlaces
-    }).format(value)
-    
-    return formatted
-  }
-
-  const parseVietnameseNumber = (value: string): number => {
-    if (!value) return 0
-    const cleaned = value.replace(/\./g, '').replace(',', '.')
-    return parseFloat(cleaned) || 0
-  }
-
-  // Sử dụng cùng màu với Dashboard
-  const getChartColor = (index: number) => {
-    return `hsl(var(--chart-${(index % 5) + 1}))`
-  }
-
-  // Màu cho từng cột bơm
-  const PUMP_COLORS: Record<number, string> = {
-    1: '#3b82f6',  // blue-500
-    2: '#22c55e',  // green-500
-    3: '#f59e0b',  // amber-500
-    4: '#ef4444',  // red-500
-    5: '#8b5cf6',  // violet-500
-    6: '#06b6d4',  // cyan-500
-    7: '#ec4899',  // pink-500
-    8: '#84cc16',  // lime-500
-  }
-
-  // Màu cho từng loại nhiên liệu (alias cho cả tên upstream cũ và tên chuẩn từ bồn)
-  const FUEL_COLORS: Record<string, string> = {
-    'DO 0.05S': '#22c55e',
-    'DO 0,05S-II': '#22c55e',
-    'DO 0,001S-V': '#06b6d4',
-    'E5': '#3b82f6',
-    'E5 RON 92-II': '#3b82f6',
-    'RON 95-III': '#f59e0b',
-    'RON95-III': '#f59e0b',
-    'RON 95-IV': '#ef4444',
-    'RON 95-V': '#8b5cf6',
-  }
-
-  // Lấy danh sách cột bơm và nhiên liệu
-  const { pumpColumns, fuelTypes } = React.useMemo(() => {
-    const pumps = new Set<number>()
-    const fuels = new Set<string>()
-    
-    if (dashboardStats?.chartData?.byHourOfDay) {
-      dashboardStats.chartData.byHourOfDay.forEach((item: any) => {
-        if (item.cotBom && item.cotBom > 0) pumps.add(item.cotBom)
-        if (item.fuelType) fuels.add(item.fuelType)
-      })
-    }
-    
     return {
-      pumpColumns: Array.from(pumps).sort((a, b) => a - b),
-      fuelTypes: Array.from(fuels).sort()
+      data,
+      labels: Array.from({ length: weeks }, (_, i) => `Tuần ${i + 1}`),
     }
-  }, [dashboardStats?.chartData?.byHourOfDay])
-
-  // Tổng hợp dữ liệu theo giờ và cột bơm — áp dụng bộ lọc nhiên liệu trước khi gộp.
-  // Empty selection nghĩa là "tất cả".
-  const aggregatedHourData = React.useMemo(() => {
-    if (!dashboardStats?.chartData?.byHourOfDay || !Array.isArray(dashboardStats.chartData.byHourOfDay)) {
-      return []
-    }
-
-    const source = selectedFuels.length === 0
-      ? dashboardStats.chartData.byHourOfDay
-      : dashboardStats.chartData.byHourOfDay.filter(
-          (item: any) => selectedFuels.includes(item.fuelType)
-        )
-
-    const hourMap = new Map<number, any>()
-
-    source.forEach((item: any) => {
-      const hourValue = Number(item.hour)
-      const cotBom = Number(item.cotBom) || 0
-      if (isNaN(hourValue)) return
-
-      if (!hourMap.has(hourValue)) {
-        hourMap.set(hourValue, {
-          hour: hourValue,
-          revenue: 0,
-          count: 0,
-        })
-        // Initialize pump columns
-        pumpColumns.forEach(pump => {
-          hourMap.get(hourValue)[`pump_${pump}`] = 0
-        })
-      }
-
-      const existing = hourMap.get(hourValue)
-      existing.revenue += Number(item.revenue) || 0
-      existing.count += Number(item.count) || 0
-
-      if (cotBom > 0) {
-        existing[`pump_${cotBom}`] = (existing[`pump_${cotBom}`] || 0) + (Number(item.revenue) || 0)
-      }
+  }
+  if (period === "quarter") {
+    const startMonth = range.from.getMonth()
+    const data = Array(3).fill(0)
+    dailyMap.forEach((v, key) => {
+      const dt = new Date(key)
+      if (dt < range.from || dt > range.to) return
+      const idx = dt.getMonth() - startMonth
+      if (idx >= 0 && idx < 3) data[idx] += v
     })
+    return {
+      data,
+      labels: [0, 1, 2].map((i) => `Tháng ${startMonth + i + 1}`),
+    }
+  }
+  // year
+  const data = Array(12).fill(0)
+  dailyMap.forEach((v, key) => {
+    const dt = new Date(key)
+    if (dt.getFullYear() !== range.from.getFullYear()) return
+    data[dt.getMonth()] += v
+  })
+  return {
+    data,
+    labels: ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12"],
+  }
+}
 
-    return Array.from(hourMap.values())
-      .filter(item => item.revenue > 0)
-      .sort((a, b) => a.hour - b.hour)
-  }, [dashboardStats?.chartData?.byHourOfDay, pumpColumns, selectedFuels])
+// ── Area chart (current + optional comparison line) ───────────
+function AreaChart({
+  data,
+  prevData,
+  w = 1240,
+  h = 220,
+  color,
+}: {
+  data: number[]
+  prevData?: number[]
+  w?: number
+  h?: number
+  color: string
+}) {
+  const uid = React.useId().replace(/:/g, "")
+  const len = Math.max(data.length, prevData?.length || 0, 2)
+  const max = Math.max(...data, ...(prevData || []), 1)
+  const step = w / Math.max(1, len - 1)
+  const toPts = (arr: number[]): [number, number][] =>
+    arr.map((v, i) => [i * step, h - 4 - (v / max) * (h - 8)])
+  const linePath = (pts: [number, number][]) =>
+    pts.length === 0
+      ? ""
+      : pts
+          .map((p, i) => `${i === 0 ? "M" : "L"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`)
+          .join(" ")
+  const areaPath = (pts: [number, number][]) =>
+    pts.length === 0
+      ? ""
+      : `${linePath(pts)} L ${pts[pts.length - 1][0].toFixed(1)} ${h} L 0 ${h} Z`
+  const pts = toPts(data)
+  const prevPts = prevData ? toPts(prevData) : null
 
   return (
-    <div className="space-y-4" suppressHydrationWarning>
-      {/* Bảng Giá Nhiên Liệu - Luôn hiển thị */}
-            <Card>
-          <CardHeader>
-            <CardTitle>Bảng Giá Nhiên Liệu</CardTitle>
-            <CardDescription>
-              Giá bán và giá nhập các loại nhiên liệu
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading.prices ? (
-              <Skeleton className="h-64 w-full" />
-            ) : priceData.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nhiên Liệu</TableHead>
-                    <TableHead className="text-right">Giá Bán</TableHead>
-                    <TableHead className="text-right">Giá Nhập</TableHead>
-                    <TableHead>Ngày Áp Dụng</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {priceData
-                    .filter(price => price.nhien_lieu && price.nhien_lieu.toLowerCase() !== 'tên nhiên liệu')
-                    .map((price, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">
-                        <Badge>{price.nhien_lieu}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-green-600">
-                        {formatCurrency(price.gia_ban)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {formatCurrency(price.gia_nhap)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {price.ngay_ap_dung}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Đang tải dữ liệu giá nhiên liệu...
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-      {/* Bồn Bể - Luôn hiển thị */}
-            <Card>
-          <CardHeader>
-            <CardTitle>Tình Trạng Bồn Bể</CardTitle>
-            <CardDescription>
-              Tồn kho và dung tích các bồn chứa nhiên liệu
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading.tanks ? (
-              <Skeleton className="h-64 w-full" />
-            ) : tankData.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-3">
-                {tankData.map((tank, index) => (
-                  <Card key={index}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        {tank.ten_bon}
-                      </CardTitle>
-                      <Badge variant="secondary">{tank.nhien_lieu || 'N/A'}</Badge>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Tồn kho ước tính:</span>
-                          <span className="font-semibold text-green-600">
-                            {formatTankNumber(Math.abs(tank.ton_kho))} lít
-                          </span>
-                        </div>
-                        {tank.dung_tich > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Dung tích:</span>
-                          <span className="font-medium">
-                              {formatTankNumber(tank.dung_tich)} lít
-                          </span>
-                        </div>
-                        )}
-                        {tank.cot_bom && (
-                          <div className="flex justify-between text-sm items-center">
-                            <span className="text-muted-foreground">Cột bơm:</span>
-                            <div className="flex gap-1">
-                              {tank.cot_bom.split(',').map((cb, i) => (
-                                <Badge key={i} variant="outline" className="text-xs">
-                                  {cb.trim()}
-                                </Badge>
-                              ))}
-                            </div>
-                        </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>Chưa có dữ liệu bồn bể.</p>
-                <p className="text-sm mt-2">Dữ liệu sẽ được cập nhật sau khi Schedule Task chạy.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-            {/* Thống kê chi tiết ngày hôm nay */}
-            {loading.stats ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-32 w-full" />
-                ))}
-              </div>
-            ) : dashboardStats ? (
-              <>
-                <div className="pt-6">
-                  <h3 className="text-lg font-semibold mb-4">Thống Kê Bán Hàng Hôm Nay</h3>
-                </div>
-
-                {/* Metrics Cards */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Tổng Doanh Thu
-                      </CardTitle>
-                      <DollarSignIcon className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        {formatCurrency(dashboardStats.overview?.totalRevenue || 0)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {dashboardStats.overview?.totalTransactions || 0} giao dịch
-                      </p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Tổng Lượng Bán
-                      </CardTitle>
-                      <FuelIcon className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        {formatNumber(dashboardStats.overview?.totalLiters || 0)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Lít nhiên liệu
-                      </p>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Giá Trung Bình
-                      </CardTitle>
-                      <TrendingUpIcon className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        {formatCurrency(
-                          dashboardStats.overview?.totalRevenue && dashboardStats.overview?.totalLiters
-                            ? dashboardStats.overview.totalRevenue / dashboardStats.overview.totalLiters
-                            : 0
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Đồng/lít
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Biểu đồ theo loại nhiên liệu */}
-                {dashboardStats.chartData?.byFuelType && dashboardStats.chartData.byFuelType.length > 0 ? (() => {
-                  // Sort data by revenue descending và tính max value
-                  const sortedData = [...dashboardStats.chartData.byFuelType].sort((a, b) => b.revenue - a.revenue);
-                  const maxRevenue = Math.max(...sortedData.map(item => item.revenue));
-                  
-                  return (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Doanh Thu Theo Loại Nhiên Liệu</CardTitle>
-                      <CardDescription>Phân bổ doanh thu các loại nhiên liệu hôm nay</CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-2 sm:px-4">
-                      <ResponsiveContainer width="100%" height={280}>
-                        <BarChart 
-                          data={sortedData} 
-                          layout="vertical"
-                          margin={{ top: 5, right: 60, left: 0, bottom: 5 }}
-                        >
-                          <CartesianGrid 
-                            strokeDasharray="3 3" 
-                            horizontal={false}
-                            stroke="hsl(var(--border))"
-                          />
-                          <XAxis
-                            type="number"
-                            stroke="#888888"
-                            fontSize={10}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
-                            domain={[0, maxRevenue]}
-                            allowDataOverflow={false}
-                            height={25}
-                          />
-                          <YAxis
-                            type="category"
-                            dataKey="fuelType"
-                            stroke="#888888"
-                            fontSize={11}
-                            tickLine={false}
-                            axisLine={false}
-                            width={75}
-                            tickMargin={2}
-                          />
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                return (
-                                  <div className="rounded-lg border bg-background p-2 shadow-sm">
-                                    <div className="flex flex-col gap-1">
-                                      <span className="text-sm font-semibold">
-                                        {payload[0].payload.fuelType}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        Doanh thu: {formatCurrency(payload[0].value as number)}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        Lít: {formatNumber(payload[0].payload.liters)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )
-                              }
-                              return null
-                            }}
-                          />
-                          <Bar dataKey="revenue" radius={[0, 8, 8, 0]} barSize={45}>
-                            {sortedData.map((entry: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill={getChartColor(index)} />
-                            ))}
-                            <LabelList 
-                              dataKey="revenue" 
-                              position="right"
-                              formatter={(value: number) => `${(value / 1000000).toFixed(2)}M ₫`}
-                              style={{ fill: 'hsl(var(--foreground))', fontSize: '11px', fontWeight: '600' }}
-                            />
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                  );
-                })() : (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Doanh Thu Theo Loại Nhiên Liệu</CardTitle>
-                      <CardDescription>Không có dữ liệu nhiên liệu</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        Không có dữ liệu bán hàng theo loại nhiên liệu cho ngày hôm nay
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Biểu đồ giờ cao điểm */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Giờ Cao Điểm Trong Ngày</CardTitle>
-                    <CardDescription>Tổng doanh thu theo từng giờ bơm hôm nay</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pl-2">
-                    {loading.stats ? (
-                      <Skeleton className="h-[350px] w-full" />
-                    ) : aggregatedHourData.length > 0 ? (
-                      <>
-                        <ResponsiveContainer width="100%" height={320}>
-                          <BarChart data={aggregatedHourData}>
-                            <XAxis
-                              dataKey="hour"
-                              stroke="#888888"
-                              fontSize={12}
-                              tickLine={false}
-                              axisLine={false}
-                              tickFormatter={(value) => `${value}h`}
-                            />
-                            <YAxis
-                              stroke="#888888"
-                              fontSize={12}
-                              tickLine={false}
-                              axisLine={false}
-                              tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
-                            />
-                            <Tooltip
-                              content={({ active, payload }) => {
-                                if (active && payload && payload.length) {
-                                  return (
-                                    <div className="rounded-lg border bg-background p-2 shadow-sm">
-                                      <div className="flex flex-col gap-1">
-                                        <span className="text-sm font-semibold">
-                                          Giờ {payload[0].payload.hour}:00
-                                        </span>
-                                        {payload.map((entry: any, index: number) => (
-                                          <span key={index} className="text-xs" style={{ color: entry.color }}>
-                                            {entry.name.replace('pump_', 'Cột ')}: {formatCurrency(entry.value as number)}
-                                          </span>
-                                        ))}
-                                        <span className="text-xs text-muted-foreground border-t pt-1 mt-1">
-                                          Tổng: {formatCurrency(payload[0].payload.revenue)}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {payload[0].payload.count} giao dịch
-                                        </span>
-                                      </div>
-                                    </div>
-                                  )
-                                }
-                                return null
-                              }}
-                            />
-                            {pumpColumns.length > 0 ? (
-                              pumpColumns.map((pump, index) => (
-                                <Bar 
-                                  key={`pump_${pump}`}
-                                  dataKey={`pump_${pump}`} 
-                                  stackId="a"
-                                  fill={PUMP_COLORS[pump] || getChartColor(index)} 
-                                  radius={index === pumpColumns.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                                >
-                                  {index === pumpColumns.length - 1 && (
-                                    <LabelList 
-                                      dataKey="revenue" 
-                                      position="top"
-                                      formatter={(value: number) => new Intl.NumberFormat('vi-VN').format(value)}
-                                      style={{ fill: 'hsl(var(--foreground))', fontSize: '10px', fontWeight: 'bold' }}
-                                    />
-                                  )}
-                                </Bar>
-                              ))
-                            ) : (
-                              <Bar dataKey="revenue" fill={getChartColor(0)} radius={[8, 8, 0, 0]}>
-                                <LabelList 
-                                  dataKey="revenue" 
-                                  position="top"
-                                  formatter={(value: number) => new Intl.NumberFormat('vi-VN').format(value)}
-                                  style={{ fill: 'hsl(var(--foreground))', fontSize: '11px', fontWeight: 'bold' }}
-                                />
-                              </Bar>
-                            )}
-                          </BarChart>
-                        </ResponsiveContainer>
-                        
-                        {/* Legend cho cột bơm */}
-                        {pumpColumns.length > 0 && (
-                          <div className="border-t pt-3 mt-2 space-y-2">
-                            <div className="flex flex-wrap gap-3 px-2 justify-center">
-                              <span className="text-xs text-muted-foreground font-medium">Cột bơm:</span>
-                              {pumpColumns.map(pump => (
-                                <div key={pump} className="flex items-center gap-1.5">
-                                  <div 
-                                    className="w-3 h-3 rounded-sm" 
-                                    style={{ backgroundColor: PUMP_COLORS[pump] || '#888' }}
-                                  />
-                                  <span className="text-xs text-muted-foreground">Cột {pump}</span>
-                                </div>
-                              ))}
-                            </div>
-                            
-                            {/* Bộ lọc loại nhiên liệu */}
-                            <div className="flex flex-wrap items-center gap-2 px-2 justify-center">
-                              <span className="text-xs text-muted-foreground font-medium">Nhiên liệu:</span>
-                              <ToggleGroup
-                                type="multiple"
-                                value={selectedFuels}
-                                onValueChange={(value) => setSelectedFuels(value)}
-                                className="flex flex-wrap gap-1 justify-start"
-                              >
-                                {fuelTypes.map(fuel => (
-                                  <ToggleGroupItem
-                                    key={fuel}
-                                    value={fuel}
-                                    size="sm"
-                                    aria-label={`Lọc ${fuel}`}
-                                    className="h-6 px-2 gap-1.5 data-[state=off]:opacity-50"
-                                  >
-                                    <div
-                                      className="w-3 h-3 rounded-sm"
-                                      style={{ backgroundColor: FUEL_COLORS[fuel] || '#888' }}
-                                    />
-                                    <span className="text-xs">{fuel}</span>
-                                  </ToggleGroupItem>
-                                ))}
-                              </ToggleGroup>
-                              {selectedFuels.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedFuels([])}
-                                  className="text-xs text-muted-foreground underline hover:text-foreground"
-                                >
-                                  Tất cả
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="flex min-h-[350px] items-center justify-center">
-                        <div className="text-center">
-                          <BarChart3Icon className="mx-auto h-12 w-12 text-muted-foreground opacity-50 mb-4" />
-                          <p className="text-sm text-muted-foreground">
-                            {selectedFuels.length > 0
-                              ? "Không có dữ liệu cho nhiên liệu đã chọn"
-                              : "Chưa có dữ liệu bán hàng theo giờ cho ngày hôm nay"}
-                          </p>
-                          {selectedFuels.length > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedFuels([])}
-                              className="text-xs text-muted-foreground underline hover:text-foreground mt-2"
-                            >
-                              Bỏ lọc, xem tất cả
-                            </button>
-                          ) : (
-                            <p className="text-xs text-muted-foreground mt-2">
-                              Dữ liệu sẽ hiển thị khi có giao dịch trong ngày
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            ) : loading.stats ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-32 w-full" />
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center py-12 text-muted-foreground">
-                    <ActivityIcon className="mx-auto h-12 w-12 opacity-50 mb-4" />
-                    <p className="text-lg font-medium">Chưa có dữ liệu thống kê</p>
-                    <p className="text-sm">Dữ liệu dashboard sẽ hiển thị khi có giao dịch</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-    </div>
+    <svg
+      width="100%"
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      style={{ display: "block" }}
+    >
+      <defs>
+        <linearGradient id={`a-${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.34" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {pts.length > 0 && <path d={areaPath(pts)} fill={`url(#a-${uid})`} />}
+      {prevPts && prevPts.length > 0 && (
+        <path
+          d={linePath(prevPts)}
+          fill="none"
+          stroke={HX.text3}
+          strokeWidth="1.5"
+          strokeDasharray="5 4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {pts.length > 0 && (
+        <path
+          d={linePath(pts)}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+    </svg>
   )
 }
 
+// ── Main ──────────────────────────────────────────────────────
+export function ChiTietContent() {
+  const [period, setPeriod] = React.useState<Period>("today")
+  const [stats, setStats] = React.useState<any>(null)
+  const [prevStats, setPrevStats] = React.useState<any>(null)
+  const [loading, setLoading] = React.useState(true)
+
+  const ranges = React.useMemo(() => getPeriodRange(period), [period])
+  const meta = PERIOD_META[period]
+
+  React.useEffect(() => {
+    let alive = true
+    setLoading(true)
+    Promise.all([fetchStats(ranges.cur), fetchStats(ranges.prev)])
+      .then(([cur, prev]) => {
+        if (!alive) return
+        setStats(cur?.success ? cur.data : null)
+        setPrevStats(prev?.success ? prev.data : null)
+      })
+      .catch(() => {
+        if (!alive) return
+        setStats(null)
+        setPrevStats(null)
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [ranges])
+
+  const revenue = Number(stats?.overview?.totalRevenue || 0)
+  const prevRevenue = Number(prevStats?.overview?.totalRevenue || 0)
+  const liters = Number(stats?.overview?.totalLiters || 0)
+  const prevLiters = Number(prevStats?.overview?.totalLiters || 0)
+  const txCount = Number(stats?.overview?.totalTransactions || 0)
+  const prevTxCount = Number(prevStats?.overview?.totalTransactions || 0)
+
+  const pctDelta = (cur: number, prev: number) =>
+    prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0
+
+  const revDelta = pctDelta(revenue, prevRevenue)
+  const litDelta = pctDelta(liters, prevLiters)
+  const txDelta = pctDelta(txCount, prevTxCount)
+
+  const revDiff = revenue - prevRevenue
+  const diffSign = revDiff >= 0 ? "+" : "−"
+  const diffText =
+    prevRevenue > 0
+      ? `${diffSign} ${fmtBig(Math.abs(revDiff))} so với ${meta.compare} (${fmtBig(prevRevenue)})`
+      : `Chưa có dữ liệu để so sánh ${meta.compare}`
+
+  const avgPerTx = txCount > 0 ? Math.round(revenue / txCount / 1000) : 0
+
+  const cur = bucketChart(period, stats, ranges.cur)
+  const prev = bucketChart(period, prevStats, ranges.prev)
+  const revenueComma = fmtBig(revenue)
+  const prevComma = fmtBig(prevRevenue)
+
+  const byFuel = React.useMemo(() => {
+    const types: any[] = stats?.chartData?.byFuelType || []
+    const groups: Record<string, { revenue: number; liters: number }> = {}
+    types.forEach((r) => {
+      const k = fuelKind(r.fuelType) || "Khác"
+      if (!groups[k]) groups[k] = { revenue: 0, liters: 0 }
+      groups[k].revenue += Number(r.revenue || 0)
+      groups[k].liters += Number(r.liters || 0)
+    })
+    const total = Object.values(groups).reduce((s, g) => s + g.revenue, 0)
+    return (["RON95", "E5", "DO", "DO+"] as const).map((k) => {
+      const g = groups[k] || { revenue: 0, liters: 0 }
+      const pct = total > 0 ? Math.round((g.revenue / total) * 100) : 0
+      return { name: k, revenue: g.revenue, liters: g.liters, pct }
+    })
+  }, [stats])
+
+  const byPump = React.useMemo(() => {
+    const rows: any[] = stats?.chartData?.byPump || []
+    return rows
+      .filter((r) => Number(r.cotBom) > 0)
+      .map((r) => ({
+        cotBom: Number(r.cotBom),
+        fuel: fuelKind(r.fuelType) || r.fuelType,
+        revenue: Number(r.revenue || 0),
+        count: Number(r.count || 0),
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+  }, [stats])
+
+  const bestPump = byPump[0]
+    ? {
+        name: `Cột ${byPump[0].cotBom} · ${byPump[0].fuel}`,
+        avg: byPump[0].count > 0 ? byPump[0].revenue / byPump[0].count : 0,
+      }
+    : null
+
+  return (
+    <div
+      className="hxw"
+      style={{ maxWidth: 1320, margin: "0 auto", width: "100%", color: HX.text }}
+    >
+      {/* Period tabs + comparison label + date chip */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 16,
+          marginBottom: 22,
+        }}
+      >
+        <div
+          style={{
+            display: "inline-flex",
+            padding: 4,
+            background: HX.surface,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 12,
+          }}
+        >
+          {PERIOD_TABS.map((p) => {
+            const on = period === p.k
+            return (
+              <div
+                key={p.k}
+                onClick={() => setPeriod(p.k)}
+                className="hxw-press"
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: 9,
+                  background: on ? HX.elevated : "transparent",
+                  color: on ? HX.text : HX.text2,
+                  fontSize: 13,
+                  fontWeight: on ? 600 : 500,
+                  cursor: "pointer",
+                  boxShadow: on ? `inset 0 1px 0 ${HX.hairlineStrong}` : "none",
+                }}
+              >
+                {p.t}
+              </div>
+            )
+          })}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            color: HX.text3,
+            fontSize: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>
+            Đang xem{" "}
+            <span style={{ color: HX.accent, fontWeight: 600 }}>{meta.label}</span> · So sánh với{" "}
+            <span style={{ color: HX.text2, fontWeight: 500 }}>{meta.compare}</span>
+            {loading && <span style={{ marginLeft: 10, color: HX.text3 }}>· Đang tải…</span>}
+          </span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "0 12px",
+              height: 36,
+              borderRadius: 10,
+              background: HX.surface,
+              border: `1px solid ${HX.hairline}`,
+              fontSize: 13,
+              fontWeight: 500,
+              color: HX.text,
+            }}
+          >
+            <Icon name="calendar" size={15} color={HX.text2} />
+            <span>{rangeLabel(period, ranges.cur)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Top stats */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.6fr 1fr 1fr 1fr",
+          gap: 16,
+          marginBottom: 22,
+        }}
+      >
+        <div
+          style={{
+            background: HX.surface,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 16,
+            padding: 24,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              color: HX.text3,
+              fontWeight: 500,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+            }}
+          >
+            Tổng doanh thu · {meta.label}
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 10 }}>
+            <div
+              className="hx-num"
+              style={{
+                fontSize: 44,
+                fontWeight: 800,
+                letterSpacing: "-0.035em",
+                color: HX.text,
+                lineHeight: 1,
+              }}
+            >
+              {fmtNum(revenue)}
+            </div>
+            <div style={{ fontSize: 18, color: HX.text2 }}>₫</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+            {prevRevenue > 0 ? <Delta value={revDelta} /> : null}
+            <span style={{ fontSize: 13, color: HX.text2 }}>{diffText}</span>
+          </div>
+        </div>
+        <WKpi
+          label="Sản lượng"
+          value={fmtNum(liters)}
+          suffix="lít"
+          delta={prevLiters > 0 ? litDelta : undefined}
+          icon="fuel"
+          color={HX.accent}
+          hint="4 loại nhiên liệu"
+        />
+        <WKpi
+          label="Giao dịch"
+          value={fmtNum(txCount)}
+          suffix="đơn"
+          delta={prevTxCount > 0 ? txDelta : undefined}
+          icon="receipt"
+          color={HX.do}
+          hint={avgPerTx > 0 ? `TB ${avgPerTx}k/GD` : undefined}
+        />
+        <WKpi
+          label="Lợi nhuận gộp"
+          value="—"
+          icon="chart"
+          color={HX.good}
+          hint="DB chưa có giá nhập"
+        />
+      </div>
+
+      {/* Big area chart */}
+      <div
+        style={{
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 16,
+          padding: 24,
+          marginBottom: 22,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            marginBottom: 22,
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: HX.text }}>
+              Doanh thu {meta.chartHeader}
+            </div>
+            <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>{meta.chartSub}</div>
+          </div>
+          <div style={{ display: "flex", gap: 18, fontSize: 12 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 12, height: 3, borderRadius: 2, background: HX.accent }} />
+              <span style={{ color: HX.text2 }}>{meta.compareLabel} · </span>
+              <span className="hx-num" style={{ color: HX.text, fontWeight: 600 }}>
+                {revenueComma}
+              </span>
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <svg width="14" height="3">
+                <line
+                  x1="0"
+                  y1="1.5"
+                  x2="14"
+                  y2="1.5"
+                  stroke={HX.text3}
+                  strokeWidth="2"
+                  strokeDasharray="3 2"
+                />
+              </svg>
+              <span style={{ color: HX.text2 }}>{meta.compareSubLabel} · </span>
+              <span className="hx-num" style={{ color: HX.text2, fontWeight: 500 }}>
+                {prevComma}
+              </span>
+            </span>
+          </div>
+        </div>
+        <div>
+          <AreaChart
+            key={period}
+            data={cur.data}
+            prevData={prev.data}
+            color={HX.accent}
+          />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: 6,
+              fontSize: 11,
+              color: HX.text3,
+            }}
+          >
+            {cur.labels.map((l, i) => (
+              <span key={i}>{l}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Two columns: by fuel + by pump */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.2fr 1fr",
+          gap: 20,
+          marginBottom: 22,
+        }}
+      >
+        {/* By fuel */}
+        <div
+          style={{
+            background: HX.surface,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 16,
+            padding: 24,
+          }}
+        >
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>Theo loại nhiên liệu</div>
+            <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>
+              Doanh thu · sản lượng · lãi gộp · {meta.label.toLowerCase()}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.4fr 110px 140px 110px 110px",
+              gap: 12,
+              padding: "8px 0",
+              borderBottom: `1px solid ${HX.hairline}`,
+              fontSize: 11,
+              color: HX.text3,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            <span>Sản phẩm</span>
+            <span style={{ textAlign: "right" }}>Sản lượng</span>
+            <span style={{ textAlign: "right" }}>Doanh thu</span>
+            <span style={{ textAlign: "right" }}>Lãi gộp</span>
+            <span style={{ textAlign: "right" }}>%</span>
+          </div>
+          {byFuel.map((r) => {
+            const color = KIND_COLOR[r.name] || HX.text2
+            return (
+              <div
+                key={r.name}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.4fr 110px 140px 110px 110px",
+                  gap: 12,
+                  padding: "14px 0",
+                  fontSize: 13,
+                  alignItems: "center",
+                  borderBottom: `1px solid ${HX.hairline}`,
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <FuelDot kind={r.name} />
+                  <span style={{ fontWeight: 600 }}>{r.name}</span>
+                </span>
+                <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
+                  {fmtNum(r.liters)} L
+                </span>
+                <span className="hx-num" style={{ textAlign: "right", fontWeight: 600 }}>
+                  {fmtNum(r.revenue)}
+                </span>
+                <span className="hx-num" style={{ textAlign: "right", color: HX.text3 }}>
+                  —
+                </span>
+                <span
+                  style={{
+                    textAlign: "right",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 40,
+                      height: 4,
+                      background: HX.hairline,
+                      borderRadius: 2,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "block",
+                        height: "100%",
+                        width: r.pct + "%",
+                        background: color,
+                        transition: "width .3s ease",
+                      }}
+                    />
+                  </span>
+                  <span
+                    className="hx-num"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color,
+                      minWidth: 32,
+                      textAlign: "right",
+                    }}
+                  >
+                    {r.pct}%
+                  </span>
+                </span>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* By pump */}
+        <div
+          style={{
+            background: HX.surface,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 16,
+            padding: 24,
+          }}
+        >
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>Theo cột bơm</div>
+            <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>
+              Hiệu suất từng cột · {meta.label.toLowerCase()}
+            </div>
+          </div>
+          {byPump.length === 0 ? (
+            <div
+              style={{
+                padding: "30px 0",
+                textAlign: "center",
+                color: HX.text3,
+                fontSize: 13,
+              }}
+            >
+              Chưa có dữ liệu cột bơm trong kỳ
+            </div>
+          ) : (
+            byPump.map((p, i) => (
+              <div
+                key={p.cotBom}
+                style={{
+                  padding: "14px 0",
+                  borderBottom: i < byPump.length - 1 ? `1px solid ${HX.hairline}` : "none",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>Cột {p.cotBom}</div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginTop: 4,
+                        fontSize: 11,
+                        color: HX.text3,
+                      }}
+                    >
+                      <FuelDot kind={p.fuel} size={7} />
+                      <span>{p.fuel}</span>
+                      <span>· {fmtNum(p.count)} GD</span>
+                    </div>
+                  </div>
+                  <div
+                    className="hx-num"
+                    style={{ fontSize: 15, fontWeight: 700, flexShrink: 0 }}
+                  >
+                    {fmtNum(p.revenue)}
+                    <span style={{ color: HX.text3, fontSize: 11, fontWeight: 400 }}> ₫</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+          {bestPump && (
+            <div
+              style={{
+                marginTop: 18,
+                padding: 14,
+                background: HX.accentSoft,
+                border: `1px solid ${accentBorder}`,
+                borderRadius: 10,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: HX.accent,
+                    fontWeight: 600,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Cột hiệu quả nhất
+                </div>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    marginTop: 4,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {bestPump.name}
+                </div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontSize: 11, color: HX.text2 }}>Doanh thu / GD</div>
+                <div
+                  className="hx-num"
+                  style={{ fontSize: 15, fontWeight: 700, color: HX.accent, marginTop: 4 }}
+                >
+                  {fmtBig(bestPump.avg)}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Staff section — DB không lưu seller_name cho fuel_pump */}
+      <WSection title={`Nhân viên · ${meta.label}`} sub="Hiệu suất bán hàng theo nhân viên">
+        <div
+          style={{
+            background: HX.surface,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 14,
+            padding: 40,
+            textAlign: "center",
+            color: HX.text3,
+            fontSize: 13,
+            lineHeight: 1.6,
+          }}
+        >
+          Chưa có dữ liệu nhân viên cho từng giao dịch xăng dầu trong DB.
+          <br />
+          <span style={{ fontSize: 12 }}>
+            Bảng <code style={{ color: HX.text2 }}>fuel_pump</code> chưa có cột{" "}
+            <code style={{ color: HX.text2 }}>seller_name</code>.
+          </span>
+        </div>
+      </WSection>
+    </div>
+  )
+}

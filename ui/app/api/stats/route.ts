@@ -150,6 +150,20 @@ export async function GET(request: Request) {
       ORDER BY hour ASC, cot_bom ASC
     `);
 
+    // Doanh thu theo cột bơm — gộp theo cot_bom (fuel suy từ cot_bom)
+    const byPump = await query<any[]>(`
+      SELECT
+        COALESCE(cot_bom, 0) as cotBom,
+        ${FUEL_BY_COT_BOM_SQL} as fuelType,
+        SUM(tien) as revenue,
+        SUM(lit) as liters,
+        COUNT(*) as count
+      FROM fuel_pump
+      ${chartFullWhere}
+      GROUP BY cot_bom
+      ORDER BY revenue DESC
+    `);
+
     // Count unique days for average calculation - ⚡ FIX: Dùng chartFullWhere
     const [uniqueDaysResult] = await query<any[]>(`
       SELECT COUNT(DISTINCT DATE(ket_thuc_bom)) as uniqueDays
@@ -188,6 +202,7 @@ export async function GET(request: Request) {
         last7Days: chartData, // Now contains up to 30 days
         byFuelType,
         byHourOfDay,
+        byPump,
         uniqueDays,
       },
       recentTransactions,
