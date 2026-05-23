@@ -20,6 +20,7 @@ import {
   useIsMobile,
 } from "@/components/htx-kit"
 import { StockPageMobile } from "@/components/stock-page-mobile"
+import { useRetailProducts, type PosProduct } from "@/components/pos-page"
 
 interface StockPageProps {
   onNavigate?: (view: string) => void
@@ -113,6 +114,8 @@ export function StockPage({ onNavigate }: StockPageProps) {
     }
   }, [])
 
+  const { products: retailProducts } = useRetailProducts()
+
   if (isMobile) {
     return (
       <StockPageMobile
@@ -120,6 +123,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
         home={home}
         loading={loading}
         onNavigate={onNavigate}
+        retailProducts={retailProducts}
       />
     )
   }
@@ -182,7 +186,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
       >
         {[
           { k: "fuel" as const, t: "Xăng dầu", c: `${tankCards.length || 4} bồn` },
-          { k: "retail" as const, t: "Bán lẻ", c: `${RETAIL_STOCK.length} SP` },
+          { k: "retail" as const, t: "Bán lẻ", c: `${retailProducts.length} SP` },
         ].map((o) => (
           <div
             key={o.k}
@@ -491,20 +495,27 @@ export function StockPage({ onNavigate }: StockPageProps) {
 
       {/* ─── BÁN LẺ TAB ─── */}
       {!loading && tab === "retail" && (
-        <StockRetail cat={cat} setCat={setCat} />
+        <StockRetail cat={cat} setCat={setCat} retailProducts={retailProducts} />
       )}
     </div>
   )
 }
 
-function StockRetail({ cat, setCat }: { cat: string; setCat: (c: string) => void }) {
-  const filtered = cat === "all" ? RETAIL_STOCK : RETAIL_STOCK.filter((p) => p.cat === cat)
-  const lowCount = RETAIL_STOCK.filter((p) => p.low).length
-  const soldToday = RETAIL_STOCK.reduce((s, p) => s + p.sold, 0)
-  const stockValue = RETAIL_STOCK.reduce((s, p) => s + p.stock * p.price, 0)
+function StockRetail({
+  cat,
+  setCat,
+  retailProducts,
+}: {
+  cat: string
+  setCat: (c: string) => void
+  retailProducts: PosProduct[]
+}) {
+  const filtered = cat === "all" ? retailProducts : retailProducts.filter((p) => p.cat === cat)
+  const lowCount = retailProducts.filter((p) => p.low).length
+  const stockValue = retailProducts.reduce((s, p) => s + p.stock * p.price, 0)
 
-  const catCounts: Record<string, number> = { all: RETAIL_STOCK.length }
-  RETAIL_STOCK.forEach((p) => {
+  const catCounts: Record<string, number> = { all: retailProducts.length }
+  retailProducts.forEach((p) => {
     catCounts[p.cat] = (catCounts[p.cat] || 0) + 1
   })
 
@@ -512,10 +523,10 @@ function StockRetail({ cat, setCat }: { cat: string; setCat: (c: string) => void
     <>
       {/* Summary */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
-        <WKpi label="Tổng sản phẩm" value={String(RETAIL_STOCK.length)} suffix="mặt hàng" icon="receipt" color={HX.do} hint={`${RETAIL_CATS.length - 1} nhóm hàng`} />
+        <WKpi label="Tổng sản phẩm" value={String(retailProducts.length)} suffix="mặt hàng" icon="receipt" color={HX.do} hint={`${RETAIL_CATS.length - 1} nhóm hàng`} />
         <WKpi label="Sắp hết" value={String(lowCount)} suffix="sản phẩm" icon="alert" color={HX.bad} hint="Dưới mức tối thiểu" />
         <WKpi label="Giá trị tồn" value={(stockValue / 1_000_000).toFixed(1)} suffix="triệu ₫" icon="chart" color={HX.good} hint="Tồn × giá bán" />
-        <WKpi label="Bán hôm nay" value={String(soldToday)} suffix="lượt" icon="fuel" color={HX.accent} hint="số liệu mẫu" />
+        <WKpi label="Bán hôm nay" value="—" icon="fuel" color={HX.accent} hint="DB chưa tổng hợp" />
       </div>
 
       {/* Filter chips */}
@@ -653,10 +664,10 @@ function StockRetail({ cat, setCat }: { cat: string; setCat: (c: string) => void
               <span style={{ color: HX.text2 }}>{p.cat}</span>
               <span className="hx-num" style={{ textAlign: "right", fontWeight: 600, color: p.low ? HX.bad : HX.text }}>
                 {p.stock}
-                <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> / {p.min}</span>
+                <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> / {p.min_stock}</span>
               </span>
-              <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
-                {p.sold}
+              <span className="hx-num" style={{ textAlign: "right", color: HX.text3 }}>
+                —
               </span>
               <span className="hx-num" style={{ textAlign: "right", fontWeight: 600 }}>
                 {fmtVN(p.price)}
@@ -686,7 +697,7 @@ function StockRetail({ cat, setCat }: { cat: string; setCat: (c: string) => void
         }}
       >
         <span>
-          Hiển thị {filtered.length} / {RETAIL_STOCK.length} sản phẩm
+          Hiển thị {filtered.length} / {retailProducts.length} sản phẩm
         </span>
         <span style={{ fontStyle: "italic" }}>
           Số liệu tồn kho bán lẻ là mẫu — sẽ nối bảng sản phẩm khi có.
