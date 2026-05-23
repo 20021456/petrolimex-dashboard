@@ -10,13 +10,16 @@ import { HX, Icon } from "@/components/htx-kit"
 import {
   type ShiftStore,
   type ShiftTemplate,
+  type StaffState,
+  type StaffMember,
   Avatar,
   OpenShiftModal,
   CloseShiftModal,
+  StaffEditModal,
   useShiftSummary,
   useTemplates,
   useAssignments,
-  STAFF_LIST,
+  useStaffList,
   TEMPLATE_COLOR_MAP,
   fmtNum,
   fmtBig,
@@ -29,6 +32,7 @@ import {
 
 interface Props {
   store: ShiftStore
+  staffState: StaffState
   onNavigate?: (view: string) => void
 }
 
@@ -46,7 +50,10 @@ function ymdKey(d: Date) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-export function CaBanHangContentMobile({ store, onNavigate }: Props) {
+export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props) {
+  const liveStaff = useStaffList()
+  const { addStaff, updateStaff, removeStaff } = staffState
+  const [staffEdit, setStaffEdit] = React.useState<StaffMember | "new" | null>(null)
   const { shifts, current, openShift, closeShift, hydrated } = store
   const { summary } = useShiftSummary(current)
   const { templates } = useTemplates()
@@ -309,17 +316,31 @@ export function CaBanHangContentMobile({ store, onNavigate }: Props) {
           }}
         >
           <div style={{ fontSize: 14, fontWeight: 700 }}>Nhân viên</div>
-          <span style={{ fontSize: 11, color: HX.text3 }}>{STAFF_LIST.length} người</span>
+          <span
+            onClick={() => setStaffEdit("new")}
+            className="hxw-press"
+            style={{
+              fontSize: 12,
+              color: HX.accent,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            + Thêm
+          </span>
         </div>
         <div
           className="hxw-scroll"
           style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}
         >
-          {STAFF_LIST.map((s) => {
+          {liveStaff.map((s) => {
             const isOnShift = current?.staffId === s.id
+            const isActive = s.active !== false
             return (
               <div
                 key={s.id}
+                onClick={() => setStaffEdit(s)}
+                className="hxw-press"
                 style={{
                   flex: "0 0 128px",
                   padding: 12,
@@ -327,6 +348,8 @@ export function CaBanHangContentMobile({ store, onNavigate }: Props) {
                   background: HX.surface,
                   border: `1px solid ${isOnShift ? HX.accent + "88" : HX.hairline}`,
                   position: "relative",
+                  cursor: "pointer",
+                  opacity: isActive ? 1 : 0.55,
                 }}
               >
                 {isOnShift && (
@@ -395,7 +418,7 @@ export function CaBanHangContentMobile({ store, onNavigate }: Props) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {templates.map((t) => {
-            const staff = STAFF_LIST.find((s) => s.id === t.default_staff_id)
+            const staff = liveStaff.find((s) => s.id === t.default_staff_id)
             const color = TEMPLATE_COLOR_MAP[t.color] || HX.accent
             const isNow = isTemplateActiveNow(t)
             return (
@@ -612,8 +635,8 @@ export function CaBanHangContentMobile({ store, onNavigate }: Props) {
       {openModal && (
         <OpenShiftModal
           onClose={() => setOpenModal(false)}
-          onConfirm={(staffId, cash, note) => {
-            openShift(staffId, cash, note)
+          onConfirm={(s, cash, note) => {
+            openShift(s, cash, note)
           }}
         />
       )}
@@ -633,6 +656,29 @@ export function CaBanHangContentMobile({ store, onNavigate }: Props) {
         />
       )}
 
+      {staffEdit && (
+        <StaffEditModal
+          staff={staffEdit === "new" ? null : staffEdit}
+          onClose={() => setStaffEdit(null)}
+          onSave={async (data) => {
+            if (staffEdit === "new") {
+              const ok = await addStaff(data)
+              if (ok) setStaffEdit(null)
+            } else {
+              const ok = await updateStaff(staffEdit.id, data)
+              if (ok) setStaffEdit(null)
+            }
+          }}
+          onDelete={
+            staffEdit !== "new"
+              ? async () => {
+                  const ok = await removeStaff(staffEdit.id)
+                  if (ok) setStaffEdit(null)
+                }
+              : undefined
+          }
+        />
+      )}
       {editCell && (
         <AssignmentEditSheet
           date={editCell.date}
@@ -679,6 +725,7 @@ function WeeklySchedule({
     isOverride: boolean
   }) => void
 }) {
+  const staffList = useStaffList()
   const days = React.useMemo(() => {
     const arr: Date[] = []
     for (let i = 0; i < 7; i++) {
@@ -818,9 +865,9 @@ function WeeklySchedule({
                 const dateKey = ymdKey(d)
                 const overrideId = overrideMap.get(`${dateKey}::${t.id}`)
                 const staffId = overrideId || t.default_staff_id
-                const s = STAFF_LIST.find((x) => x.id === staffId)
+                const s = staffList.find((x) => x.id === staffId)
                 const isOverride = !!overrideId
-                const isPart = false // staff "partTime" không track ở STAFF_LIST
+                const isPart = !!s?.partTime
                 void isPart
                 const isToday = dateKey === todayKey
                 const isCurrent = isToday && currentShiftStaffId === staffId
@@ -940,6 +987,9 @@ function AssignmentEditSheet({
   onPick: (staffId: string) => void
 }) {
   void templateId
+  const staffList = useStaffList().filter(
+    (s) => s.active !== false || s.id === currentStaffId
+  )
   return (
     <div
       onClick={onClose}
@@ -990,7 +1040,7 @@ function AssignmentEditSheet({
           Chọn nhân viên trực
         </div>
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
-          {STAFF_LIST.map((s) => {
+          {staffList.map((s) => {
             const on = s.id === currentStaffId
             const isDef = s.id === defaultStaffId
             return (
