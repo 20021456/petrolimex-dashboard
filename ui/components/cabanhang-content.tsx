@@ -450,7 +450,61 @@ export function useTemplates() {
     [templates, reload]
   )
 
-  return { templates, loading, reload, saveTemplate }
+  const addTemplate = React.useCallback(
+    async (data: Partial<ShiftTemplate>) => {
+      try {
+        const r = await fetch("/api/cabanhang/templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: data.name || "Ca mới",
+            start_hour: data.start_hour ?? 8,
+            start_minute: data.start_minute ?? 0,
+            end_hour: data.end_hour ?? 16,
+            end_minute: data.end_minute ?? 0,
+            default_staff_id: data.default_staff_id || "",
+            color: data.color || "accent",
+            active: data.active === 0 ? 0 : 1,
+            sort_order: data.sort_order ?? 99,
+          }),
+        }).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Không thêm được khung ca")
+          return false
+        }
+        toast.success("Đã thêm khung ca")
+        await reload()
+        return true
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+        return false
+      }
+    },
+    [reload]
+  )
+
+  const deleteTemplate = React.useCallback(
+    async (id: string) => {
+      try {
+        const r = await fetch(`/api/cabanhang/templates?id=${id}`, {
+          method: "DELETE",
+        }).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Không xoá được khung ca")
+          return false
+        }
+        toast.success("Đã xoá khung ca")
+        await reload()
+        return true
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+        return false
+      }
+    },
+    [reload]
+  )
+
+  return { templates, loading, reload, saveTemplate, addTemplate, deleteTemplate }
 }
 export type TemplatesState = ReturnType<typeof useTemplates>
 
@@ -1162,7 +1216,7 @@ function WebShiftPage({
   const { shifts, current, openShift, closeShift, hydrated } = store
   const { staff: liveStaff, addStaff, updateStaff, removeStaff, toggleActive } = staffState
   const { summary } = useShiftSummary(current)
-  const { templates, saveTemplate } = useTemplates()
+  const { templates, saveTemplate, addTemplate, deleteTemplate } = useTemplates()
   const weekRange = React.useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -1180,7 +1234,7 @@ function WebShiftPage({
   const [openModal, setOpenModal] = React.useState(false)
   const [closeModal, setCloseModal] = React.useState(false)
   const [staffEdit, setStaffEdit] = React.useState<StaffMember | "new" | null>(null)
-  const [templateEdit, setTemplateEdit] = React.useState<ShiftTemplate | null>(null)
+  const [templateEdit, setTemplateEdit] = React.useState<ShiftTemplate | "new" | null>(null)
   const [cellEdit, setCellEdit] = React.useState<{
     date: string
     templateId: string
@@ -1736,6 +1790,12 @@ function WebShiftPage({
       <WSection
         title="Khung ca cố định"
         sub="Lặp lại mỗi ngày · gán nhân viên mặc định cho từng khung"
+        right={
+          <PillBtn primary size="sm" onClick={() => setTemplateEdit("new")}>
+            <Icon name="plus" size={13} color="#fff" strokeWidth={2.2} />
+            Thêm khung ca
+          </PillBtn>
+        }
       >
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
           {templates.length === 0 ? (
@@ -2105,12 +2165,25 @@ function WebShiftPage({
       )}
       {templateEdit && (
         <TemplateEditModal
-          template={templateEdit}
+          template={templateEdit === "new" ? null : templateEdit}
           onClose={() => setTemplateEdit(null)}
           onSave={async (patch) => {
-            await saveTemplate(templateEdit.id, patch)
-            setTemplateEdit(null)
+            if (templateEdit === "new") {
+              const ok = await addTemplate(patch)
+              if (ok) setTemplateEdit(null)
+            } else {
+              await saveTemplate(templateEdit.id, patch)
+              setTemplateEdit(null)
+            }
           }}
+          onDelete={
+            templateEdit !== "new"
+              ? async () => {
+                  const ok = await deleteTemplate(templateEdit.id)
+                  if (ok) setTemplateEdit(null)
+                }
+              : undefined
+          }
         />
       )}
       {cellEdit && (
@@ -2432,25 +2505,30 @@ function WeeklyScheduleWeb({
   )
 }
 
-// ── Modal: edit shift template ────────────────────────────────
-function TemplateEditModal({
+// ── Modal: add / edit shift template ──────────────────────────
+export function TemplateEditModal({
   template,
   onClose,
   onSave,
+  onDelete,
 }: {
-  template: ShiftTemplate
+  template: ShiftTemplate | null
   onClose: () => void
   onSave: (patch: Partial<ShiftTemplate>) => void
+  onDelete?: () => void
 }) {
+  const isNew = !template
   const staffList = useStaffList().filter((s) => s.active !== false)
-  const [name, setName] = React.useState(template.name)
-  const [startH, setStartH] = React.useState(String(template.start_hour))
-  const [startM, setStartM] = React.useState(String(template.start_minute))
-  const [endH, setEndH] = React.useState(String(template.end_hour))
-  const [endM, setEndM] = React.useState(String(template.end_minute))
-  const [defaultStaffId, setDefaultStaffId] = React.useState(template.default_staff_id)
-  const [color, setColor] = React.useState(template.color)
-  const [active, setActive] = React.useState(!!template.active)
+  const [name, setName] = React.useState(template?.name || "Ca mới")
+  const [startH, setStartH] = React.useState(String(template?.start_hour ?? 8))
+  const [startM, setStartM] = React.useState(String(template?.start_minute ?? 0))
+  const [endH, setEndH] = React.useState(String(template?.end_hour ?? 16))
+  const [endM, setEndM] = React.useState(String(template?.end_minute ?? 0))
+  const [defaultStaffId, setDefaultStaffId] = React.useState(
+    template?.default_staff_id || staffList[0]?.id || ""
+  )
+  const [color, setColor] = React.useState(template?.color || "accent")
+  const [active, setActive] = React.useState(template ? !!template.active : true)
 
   return (
     <ModalShell onClose={onClose} width={560}>
@@ -2477,8 +2555,12 @@ function TemplateEditModal({
           <Icon name="clock" size={20} color={TEMPLATE_COLOR_MAP[color] || HX.accent} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 700 }}>Chỉnh khung ca</div>
-          <div style={{ fontSize: 12, color: HX.text3, marginTop: 2 }}>{template.name}</div>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>
+            {isNew ? "Thêm khung ca mới" : "Chỉnh khung ca"}
+          </div>
+          <div style={{ fontSize: 12, color: HX.text3, marginTop: 2 }}>
+            {isNew ? "Đặt giờ + nhân viên mặc định cho khung lặp" : template?.name}
+          </div>
         </div>
       </div>
       <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 18 }}>
@@ -2627,41 +2709,70 @@ function TemplateEditModal({
           padding: "18px 26px",
           borderTop: `1px solid ${HX.hairline}`,
           display: "flex",
-          justifyContent: "flex-end",
+          justifyContent: "space-between",
+          alignItems: "center",
           gap: 10,
           background: HX.bg,
         }}
       >
-        <PillBtn size="lg" onClick={onClose}>
-          Huỷ
-        </PillBtn>
-        <PillBtn
-          primary
-          size="lg"
-          onClick={() =>
-            onSave({
-              name: name.trim() || template.name,
-              start_hour: Number(startH) || 0,
-              start_minute: Number(startM) || 0,
-              end_hour: Number(endH) || 0,
-              end_minute: Number(endM) || 0,
-              default_staff_id: defaultStaffId,
-              color,
-              active: active ? 1 : 0,
-            })
-          }
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14">
-            <path
-              d="m2.5 7 3 3 6-7"
-              stroke="#fff"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Lưu
-        </PillBtn>
+        <div>
+          {!isNew && onDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Xoá khung ca "${template?.name}"?`)) {
+                  onDelete()
+                }
+              }}
+              className="hxw-press"
+              style={{
+                padding: "8px 14px",
+                borderRadius: 9,
+                background: "transparent",
+                border: `1px solid ${HX.bad}55`,
+                color: HX.bad,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: HX.font,
+              }}
+            >
+              Xoá khung ca
+            </button>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <PillBtn size="lg" onClick={onClose}>
+            Huỷ
+          </PillBtn>
+          <PillBtn
+            primary
+            size="lg"
+            onClick={() =>
+              onSave({
+                name: name.trim() || (template?.name ?? "Ca mới"),
+                start_hour: Number(startH) || 0,
+                start_minute: Number(startM) || 0,
+                end_hour: Number(endH) || 0,
+                end_minute: Number(endM) || 0,
+                default_staff_id: defaultStaffId,
+                color,
+                active: active ? 1 : 0,
+              })
+            }
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="m2.5 7 3 3 6-7"
+                stroke="#fff"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {isNew ? "Thêm khung ca" : "Lưu thay đổi"}
+          </PillBtn>
+        </div>
       </div>
     </ModalShell>
   )
