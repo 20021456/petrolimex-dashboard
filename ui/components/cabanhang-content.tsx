@@ -32,6 +32,8 @@ export const STAFF_LIST: StaffMember[] = [
 
 export interface Shift {
   id: string
+  code?: string
+  templateId?: string | null
   startTs: number
   endTs: number | null
   staffId: string
@@ -48,7 +50,8 @@ export interface Shift {
   liters?: number
 }
 
-const STORAGE_KEY = "htx-shifts-v1"
+const STORAGE_KEY = "htx-shifts-v1" // legacy, không dùng nữa
+void STORAGE_KEY
 
 // ── Helpers ───────────────────────────────────────────────────
 export const fmtNum = (n: number) =>
@@ -84,24 +87,34 @@ function newShiftId(count: number) {
   return `CA-${yy}-${String(count + 1).padStart(4, "0")}`
 }
 
-// ── localStorage shift store ──────────────────────────────────
-function loadShifts(): Shift[] {
-  if (typeof window === "undefined") return []
+// ── DB-backed shift store ─────────────────────────────────────
+async function fetchShifts(): Promise<Shift[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const arr = JSON.parse(raw)
-    return Array.isArray(arr) ? arr : []
+    const r = await fetch("/api/cabanhang/shifts?limit=50", { cache: "no-store" }).then(
+      (x) => x.json()
+    )
+    if (!r?.success || !Array.isArray(r.data)) return []
+    return r.data.map((s: any) => ({
+      id: String(s.id),
+      startTs: Number(s.open_ts) || 0,
+      endTs: s.close_ts == null ? null : Number(s.close_ts),
+      staffId: s.staff_id,
+      staffName: s.staff_name,
+      staffInitials: s.staff_initials,
+      staffColor: s.staff_color,
+      openCash: Number(s.open_cash) || 0,
+      closeCash: s.close_cash == null ? undefined : Number(s.close_cash),
+      note: s.note || "",
+      status: s.status,
+      revenue: Number(s.revenue) || 0,
+      txCount: Number(s.tx_count) || 0,
+      liters: Number(s.liters) || 0,
+      // gắn thêm để debug / hiển thị mã
+      code: s.code,
+      templateId: s.template_id,
+    } as Shift & { code?: string; templateId?: string | null }))
   } catch {
     return []
-  }
-}
-function saveShifts(shifts: Shift[]) {
-  if (typeof window === "undefined") return
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(shifts))
-  } catch {
-    /* ignore */
   }
 }
 
@@ -109,64 +122,283 @@ export function useShiftStore() {
   const [shifts, setShifts] = React.useState<Shift[]>([])
   const [hydrated, setHydrated] = React.useState(false)
 
-  React.useEffect(() => {
-    setShifts(loadShifts())
+  const reload = React.useCallback(async () => {
+    const data = await fetchShifts()
+    setShifts(data)
     setHydrated(true)
   }, [])
 
   React.useEffect(() => {
-    if (hydrated) saveShifts(shifts)
-  }, [shifts, hydrated])
+    reload()
+  }, [reload])
 
   const current = shifts.find((s) => s.status === "open") || null
 
   const openShift = React.useCallback(
-    (staffId: string, openCash: number, note: string) => {
+    async (staffId: string, openCash: number, note: string) => {
       const staff = STAFF_LIST.find((s) => s.id === staffId) || STAFF_LIST[0]
-      setShifts((prev) => {
-        if (prev.some((s) => s.status === "open")) return prev
-        const newShift: Shift = {
-          id: newShiftId(prev.length),
-          startTs: nowMs(),
-          endTs: null,
-          staffId: staff.id,
-          staffName: staff.name,
-          staffInitials: staff.initials,
-          staffColor: staff.color,
-          openCash,
-          note,
-          status: "open",
+      try {
+        const res = await fetch("/api/cabanhang/shifts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            staff_id: staff.id,
+            staff_name: staff.name,
+            staff_initials: staff.initials,
+            staff_color: staff.color,
+            open_cash: openCash,
+            note,
+          }),
+        }).then((x) => x.json())
+        if (!res?.success) {
+          toast.error(res?.error || "Không mở được ca")
+          return
         }
-        return [newShift, ...prev]
-      })
+        toast.success("Đã mở ca bán hàng mới")
+        await reload()
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+      }
     },
-    []
+    [reload]
   )
 
   const closeShift = React.useCallback(
-    (closeCash: number, revenue: number, txCount: number, liters: number) => {
-      setShifts((prev) =>
-        prev.map((s) =>
-          s.status === "open"
-            ? {
-                ...s,
-                endTs: nowMs(),
-                status: "closed" as const,
-                closeCash,
-                revenue,
-                txCount,
-                liters,
-              }
-            : s
-        )
-      )
+    async (closeCash: number, revenue: number, txCount: number, liters: number) => {
+      // tìm ca đang mở mới nhất
+      const open = shifts.find((s) => s.status === "open")
+      if (!open) return
+      try {
+        const res = await fetch(`/api/cabanhang/shifts?id=${open.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            close_cash: closeCash,
+            revenue,
+            tx_count: txCount,
+            liters,
+          }),
+        }).then((x) => x.json())
+        if (!res?.success) {
+          toast.error(res?.error || "Không đóng được ca")
+          return
+        }
+        toast.success(`Đã đóng ca ${open.code || open.id}`)
+        await reload()
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+      }
     },
-    []
+    [shifts, reload]
   )
 
-  return { shifts, current, openShift, closeShift, hydrated }
+  return { shifts, current, openShift, closeShift, hydrated, reload }
 }
 export type ShiftStore = ReturnType<typeof useShiftStore>
+
+// ── Templates & assignments (DB-backed) ───────────────────────
+export interface ShiftTemplate {
+  id: string
+  name: string
+  start_hour: number
+  start_minute: number
+  end_hour: number
+  end_minute: number
+  default_staff_id: string
+  color: string // 'accent' | 'do' | 'doPlus' | ...
+  active: number // 0 | 1
+  sort_order: number
+}
+
+export interface ShiftAssignment {
+  id: number
+  assign_date: string // YYYY-MM-DD
+  template_id: string
+  staff_id: string
+  note: string
+}
+
+export const TEMPLATE_COLOR_MAP: Record<string, string> = {
+  accent: HX.accent,
+  do: HX.do,
+  doPlus: HX.doPlus,
+  e5: HX.e5,
+  ron95: HX.ron95,
+  good: HX.good,
+  warn: HX.warn,
+}
+
+export function fmtTmplRange(t: ShiftTemplate) {
+  return `${pad2(t.start_hour)}:${pad2(t.start_minute)} → ${pad2(t.end_hour)}:${pad2(t.end_minute)}`
+}
+export function fmtTmplDuration(t: ShiftTemplate): string {
+  const startMin = t.start_hour * 60 + t.start_minute
+  let endMin = t.end_hour * 60 + t.end_minute
+  if (endMin <= startMin) endMin += 24 * 60
+  const total = endMin - startMin
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  return m === 0 ? `${h}h` : `${h}h ${m}p`
+}
+
+export function isTemplateActiveNow(t: ShiftTemplate, ref = new Date()): boolean {
+  if (!t.active) return false
+  const cur = ref.getHours() * 60 + ref.getMinutes()
+  const start = t.start_hour * 60 + t.start_minute
+  const end = t.end_hour * 60 + t.end_minute
+  if (end > start) return cur >= start && cur < end
+  // qua đêm
+  return cur >= start || cur < end
+}
+
+export function useTemplates() {
+  const [templates, setTemplates] = React.useState<ShiftTemplate[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch("/api/cabanhang/templates", { cache: "no-store" }).then((x) =>
+        x.json()
+      )
+      if (r?.success && Array.isArray(r.data)) {
+        setTemplates(
+          r.data.map((t: any) => ({
+            id: String(t.id),
+            name: String(t.name),
+            start_hour: Number(t.start_hour) || 0,
+            start_minute: Number(t.start_minute) || 0,
+            end_hour: Number(t.end_hour) || 0,
+            end_minute: Number(t.end_minute) || 0,
+            default_staff_id: String(t.default_staff_id || ""),
+            color: String(t.color || "accent"),
+            active: Number(t.active) ? 1 : 0,
+            sort_order: Number(t.sort_order) || 0,
+          }))
+        )
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    reload()
+  }, [reload])
+
+  const saveTemplate = React.useCallback(
+    async (id: string, patch: Partial<ShiftTemplate>) => {
+      const cur = templates.find((t) => t.id === id)
+      if (!cur) return
+      const body = { ...cur, ...patch }
+      try {
+        const r = await fetch(`/api/cabanhang/templates?id=${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Lưu khung không thành công")
+          return
+        }
+        await reload()
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+      }
+    },
+    [templates, reload]
+  )
+
+  return { templates, loading, reload, saveTemplate }
+}
+export type TemplatesState = ReturnType<typeof useTemplates>
+
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+export function useAssignments(from: Date, to: Date) {
+  const [assignments, setAssignments] = React.useState<ShiftAssignment[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const fromKey = ymd(from)
+  const toKey = ymd(to)
+
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const url = `/api/cabanhang/assignments?from=${fromKey}&to=${toKey}`
+      const r = await fetch(url, { cache: "no-store" }).then((x) => x.json())
+      if (r?.success && Array.isArray(r.data)) {
+        setAssignments(
+          r.data.map((a: any) => ({
+            id: Number(a.id),
+            assign_date: String(a.assign_date),
+            template_id: String(a.template_id),
+            staff_id: String(a.staff_id),
+            note: a.note || "",
+          }))
+        )
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [fromKey, toKey])
+
+  React.useEffect(() => {
+    reload()
+  }, [reload])
+
+  const setAssignment = React.useCallback(
+    async (date: string, templateId: string, staffId: string, note = "") => {
+      try {
+        const r = await fetch("/api/cabanhang/assignments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assign_date: date,
+            template_id: templateId,
+            staff_id: staffId,
+            note,
+          }),
+        }).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Không lưu được phân ca")
+          return
+        }
+        await reload()
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+      }
+    },
+    [reload]
+  )
+
+  const clearAssignment = React.useCallback(
+    async (date: string, templateId: string) => {
+      try {
+        const r = await fetch(
+          `/api/cabanhang/assignments?date=${date}&template_id=${templateId}`,
+          { method: "DELETE" }
+        ).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Không xoá được override")
+          return
+        }
+        await reload()
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+      }
+    },
+    [reload]
+  )
+
+  return { assignments, loading, reload, setAssignment, clearAssignment }
+}
+export type AssignmentsState = ReturnType<typeof useAssignments>
 
 // ── /api/stats summary for a shift ─────────────────────────────
 function fmtMySql(d: Date) {
@@ -607,7 +839,7 @@ export function CloseShiftModal({
           <Icon name="alert" size={20} color={HX.warn} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 700 }}>Đóng ca {shift.id}</div>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>Đóng ca {shift.code || shift.id}</div>
           <div style={{ fontSize: 12, color: HX.text3, marginTop: 2 }}>
             {shift.staffName} · mở lúc {fmtTimeShort(shift.startTs)}
           </div>
@@ -782,6 +1014,7 @@ function WebShiftPage({
 }) {
   const { shifts, current, openShift, closeShift, hydrated } = store
   const { summary } = useShiftSummary(current)
+  const { templates } = useTemplates()
   const [openModal, setOpenModal] = React.useState(false)
   const [closeModal, setCloseModal] = React.useState(false)
   const [tick, setTick] = React.useState(0)
@@ -814,7 +1047,7 @@ function WebShiftPage({
       >
         <div style={{ fontSize: 12, color: HX.text3 }}>
           {current
-            ? `Ca ${current.id} đang mở · ${current.staffName} · ${fmtDuration(duration)}`
+            ? `Ca ${current.code || current.id} đang mở · ${current.staffName} · ${fmtDuration(duration)}`
             : "Chưa có ca nào đang mở"}
         </div>
         {current ? (
@@ -876,7 +1109,7 @@ function WebShiftPage({
                     background: "#fff",
                   }}
                 />
-                Đang mở · {current.id}
+                Đang mở · {current.code || current.id}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 12 }}>
                 <Avatar
@@ -1084,6 +1317,231 @@ function WebShiftPage({
         )
       )}
 
+      {/* Nhân viên & Khung ca cố định */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1.4fr",
+          gap: 20,
+          marginBottom: 22,
+        }}
+      >
+        <WSection title="Nhân viên" sub={`${STAFF_LIST.length} người đang làm việc`}>
+          <div
+            style={{
+              background: HX.surface,
+              border: `1px solid ${HX.hairline}`,
+              borderRadius: 14,
+              padding: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            {STAFF_LIST.map((s) => {
+              const isOnShift = current?.staffId === s.id
+              return (
+                <div
+                  key={s.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: 8,
+                    borderRadius: 10,
+                    background: isOnShift ? HX.accentSoft : "transparent",
+                    border: isOnShift
+                      ? `1px solid rgba(6,214,160,0.32)`
+                      : `1px solid transparent`,
+                  }}
+                >
+                  <Avatar initials={s.initials} size={32} color={s.color} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</div>
+                    <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
+                      {s.role}
+                    </div>
+                  </div>
+                  {isOnShift && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        background: HX.good,
+                        color: "#fff",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      ĐANG TRỰC
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </WSection>
+
+        <WSection
+          title="Khung ca cố định"
+          sub="Lặp lại mỗi ngày · nhân viên mặc định"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {templates.length === 0 ? (
+              <div
+                style={{
+                  padding: 30,
+                  textAlign: "center",
+                  background: HX.surface,
+                  border: `1px dashed ${HX.hairlineStrong}`,
+                  borderRadius: 12,
+                  color: HX.text3,
+                  fontSize: 13,
+                }}
+              >
+                Chưa có khung ca
+              </div>
+            ) : (
+              templates.map((t) => {
+                const staff = STAFF_LIST.find((s) => s.id === t.default_staff_id)
+                const color = TEMPLATE_COLOR_MAP[t.color] || HX.accent
+                const isNow = isTemplateActiveNow(t)
+                return (
+                  <div
+                    key={t.id}
+                    style={{
+                      position: "relative",
+                      overflow: "hidden",
+                      padding: 14,
+                      borderRadius: 12,
+                      background: HX.surface,
+                      border: isNow
+                        ? `1px solid ${color}88`
+                        : `1px solid ${HX.hairline}`,
+                      opacity: t.active ? 1 : 0.55,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 3,
+                        background: color,
+                      }}
+                    />
+                    <div style={{ paddingLeft: 8, flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <Icon name="clock" size={13} color={color} />
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{t.name}</span>
+                        {isNow && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 7px",
+                              borderRadius: 999,
+                              background: color + "22",
+                              color,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 5,
+                                height: 5,
+                                borderRadius: 3,
+                                background: color,
+                              }}
+                            />
+                            Đang diễn ra
+                          </span>
+                        )}
+                        {!t.active && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: HX.text3,
+                              fontWeight: 600,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Tắt
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="hx-num"
+                        style={{
+                          fontSize: 20,
+                          fontWeight: 800,
+                          color,
+                          letterSpacing: "-0.02em",
+                          marginTop: 6,
+                        }}
+                      >
+                        {String(t.start_hour).padStart(2, "0")}:
+                        {String(t.start_minute).padStart(2, "0")}
+                        <span style={{ color: HX.text3, fontWeight: 500 }}> → </span>
+                        {String(t.end_hour).padStart(2, "0")}:
+                        {String(t.end_minute).padStart(2, "0")}
+                        <span
+                          style={{
+                            fontSize: 12,
+                            color: HX.text3,
+                            fontWeight: 500,
+                            marginLeft: 10,
+                          }}
+                        >
+                          {fmtTmplDuration(t)}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginTop: 8,
+                        }}
+                      >
+                        <Avatar
+                          initials={staff?.initials || "?"}
+                          size={24}
+                          color={staff?.color}
+                        />
+                        <span style={{ fontSize: 12, color: HX.text2 }}>
+                          Mặc định:
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>
+                          {staff?.name || "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </WSection>
+      </div>
+
       {/* History */}
       <WSection
         title="Lịch sử ca"
@@ -1156,7 +1614,7 @@ function WebShiftPage({
                   }}
                 >
                   <span className="hx-num" style={{ color: HX.text3, fontSize: 12 }}>
-                    {s.id}
+                    {s.code || s.id}
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <Avatar initials={s.staffInitials} size={26} color={s.staffColor} />
@@ -1190,7 +1648,6 @@ function WebShiftPage({
           onClose={() => setOpenModal(false)}
           onConfirm={(staffId, cash, note) => {
             openShift(staffId, cash, note)
-            toast.success("Đã mở ca bán hàng mới")
           }}
         />
       )}
@@ -1206,7 +1663,6 @@ function WebShiftPage({
               summary?.txCount || 0,
               summary?.liters || 0
             )
-            toast.success(`Đã đóng ca ${current.id}`)
           }}
         />
       )}
