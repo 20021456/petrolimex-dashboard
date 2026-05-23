@@ -1014,10 +1014,45 @@ function WebShiftPage({
 }) {
   const { shifts, current, openShift, closeShift, hydrated } = store
   const { summary } = useShiftSummary(current)
-  const { templates } = useTemplates()
+  const { templates, saveTemplate } = useTemplates()
+  const weekRange = React.useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const dow = (today.getDay() + 6) % 7
+    const from = new Date(today)
+    from.setDate(today.getDate() - dow)
+    const to = new Date(from)
+    to.setDate(from.getDate() + 6)
+    return { from, to }
+  }, [])
+  const { assignments, setAssignment, clearAssignment } = useAssignments(
+    weekRange.from,
+    weekRange.to
+  )
   const [openModal, setOpenModal] = React.useState(false)
   const [closeModal, setCloseModal] = React.useState(false)
+  const [templateEdit, setTemplateEdit] = React.useState<ShiftTemplate | null>(null)
+  const [cellEdit, setCellEdit] = React.useState<{
+    date: string
+    templateId: string
+    templateName: string
+    currentStaffId: string
+    isOverride: boolean
+    defaultStaffId: string
+  } | null>(null)
   const [tick, setTick] = React.useState(0)
+
+  // Tổng hợp số liệu theo nhân viên từ lịch sử ca
+  const staffStats = React.useMemo(() => {
+    const m: Record<string, { shifts: number; revenue: number; txCount: number }> = {}
+    shifts.forEach((s) => {
+      if (!m[s.staffId]) m[s.staffId] = { shifts: 0, revenue: 0, txCount: 0 }
+      m[s.staffId].shifts += 1
+      m[s.staffId].revenue += Number(s.revenue) || 0
+      m[s.staffId].txCount += Number(s.txCount) || 0
+    })
+    return m
+  }, [shifts])
 
   React.useEffect(() => {
     if (!current) return
@@ -1317,230 +1352,346 @@ function WebShiftPage({
         )
       )}
 
-      {/* Nhân viên & Khung ca cố định */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1.4fr",
-          gap: 20,
-          marginBottom: 22,
-        }}
+      {/* Nhân viên — full-width, 2-col grid */}
+      <WSection
+        title="Nhân viên"
+        sub={`${STAFF_LIST.length} nhân viên đang hoạt động`}
       >
-        <WSection title="Nhân viên" sub={`${STAFF_LIST.length} người đang làm việc`}>
-          <div
-            style={{
-              background: HX.surface,
-              border: `1px solid ${HX.hairline}`,
-              borderRadius: 14,
-              padding: 14,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            {STAFF_LIST.map((s) => {
-              const isOnShift = current?.staffId === s.id
-              return (
-                <div
-                  key={s.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: 8,
-                    borderRadius: 10,
-                    background: isOnShift ? HX.accentSoft : "transparent",
-                    border: isOnShift
-                      ? `1px solid rgba(6,214,160,0.32)`
-                      : `1px solid transparent`,
-                  }}
-                >
-                  <Avatar initials={s.initials} size={32} color={s.color} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</div>
-                    <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
-                      {s.role}
-                    </div>
-                  </div>
-                  {isOnShift && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        background: HX.good,
-                        color: "#fff",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      ĐANG TRỰC
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </WSection>
-
-        <WSection
-          title="Khung ca cố định"
-          sub="Lặp lại mỗi ngày · nhân viên mặc định"
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {templates.length === 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
+          {STAFF_LIST.map((s) => {
+            const stats = staffStats[s.id] || { shifts: 0, revenue: 0, txCount: 0 }
+            const isOnShift = current?.staffId === s.id
+            return (
               <div
+                key={s.id}
                 style={{
-                  padding: 30,
-                  textAlign: "center",
                   background: HX.surface,
-                  border: `1px dashed ${HX.hairlineStrong}`,
-                  borderRadius: 12,
-                  color: HX.text3,
-                  fontSize: 13,
+                  border: isOnShift
+                    ? `1px solid ${HX.accent}66`
+                    : `1px solid ${HX.hairline}`,
+                  borderRadius: 14,
+                  padding: 18,
+                  position: "relative",
                 }}
               >
-                Chưa có khung ca
-              </div>
-            ) : (
-              templates.map((t) => {
-                const staff = STAFF_LIST.find((s) => s.id === t.default_staff_id)
-                const color = TEMPLATE_COLOR_MAP[t.color] || HX.accent
-                const isNow = isTemplateActiveNow(t)
-                return (
-                  <div
-                    key={t.id}
+                {isOnShift && (
+                  <span
                     style={{
-                      position: "relative",
-                      overflow: "hidden",
-                      padding: 14,
-                      borderRadius: 12,
-                      background: HX.surface,
-                      border: isNow
-                        ? `1px solid ${color}88`
-                        : `1px solid ${HX.hairline}`,
-                      opacity: t.active ? 1 : 0.55,
-                      display: "flex",
+                      position: "absolute",
+                      top: 14,
+                      right: 14,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: "3px 9px",
+                      borderRadius: 999,
+                      background: HX.accentSoft,
+                      color: HX.accent,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      display: "inline-flex",
                       alignItems: "center",
-                      gap: 14,
+                      gap: 5,
                     }}
                   >
                     <span
                       style={{
-                        position: "absolute",
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: 3,
-                        background: color,
+                        width: 6,
+                        height: 6,
+                        borderRadius: 3,
+                        background: HX.accent,
                       }}
                     />
-                    <div style={{ paddingLeft: 8, flex: 1, minWidth: 0 }}>
-                      <div
+                    Đang trực
+                  </span>
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <Avatar initials={s.initials} size={48} color={s.color} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 700,
+                        letterSpacing: "-0.01em",
+                      }}
+                    >
+                      {s.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: HX.text3,
+                        marginTop: 4,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span
                         style={{
-                          display: "flex",
+                          display: "inline-flex",
                           alignItems: "center",
-                          gap: 8,
-                          flexWrap: "wrap",
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background: HX.bg,
+                          border: `1px solid ${HX.hairlineStrong}`,
+                          color: HX.text2,
+                          fontWeight: 600,
+                          fontSize: 11,
                         }}
                       >
-                        <Icon name="clock" size={13} color={color} />
-                        <span style={{ fontSize: 14, fontWeight: 700 }}>{t.name}</span>
-                        {isNow && (
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              padding: "2px 7px",
-                              borderRadius: 999,
-                              background: color + "22",
-                              color,
-                              letterSpacing: "0.06em",
-                              textTransform: "uppercase",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 5,
-                                height: 5,
-                                borderRadius: 3,
-                                background: color,
-                              }}
-                            />
-                            Đang diễn ra
-                          </span>
-                        )}
-                        {!t.active && (
-                          <span
-                            style={{
-                              fontSize: 10,
-                              color: HX.text3,
-                              fontWeight: 600,
-                              letterSpacing: "0.06em",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            Tắt
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className="hx-num"
+                        {s.role}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 16,
+                    paddingTop: 14,
+                    borderTop: `1px solid ${HX.hairline}`,
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: 12,
+                  }}
+                >
+                  <StaffStat label="Tổng ca" value={String(stats.shifts)} />
+                  <StaffStat label="Giao dịch" value={fmtNum(stats.txCount)} />
+                  <StaffStat
+                    label="Doanh thu"
+                    value={stats.revenue > 0 ? fmtBig(stats.revenue) : "—"}
+                    color={stats.revenue > 0 ? HX.good : HX.text3}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </WSection>
+
+      {/* Khung ca cố định — full-width, 3-col grid */}
+      <WSection
+        title="Khung ca cố định"
+        sub="Lặp lại mỗi ngày · gán nhân viên mặc định cho từng khung"
+      >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+          {templates.length === 0 ? (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                padding: 30,
+                textAlign: "center",
+                background: HX.surface,
+                border: `1px dashed ${HX.hairlineStrong}`,
+                borderRadius: 12,
+                color: HX.text3,
+                fontSize: 13,
+              }}
+            >
+              Chưa có khung ca
+            </div>
+          ) : (
+            templates.map((t) => {
+              const staff = STAFF_LIST.find((s) => s.id === t.default_staff_id)
+              const color = TEMPLATE_COLOR_MAP[t.color] || HX.accent
+              const isNow = t.active === 1 && isTemplateActiveNow(t)
+              return (
+                <div
+                  key={t.id}
+                  onClick={() => setTemplateEdit(t)}
+                  className="hxw-press"
+                  style={{
+                    background: HX.surface,
+                    border: isNow
+                      ? `1px solid ${color}88`
+                      : `1px solid ${HX.hairline}`,
+                    borderRadius: 14,
+                    padding: 18,
+                    cursor: "pointer",
+                    position: "relative",
+                    overflow: "hidden",
+                    opacity: t.active ? 1 : 0.55,
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 4,
+                      background: color,
+                    }}
+                  />
+                  {isNow && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 14,
+                        right: 14,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: "3px 9px",
+                        borderRadius: 999,
+                        background: color + "22",
+                        color,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                      }}
+                    >
+                      <span
                         style={{
-                          fontSize: 20,
-                          fontWeight: 800,
-                          color,
-                          letterSpacing: "-0.02em",
-                          marginTop: 6,
+                          width: 6,
+                          height: 6,
+                          borderRadius: 3,
+                          background: color,
                         }}
+                      />
+                      Đang diễn ra
+                    </span>
+                  )}
+                  <div style={{ paddingLeft: 8 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <Icon name="clock" size={16} color={color} />
+                      <div
+                        style={{ fontSize: 15, fontWeight: 700, color: HX.text }}
                       >
-                        {String(t.start_hour).padStart(2, "0")}:
-                        {String(t.start_minute).padStart(2, "0")}
-                        <span style={{ color: HX.text3, fontWeight: 500 }}> → </span>
-                        {String(t.end_hour).padStart(2, "0")}:
-                        {String(t.end_minute).padStart(2, "0")}
+                        {t.name}
+                      </div>
+                      {!t.active && (
                         <span
+                          style={{
+                            fontSize: 10,
+                            color: HX.text3,
+                            fontWeight: 600,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Tắt
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className="hx-num"
+                      style={{
+                        fontSize: 22,
+                        fontWeight: 800,
+                        color,
+                        letterSpacing: "-0.02em",
+                        marginTop: 6,
+                      }}
+                    >
+                      {String(t.start_hour).padStart(2, "0")}:
+                      {String(t.start_minute).padStart(2, "0")}
+                      <span style={{ color: HX.text3, fontWeight: 500 }}> → </span>
+                      {String(t.end_hour).padStart(2, "0")}:
+                      {String(t.end_minute).padStart(2, "0")}
+                    </div>
+                    <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
+                      {fmtTmplDuration(t)}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 14,
+                        paddingTop: 12,
+                        borderTop: `1px solid ${HX.hairline}`,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      {staff ? (
+                        <>
+                          <Avatar initials={staff.initials} size={28} color={staff.color} />
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 11, color: HX.text3 }}>
+                              Nhân viên mặc định
+                            </div>
+                            <div
+                              style={{ fontSize: 13, fontWeight: 600, marginTop: 1 }}
+                            >
+                              {staff.name}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div
                           style={{
                             fontSize: 12,
                             color: HX.text3,
-                            fontWeight: 500,
-                            marginLeft: 10,
+                            fontStyle: "italic",
                           }}
                         >
-                          {fmtTmplDuration(t)}
-                        </span>
-                      </div>
-                      <div
+                          Chưa gán nhân viên mặc định
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          saveTemplate(t.id, { active: t.active ? 0 : 1 })
+                        }}
+                        title={t.active ? "Tạm tắt khung này" : "Bật lại khung này"}
+                        className="hxw-press"
                         style={{
-                          display: "flex",
+                          width: 32,
+                          height: 32,
+                          borderRadius: 7,
+                          background: HX.bg,
+                          border: `1px solid ${HX.hairlineStrong}`,
+                          cursor: "pointer",
+                          display: "inline-flex",
                           alignItems: "center",
-                          gap: 8,
-                          marginTop: 8,
+                          justifyContent: "center",
                         }}
                       >
-                        <Avatar
-                          initials={staff?.initials || "?"}
-                          size={24}
-                          color={staff?.color}
-                        />
-                        <span style={{ fontSize: 12, color: HX.text2 }}>
-                          Mặc định:
+                        <span
+                          style={{
+                            width: 20,
+                            height: 11,
+                            borderRadius: 999,
+                            padding: 1,
+                            background: t.active ? HX.good : HX.hairlineStrong,
+                            display: "flex",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 9,
+                              height: 9,
+                              borderRadius: 999,
+                              background: "#fff",
+                              transform: t.active
+                                ? "translateX(9px)"
+                                : "translateX(0)",
+                              transition: "transform .15s",
+                            }}
+                          />
                         </span>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>
-                          {staff?.name || "—"}
-                        </span>
-                      </div>
+                      </button>
                     </div>
                   </div>
-                )
-              })
-            )}
-          </div>
-        </WSection>
-      </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </WSection>
+
+      {/* Lịch ca trong tuần — full-width 7-day grid */}
+      <WeeklyScheduleWeb
+        templates={templates}
+        from={weekRange.from}
+        to={weekRange.to}
+        assignments={assignments}
+        currentShiftStaffId={current?.staffId}
+        onCellClick={(c) => setCellEdit(c)}
+      />
 
       {/* History */}
       <WSection
@@ -1666,7 +1817,675 @@ function WebShiftPage({
           }}
         />
       )}
+      {templateEdit && (
+        <TemplateEditModal
+          template={templateEdit}
+          onClose={() => setTemplateEdit(null)}
+          onSave={async (patch) => {
+            await saveTemplate(templateEdit.id, patch)
+            setTemplateEdit(null)
+          }}
+        />
+      )}
+      {cellEdit && (
+        <CellEditModal
+          cell={cellEdit}
+          onClose={() => setCellEdit(null)}
+          onPick={async (staffId) => {
+            if (staffId === cellEdit.defaultStaffId && cellEdit.isOverride) {
+              await clearAssignment(cellEdit.date, cellEdit.templateId)
+            } else if (staffId !== cellEdit.defaultStaffId) {
+              await setAssignment(cellEdit.date, cellEdit.templateId, staffId)
+            }
+            setCellEdit(null)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+// ── Small helpers ─────────────────────────────────────────────
+function StaffStat({
+  label,
+  value,
+  color,
+}: {
+  label: string
+  value: string
+  color?: string
+}) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 10,
+          color: HX.text3,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        className="hx-num"
+        style={{ fontSize: 16, fontWeight: 700, marginTop: 3, color: color || HX.text }}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
+// ── Weekly schedule (web) ─────────────────────────────────────
+function WeeklyScheduleWeb({
+  templates,
+  from,
+  to,
+  assignments,
+  currentShiftStaffId,
+  onCellClick,
+}: {
+  templates: ShiftTemplate[]
+  from: Date
+  to: Date
+  assignments: ShiftAssignment[]
+  currentShiftStaffId?: string
+  onCellClick: (cell: {
+    date: string
+    templateId: string
+    templateName: string
+    currentStaffId: string
+    isOverride: boolean
+    defaultStaffId: string
+  }) => void
+}) {
+  const active = templates.filter((t) => t.active)
+  const days = React.useMemo(() => {
+    const arr: Date[] = []
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(from)
+      d.setDate(from.getDate() + i)
+      arr.push(d)
+    }
+    return arr
+  }, [from])
+  const overrideMap = React.useMemo(() => {
+    const m = new Map<string, string>()
+    assignments.forEach((a) =>
+      m.set(`${a.assign_date}::${a.template_id}`, a.staff_id)
+    )
+    return m
+  }, [assignments])
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const p = (n: number) => String(n).padStart(2, "0")
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  const todayKey = ymd(today)
+  const wd = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+
+  if (active.length === 0) return null
+
+  return (
+    <WSection
+      title="Lịch ca trong tuần"
+      sub="Bấm vào ô để đổi nhân viên hoặc khôi phục mặc định"
+      right={
+        <span style={{ fontSize: 12, color: HX.text3 }}>
+          {p(from.getDate())}/{p(from.getMonth() + 1)} →{" "}
+          {p(to.getDate())}/{p(to.getMonth() + 1)}
+        </span>
+      }
+    >
+      <div
+        style={{
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 14,
+          overflow: "hidden",
+        }}
+      >
+        {/* Day header */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "170px repeat(7, 1fr)",
+            background: HX.bg,
+            borderBottom: `1px solid ${HX.hairline}`,
+          }}
+        >
+          <div
+            style={{
+              padding: "12px 16px",
+              fontSize: 11,
+              color: HX.text3,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Khung ca
+          </div>
+          {days.map((d, i) => {
+            const isToday = ymd(d) === todayKey
+            return (
+              <div
+                key={i}
+                style={{
+                  padding: "12px 10px",
+                  textAlign: "center",
+                  background: isToday ? HX.accentSoft : "transparent",
+                  borderLeft: `1px solid ${HX.hairline}`,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: isToday ? HX.accent : HX.text3,
+                    fontWeight: 600,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {wd[i]}
+                </div>
+                <div
+                  className="hx-num"
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    marginTop: 2,
+                    color: isToday ? HX.accent : HX.text,
+                  }}
+                >
+                  {p(d.getDate())}/{p(d.getMonth() + 1)}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Rows per template */}
+        {active.map((t, ti) => {
+          const color = TEMPLATE_COLOR_MAP[t.color] || HX.accent
+          return (
+            <div
+              key={t.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "170px repeat(7, 1fr)",
+                borderBottom:
+                  ti < active.length - 1 ? `1px solid ${HX.hairline}` : "none",
+              }}
+            >
+              <div
+                style={{
+                  padding: "14px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  background: HX.bg,
+                }}
+              >
+                <span style={{ width: 4, height: 32, background: color, borderRadius: 2 }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{t.name}</div>
+                  <div
+                    className="hx-num"
+                    style={{ fontSize: 11, color: HX.text3, marginTop: 1 }}
+                  >
+                    {p(t.start_hour)}:{p(t.start_minute)}–{p(t.end_hour)}:
+                    {p(t.end_minute)}
+                  </div>
+                </div>
+              </div>
+
+              {days.map((d, di) => {
+                const dk = ymd(d)
+                const isToday = dk === todayKey
+                const overrideId = overrideMap.get(`${dk}::${t.id}`)
+                const staffId = overrideId || t.default_staff_id
+                const s = STAFF_LIST.find((x) => x.id === staffId)
+                const isOverride = !!overrideId
+                const isCurrent =
+                  isToday && currentShiftStaffId === staffId && isTemplateActiveNow(t)
+                return (
+                  <div
+                    key={di}
+                    onClick={() =>
+                      onCellClick({
+                        date: dk,
+                        templateId: t.id,
+                        templateName: t.name,
+                        currentStaffId: staffId,
+                        isOverride,
+                        defaultStaffId: t.default_staff_id,
+                      })
+                    }
+                    className="hxw-press"
+                    style={{
+                      padding: "10px 8px",
+                      cursor: "pointer",
+                      borderLeft: `1px solid ${HX.hairline}`,
+                      background: isToday ? "rgba(6,214,160,0.05)" : "transparent",
+                      position: "relative",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "8px 6px",
+                        borderRadius: 8,
+                        background: isOverride ? HX.accentSoft : "transparent",
+                        border: isOverride
+                          ? `1px dashed ${HX.accent}66`
+                          : "none",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Avatar initials={s?.initials || "?"} size={28} color={s?.color} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {s?.name || "—"}
+                        </div>
+                        <div style={{ fontSize: 9, color: HX.text3, marginTop: 1 }}>
+                          {isOverride ? "Đã đổi" : "Mặc định"}
+                          {isCurrent && " · Đang trực"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 18,
+          marginTop: 10,
+          fontSize: 11,
+          color: HX.text3,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: 4,
+              background: HX.accentSoft,
+              border: `1px dashed ${HX.accent}66`,
+            }}
+          />
+          Đã đổi nhân viên
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 14, height: 14, borderRadius: 4, background: HX.accentSoft }} />
+          Hôm nay
+        </span>
+      </div>
+    </WSection>
+  )
+}
+
+// ── Modal: edit shift template ────────────────────────────────
+function TemplateEditModal({
+  template,
+  onClose,
+  onSave,
+}: {
+  template: ShiftTemplate
+  onClose: () => void
+  onSave: (patch: Partial<ShiftTemplate>) => void
+}) {
+  const [name, setName] = React.useState(template.name)
+  const [startH, setStartH] = React.useState(String(template.start_hour))
+  const [startM, setStartM] = React.useState(String(template.start_minute))
+  const [endH, setEndH] = React.useState(String(template.end_hour))
+  const [endM, setEndM] = React.useState(String(template.end_minute))
+  const [defaultStaffId, setDefaultStaffId] = React.useState(template.default_staff_id)
+  const [color, setColor] = React.useState(template.color)
+  const [active, setActive] = React.useState(!!template.active)
+
+  return (
+    <ModalShell onClose={onClose} width={560}>
+      <div
+        style={{
+          padding: "22px 26px",
+          borderBottom: `1px solid ${HX.hairline}`,
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 11,
+            background: TEMPLATE_COLOR_MAP[color] + "22",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Icon name="clock" size={20} color={TEMPLATE_COLOR_MAP[color] || HX.accent} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>Chỉnh khung ca</div>
+          <div style={{ fontSize: 12, color: HX.text3, marginTop: 2 }}>{template.name}</div>
+        </div>
+      </div>
+      <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 18 }}>
+        <div>
+          <Label>Tên khung</Label>
+          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle()} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div>
+            <Label>Giờ bắt đầu</Label>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                value={startH}
+                onChange={(e) => setStartH(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                inputMode="numeric"
+                className="hx-num"
+                style={{ ...inputStyle(true), textAlign: "center" }}
+              />
+              <span style={{ color: HX.text3 }}>:</span>
+              <input
+                value={startM}
+                onChange={(e) => setStartM(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                inputMode="numeric"
+                className="hx-num"
+                style={{ ...inputStyle(true), textAlign: "center" }}
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Giờ kết thúc</Label>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                value={endH}
+                onChange={(e) => setEndH(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                inputMode="numeric"
+                className="hx-num"
+                style={{ ...inputStyle(true), textAlign: "center" }}
+              />
+              <span style={{ color: HX.text3 }}>:</span>
+              <input
+                value={endM}
+                onChange={(e) => setEndM(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                inputMode="numeric"
+                className="hx-num"
+                style={{ ...inputStyle(true), textAlign: "center" }}
+              />
+            </div>
+          </div>
+        </div>
+        <div>
+          <Label>Nhân viên mặc định</Label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {STAFF_LIST.map((s) => {
+              const on = defaultStaffId === s.id
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => setDefaultStaffId(s.id)}
+                  className="hxw-press"
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    background: on ? HX.accentSoft : HX.bg,
+                    border: on ? `1.5px solid ${HX.accent}` : `1px solid ${HX.hairline}`,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <Avatar initials={s.initials} size={30} color={s.color} />
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        <div>
+          <Label>Màu khung</Label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {Object.entries(TEMPLATE_COLOR_MAP).map(([k, c]) => (
+              <div
+                key={k}
+                onClick={() => setColor(k)}
+                className="hxw-press"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  background: c,
+                  cursor: "pointer",
+                  border:
+                    color === k ? `2px solid #fff` : `2px solid transparent`,
+                  boxShadow: color === k ? `0 0 0 2px ${c}55` : "none",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <div
+          onClick={() => setActive((v) => !v)}
+          className="hxw-press"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "12px 14px",
+            borderRadius: 10,
+            background: HX.bg,
+            border: `1px solid ${HX.hairlineStrong}`,
+            cursor: "pointer",
+          }}
+        >
+          <span
+            style={{
+              width: 28,
+              height: 16,
+              borderRadius: 999,
+              padding: 2,
+              background: active ? HX.good : HX.hairlineStrong,
+              display: "flex",
+              transition: "background .15s",
+            }}
+          >
+            <span
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 999,
+                background: "#fff",
+                transform: active ? "translateX(12px)" : "translateX(0)",
+                transition: "transform .15s",
+              }}
+            />
+          </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Khung đang bật</div>
+            <div style={{ fontSize: 11, color: HX.text3, marginTop: 1 }}>
+              Tắt để loại khung khỏi lịch tuần
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        style={{
+          padding: "18px 26px",
+          borderTop: `1px solid ${HX.hairline}`,
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 10,
+          background: HX.bg,
+        }}
+      >
+        <PillBtn size="lg" onClick={onClose}>
+          Huỷ
+        </PillBtn>
+        <PillBtn
+          primary
+          size="lg"
+          onClick={() =>
+            onSave({
+              name: name.trim() || template.name,
+              start_hour: Number(startH) || 0,
+              start_minute: Number(startM) || 0,
+              end_hour: Number(endH) || 0,
+              end_minute: Number(endM) || 0,
+              default_staff_id: defaultStaffId,
+              color,
+              active: active ? 1 : 0,
+            })
+          }
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14">
+            <path
+              d="m2.5 7 3 3 6-7"
+              stroke="#fff"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Lưu
+        </PillBtn>
+      </div>
+    </ModalShell>
+  )
+}
+
+// ── Modal: cell override (web) ────────────────────────────────
+function CellEditModal({
+  cell,
+  onClose,
+  onPick,
+}: {
+  cell: {
+    date: string
+    templateId: string
+    templateName: string
+    currentStaffId: string
+    isOverride: boolean
+    defaultStaffId: string
+  }
+  onClose: () => void
+  onPick: (staffId: string) => void
+}) {
+  return (
+    <ModalShell onClose={onClose} width={480}>
+      <div
+        style={{
+          padding: "22px 26px",
+          borderBottom: `1px solid ${HX.hairline}`,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            color: HX.text3,
+            fontWeight: 600,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          {cell.templateName} · {cell.date}
+        </div>
+        <div style={{ fontSize: 17, fontWeight: 700, marginTop: 4 }}>
+          Chọn nhân viên trực
+        </div>
+      </div>
+      <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 8 }}>
+        {STAFF_LIST.map((s) => {
+          const on = s.id === cell.currentStaffId
+          const isDef = s.id === cell.defaultStaffId
+          return (
+            <div
+              key={s.id}
+              onClick={() => onPick(s.id)}
+              className="hxw-press"
+              style={{
+                padding: 12,
+                borderRadius: 12,
+                background: on ? HX.accentSoft : HX.bg,
+                border: on ? `1.5px solid ${HX.accent}` : `1px solid ${HX.hairline}`,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                cursor: "pointer",
+              }}
+            >
+              <Avatar initials={s.initials} size={36} color={s.color} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
+                <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
+                  {s.role}
+                  {isDef ? " · Mặc định" : ""}
+                </div>
+              </div>
+              {on && (
+                <Icon name="chevron" size={14} color={HX.accent} strokeWidth={2.4} />
+              )}
+            </div>
+          )
+        })}
+        {cell.isOverride && (
+          <div
+            onClick={() => onPick(cell.defaultStaffId)}
+            className="hxw-press"
+            style={{
+              padding: 12,
+              borderRadius: 12,
+              border: `1px dashed ${HX.hairlineStrong}`,
+              textAlign: "center",
+              fontSize: 13,
+              fontWeight: 600,
+              color: HX.text2,
+              cursor: "pointer",
+            }}
+          >
+            Khôi phục mặc định
+          </div>
+        )}
+      </div>
+      <div
+        style={{
+          padding: "16px 26px",
+          borderTop: `1px solid ${HX.hairline}`,
+          display: "flex",
+          justifyContent: "flex-end",
+          background: HX.bg,
+        }}
+      >
+        <PillBtn size="lg" onClick={onClose}>
+          Đóng
+        </PillBtn>
+      </div>
+    </ModalShell>
   )
 }
 
