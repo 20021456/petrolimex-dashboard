@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { type DateRange } from "react-day-picker"
 import { X, PanelLeftClose, PanelLeftOpen, RefreshCw, Plus, Search } from "lucide-react"
+import { DonGiaContent } from "@/components/donggia-content"
 import { usePriceDialog } from "@/components/global-price-dialog"
 import {
   DndContext,
@@ -100,7 +101,8 @@ function SortableSection({
 }
 
 export default function Page() {
-  const { openPriceDialog } = usePriceDialog()
+  const { openPriceDialog: _legacyOpenPriceDialog } = usePriceDialog()
+  void _legacyOpenPriceDialog
   const isMobile = useIsMobile()
   const [updatedLabel, setUpdatedLabel] = React.useState("")
   const [stats, setStats] = React.useState<any>(null)
@@ -273,6 +275,7 @@ export default function Page() {
     chitiet: "Báo cáo",
     kho: "Bán hàng",
     tonkho: "Tồn kho",
+    gia: "Đơn giá",
     giaoca: "Ca bán hàng",
     khachquen: "Công nợ",
     revenue: "Doanh Thu",
@@ -288,6 +291,7 @@ export default function Page() {
     kho: "Bán lẻ sản phẩm tại quầy",
     tonkho: "Cảm biến bồn + kho bán lẻ",
     giaoca: "Mở / đóng ca làm việc",
+    gia: "Cập nhật giá xăng dầu & bán lẻ",
     khachquen: "Theo dõi & thu nợ khách quen",
   }
 
@@ -300,7 +304,7 @@ export default function Page() {
         <AppSidebar
           activeView={activeView}
           onViewChange={setActiveView}
-          onPriceClick={openPriceDialog}
+          onPriceClick={() => setActiveView("gia")}
         />
       )}
       <SidebarInset>
@@ -457,6 +461,8 @@ export default function Page() {
             <CaBanHangContent onNavigate={setActiveView} />
           ) : activeView === "khachquen" ? (
             <CongNoContent />
+          ) : activeView === "gia" ? (
+            <DonGiaContent />
           ) : (
             <DashboardHome onNavigate={setActiveView} />
           )}
@@ -465,7 +471,7 @@ export default function Page() {
           <MobileTabBar
             activeView={activeView}
             onNavigate={setActiveView}
-            onPriceClick={openPriceDialog}
+            onPriceClick={() => setActiveView("gia")}
           />
         )}
       </SidebarInset>
