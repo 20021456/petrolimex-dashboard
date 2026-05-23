@@ -24,6 +24,10 @@ export interface PosProduct {
   name: string
   cat: string
   price: number
+  stock: number
+  min_stock: number
+  unit: string
+  low: boolean
   icon: PosIcon
   color: string
 }
@@ -39,16 +43,88 @@ const CAT_STYLE: Record<string, { icon: PosIcon; color: string }> = {
   Khác: { icon: "receipt", color: HX.accent },
 }
 
-export const POS_PRODUCTS: PosProduct[] = RETAIL_STOCK.map((p) => ({
+function catStyle(cat: string) {
+  return CAT_STYLE[cat] || CAT_STYLE["Khác"]
+}
+
+// Catalog fallback (dùng khi DB chưa kết nối; được seed vào /api/retail-products
+// lần đầu request)
+export const POS_PRODUCTS_SEED: PosProduct[] = RETAIL_STOCK.map((p) => ({
   sku: p.sku,
   name: p.name,
   cat: p.cat,
   price: p.price,
-  icon: (CAT_STYLE[p.cat] || CAT_STYLE["Khác"]).icon,
-  color: (CAT_STYLE[p.cat] || CAT_STYLE["Khác"]).color,
+  stock: (p as any).stock ?? 0,
+  min_stock: (p as any).min ?? 0,
+  unit: "cái",
+  low: (p as any).low === true || ((p as any).stock ?? 0) <= ((p as any).min ?? 0),
+  ...catStyle(p.cat),
 }))
 
 export const POS_CATS = RETAIL_CATS
+
+// Hook lấy live catalog + tồn kho từ /api/retail-products
+export function useRetailProducts() {
+  const [products, setProducts] = React.useState<PosProduct[]>(POS_PRODUCTS_SEED)
+  const [loading, setLoading] = React.useState(true)
+
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch("/api/retail-products", { cache: "no-store" }).then((x) =>
+        x.json()
+      )
+      if (r?.success && Array.isArray(r.data) && r.data.length > 0) {
+        setProducts(
+          r.data.map((p: any) => ({
+            sku: String(p.sku),
+            name: String(p.name),
+            cat: String(p.cat || "Khác"),
+            price: Number(p.price) || 0,
+            stock: Number(p.stock) || 0,
+            min_stock: Number(p.min_stock) || 0,
+            unit: String(p.unit || "cái"),
+            low: !!p.low,
+            ...catStyle(p.cat),
+          }))
+        )
+      }
+    } catch {
+      /* keep seed fallback */
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    reload()
+  }, [reload])
+
+  return { products, loading, reload }
+}
+
+// Hook gợi ý khách hàng từ /api/khachquen
+export function useCustomers() {
+  const [customers, setCustomers] = React.useState<string[]>([])
+
+  React.useEffect(() => {
+    let alive = true
+    fetch("/api/khachquen", { cache: "no-store" })
+      .then((x) => x.json())
+      .then((r) => {
+        if (!alive) return
+        if (r?.success && Array.isArray(r.data)) {
+          setCustomers(r.data.map((c: any) => String(c.ten || "")).filter(Boolean))
+        }
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  return customers
+}
 
 export const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
 
@@ -60,7 +136,7 @@ function saleTimeStr(d: Date) {
 }
 
 // ── Shared POS state + save logic (web + mobile) ──────────────
-export function usePos() {
+export function usePos(products: PosProduct[], onSaved?: () => void) {
   const [cart, setCart] = React.useState<CartItem[]>([])
   const [customer, setCustomer] = React.useState("")
   const [status, setStatus] = React.useState<PayStatus>("paid")
@@ -94,7 +170,7 @@ export function usePos() {
   }
 
   const cartLines = cart.map((c) => {
-    const product = POS_PRODUCTS.find((x) => x.sku === c.sku)!
+    const product = products.find((x) => x.sku === c.sku)!
     return { ...c, product, lineTotal: product.price * c.qty }
   })
   const total = cartLines.reduce((s, l) => s + l.lineTotal, 0)
@@ -126,9 +202,10 @@ export function usePos() {
             customer_name: customer.trim(),
             seller_name: "",
             item_name: l.product.name,
+            sku: l.product.sku,
             category: "retail",
             quantity: l.qty,
-            unit: "cái",
+            unit: l.product.unit || "cái",
             unit_price: l.product.price,
             total_amount: l.lineTotal,
             sale_time,
@@ -143,6 +220,7 @@ export function usePos() {
         `Đã lưu ${cartLines.length} mặt hàng (${itemCount} SP) · ${fmtVN(total)} ₫`
       )
       clearCart()
+      onSaved?.()
     } catch (e: any) {
       toast.error(e?.message || "Có lỗi xảy ra")
     } finally {
@@ -201,7 +279,9 @@ const PAY_OPTIONS: { k: PayStatus; l: string; c: string }[] = [
 
 // ── Web POS ───────────────────────────────────────────────────
 function PosPageWeb() {
-  const pos = usePos()
+  const { products, reload: reloadProducts } = useRetailProducts()
+  const customers = useCustomers()
+  const pos = usePos(products, reloadProducts)
   const {
     cart,
     customer,
@@ -227,7 +307,7 @@ function PosPageWeb() {
   const [search, setSearch] = React.useState("")
   const [cat, setCat] = React.useState("all")
 
-  const filtered = POS_PRODUCTS.filter((p) => {
+  const filtered = products.filter((p) => {
     const matchSearch =
       !search || (p.name + p.sku + p.cat).toLowerCase().includes(search.toLowerCase())
     const matchCat = cat === "all" || p.cat === cat
@@ -301,8 +381,8 @@ function PosPageWeb() {
             {POS_CATS.map((c) => {
               const count =
                 c.k === "all"
-                  ? POS_PRODUCTS.length
-                  : POS_PRODUCTS.filter((p) => p.cat === c.k).length
+                  ? products.length
+                  : products.filter((p) => p.cat === c.k).length
               const on = cat === c.k
               return (
                 <div
@@ -721,7 +801,8 @@ function PosPageWeb() {
                   <input
                     value={customer}
                     onChange={(e) => setCustomer(e.target.value)}
-                    placeholder="Tên khách…"
+                    list="pos-khach-quen"
+                    placeholder="Tên khách… (gợi ý từ Công nợ)"
                     style={{
                       flex: 1,
                       height: 36,
@@ -735,6 +816,11 @@ function PosPageWeb() {
                       outline: "none",
                     }}
                   />
+                  <datalist id="pos-khach-quen">
+                    {customers.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
                   <div
                     onClick={() => setCustomer("Khách lẻ")}
                     className="hxw-press"

@@ -7,13 +7,15 @@
 
 import * as React from "react"
 import { HX, Icon, fuelKind, Tank, Donut, ProgressBar } from "@/components/htx-kit"
-import { RETAIL_STOCK, RETAIL_CATS } from "@/components/stock-page"
+import { RETAIL_CATS } from "@/components/stock-page"
+import { type PosProduct } from "@/components/pos-page"
 
 interface StockPageMobileProps {
   tanksRaw: any[]
   home: any
   loading: boolean
   onNavigate?: (view: string) => void
+  retailProducts: PosProduct[]
 }
 
 const KIND_COLOR: Record<string, string> = {
@@ -49,7 +51,13 @@ function MCard({
   )
 }
 
-export function StockPageMobile({ tanksRaw, home, loading, onNavigate }: StockPageMobileProps) {
+export function StockPageMobile({
+  tanksRaw,
+  home,
+  loading,
+  onNavigate,
+  retailProducts,
+}: StockPageMobileProps) {
   const [tab, setTab] = React.useState<"fuel" | "retail">("fuel")
   const [cat, setCat] = React.useState("all")
 
@@ -88,10 +96,10 @@ export function StockPageMobile({ tanksRaw, home, loading, onNavigate }: StockPa
   const tankPct = tankCap > 0 ? Math.round((tankTotal / tankCap) * 100) : 0
   const lowCount = tankCards.filter((t) => t.low).length
 
-  const retailFiltered = cat === "all" ? RETAIL_STOCK : RETAIL_STOCK.filter((p) => p.cat === cat)
-  const retailLow = RETAIL_STOCK.filter((p) => p.low).length
-  const catCounts: Record<string, number> = { all: RETAIL_STOCK.length }
-  RETAIL_STOCK.forEach((p) => {
+  const retailFiltered = cat === "all" ? retailProducts : retailProducts.filter((p) => p.cat === cat)
+  const retailLow = retailProducts.filter((p) => p.low).length
+  const catCounts: Record<string, number> = { all: retailProducts.length }
+  retailProducts.forEach((p) => {
     catCounts[p.cat] = (catCounts[p.cat] || 0) + 1
   })
 
@@ -109,7 +117,7 @@ export function StockPageMobile({ tanksRaw, home, loading, onNavigate }: StockPa
       >
         {[
           { k: "fuel" as const, t: "Xăng dầu", c: tankCards.length || 4 },
-          { k: "retail" as const, t: "Bán lẻ", c: RETAIL_STOCK.length },
+          { k: "retail" as const, t: "Bán lẻ", c: retailProducts.length },
         ].map((o) => (
           <div
             key={o.k}
@@ -252,7 +260,7 @@ export function StockPageMobile({ tanksRaw, home, loading, onNavigate }: StockPa
           <MCard padding={16}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontSize: 13, color: HX.text2 }}>{RETAIL_STOCK.length} sản phẩm</div>
+                <div style={{ fontSize: 13, color: HX.text2 }}>{retailProducts.length} sản phẩm</div>
                 <div className="hx-num" style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
                   {retailLow} sắp hết
                 </div>
@@ -387,7 +395,7 @@ export function StockPageMobile({ tanksRaw, home, loading, onNavigate }: StockPa
                         {p.stock}
                         <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}>
                           {" "}
-                          / min {p.min}
+                          / min {p.min_stock}
                         </span>
                       </span>
                     </div>

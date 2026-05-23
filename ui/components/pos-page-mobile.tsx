@@ -7,7 +7,14 @@
 
 import * as React from "react"
 import { HX, Icon } from "@/components/htx-kit"
-import { usePos, POS_PRODUCTS, POS_CATS, fmtVN, type PayStatus } from "@/components/pos-page"
+import {
+  usePos,
+  useRetailProducts,
+  useCustomers,
+  POS_CATS,
+  fmtVN,
+  type PayStatus,
+} from "@/components/pos-page"
 
 const TABBAR_OFFSET = "calc(72px + env(safe-area-inset-bottom))"
 
@@ -18,6 +25,8 @@ const PAY_OPTIONS: { k: PayStatus; l: string; c: string }[] = [
 ]
 
 export function PosPageMobile() {
+  const { products, reload: reloadProducts } = useRetailProducts()
+  const customers = useCustomers()
   const {
     cart,
     addToCart,
@@ -37,12 +46,12 @@ export function PosPageMobile() {
     canSave,
     submitting,
     handleSubmit,
-  } = usePos()
+  } = usePos(products, reloadProducts)
 
   const [cat, setCat] = React.useState("all")
   const [showCart, setShowCart] = React.useState(false)
 
-  const filtered = cat === "all" ? POS_PRODUCTS : POS_PRODUCTS.filter((p) => p.cat === cat)
+  const filtered = cat === "all" ? products : products.filter((p) => p.cat === cat)
   const hasItems = cartLines.length > 0
 
   return (
@@ -428,7 +437,8 @@ export function PosPageMobile() {
               <input
                 value={customer}
                 onChange={(e) => setCustomer(e.target.value)}
-                placeholder="Tên khách hàng…"
+                list="pos-khach-quen-m"
+                placeholder="Tên khách hàng… (gợi ý)"
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -448,6 +458,11 @@ export function PosPageMobile() {
               >
                 Khách lẻ
               </span>
+              <datalist id="pos-khach-quen-m">
+                {customers.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
             </div>
 
             {/* Payment status */}

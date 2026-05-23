@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { decrementStock } from '@/lib/retail-products-schema';
 
 interface InventoryItem {
   customer_name?: string;
   seller_name?: string;
   item_name: string;
+  sku?: string;
   category?: string;
   quantity: number;
   unit?: string;
@@ -13,6 +15,23 @@ interface InventoryItem {
   sale_time?: string;
   payment_status?: 'unpaid' | 'paid' | 'partial';
   paid_amount?: number;
+}
+
+// Thêm cột sku nếu chưa có (link tới retail_products)
+async function addSkuColumn() {
+  try {
+    await query(`SELECT sku FROM inventory_items LIMIT 1`);
+    return true;
+  } catch (error: any) {
+    if (error.code === 'ER_BAD_FIELD_ERROR') {
+      console.log('🔄 Adding sku column...');
+      await query(`ALTER TABLE inventory_items ADD COLUMN sku VARCHAR(50) DEFAULT '' AFTER item_name`);
+      await query(`CREATE INDEX idx_sku ON inventory_items (sku)`);
+      console.log('✅ Added sku column');
+      return true;
+    }
+    return false;
+  }
 }
 
 // Thêm cột seller_name nếu chưa có
@@ -105,6 +124,7 @@ async function ensureCorrectSchema() {
     
     // Thêm các cột mới nếu chưa có
     await addSellerNameColumn();
+    await addSkuColumn();
     await addPaidAmountColumn();
     await addPricingColumns();
     await updatePaymentStatusEnum();
@@ -201,16 +221,19 @@ export async function POST(request: NextRequest) {
       ? unitPrice * Number(data.quantity)
       : (Number(data.total_amount) > 0 ? Number(data.total_amount) : 0);
 
+    const sku = typeof data.sku === 'string' ? data.sku.trim().slice(0, 50) : '';
+
     // Insert vào database
     await query(`
       INSERT INTO inventory_items
-      (id, customer_name, seller_name, item_name, category, quantity, unit, unit_price, total_amount, sale_time, payment_status, paid_amount, last_updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      (id, customer_name, seller_name, item_name, sku, category, quantity, unit, unit_price, total_amount, sale_time, payment_status, paid_amount, last_updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `, [
       id,
       data.customer_name || '',
       data.seller_name || '',
       data.item_name,
+      sku,
       data.category || 'fuel',
       data.quantity,
       data.unit || 'lít',
@@ -221,10 +244,22 @@ export async function POST(request: NextRequest) {
       data.paid_amount || 0
     ]);
 
+    // Trừ kho retail nếu sku khớp một sản phẩm catalog
+    let newStock: number | null = null;
+    if (sku) {
+      try {
+        newStock = await decrementStock(sku, Number(data.quantity));
+      } catch (e) {
+        console.warn('decrementStock failed for sku', sku, e);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Đã thêm vật tư mới',
-      id
+      id,
+      sku,
+      stock: newStock,
     });
   } catch (error: any) {
     console.error('Error adding inventory item:', error);
