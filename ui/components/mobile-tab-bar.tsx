@@ -14,7 +14,7 @@ interface MobileTabBarProps {
   onPriceClick?: () => void
 }
 
-type IconName = "home" | "fuel" | "receipt" | "user" | "chart" | "refresh" | "plus" | "alert"
+type IconName = "home" | "fuel" | "receipt" | "user" | "chart" | "refresh" | "plus" | "alert" | "clock"
 
 interface Slot {
   k: string
@@ -45,7 +45,7 @@ interface MoreItem {
 const MORE_ITEMS: MoreItem[] = [
   { k: "tx", icon: "receipt", label: "Giao dịch", sub: "Lịch sử bán hàng", color: HX.accent2 },
   { k: "chitiet", icon: "chart", label: "Báo cáo", sub: "Doanh thu · sản lượng", color: HX.do },
-  { k: "giaoca", icon: "refresh", label: "Giao ca", sub: "Bàn giao ca làm việc", color: HX.accent },
+  { k: "giaoca", icon: "clock", label: "Ca bán hàng", sub: "Mở / đóng ca làm việc", color: HX.accent },
   { k: "gia", icon: "chart", label: "Đơn giá", sub: "Cập nhật giá bán", color: HX.doPlus, action: "price" },
 ]
 
