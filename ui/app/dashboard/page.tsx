@@ -9,7 +9,7 @@ import { ChiTietContent } from "@/components/chitiet-content"
 import { PosPage } from "@/components/pos-page"
 import { TonkhoContent } from "@/components/tonkho-content"
 import { GiaoCaContent } from "@/components/giaoca-content"
-import { KhachQuenContent } from "@/components/khachquen-content"
+import { CongNoContent } from "@/components/congno-content"
 import { DashboardHome } from "@/components/dashboard-home"
 import { StockPage } from "@/components/stock-page"
 import { TxPage } from "@/components/tx-page"
@@ -274,7 +274,7 @@ export default function Page() {
     kho: "Bán hàng",
     tonkho: "Tồn kho",
     giaoca: "Giao ca",
-    khachquen: "Khách quen",
+    khachquen: "Công nợ",
     revenue: "Doanh Thu",
     statistics: "Thống Kê & Biểu Đồ",
     pumps: "Quản Lý Cột Bơm",
@@ -288,7 +288,7 @@ export default function Page() {
     kho: "Bán lẻ sản phẩm tại quầy",
     tonkho: "Cảm biến bồn + kho bán lẻ",
     giaoca: "Bàn giao ca làm việc",
-    khachquen: "Quản lý khách quen & công nợ",
+    khachquen: "Theo dõi & thu nợ khách quen",
   }
 
   return (
@@ -456,7 +456,7 @@ export default function Page() {
           ) : activeView === "giaoca" ? (
             <GiaoCaContent />
           ) : activeView === "khachquen" ? (
-            <KhachQuenContent />
+            <CongNoContent />
           ) : (
             <DashboardHome onNavigate={setActiveView} />
           )}
