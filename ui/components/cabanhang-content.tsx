@@ -22,12 +22,28 @@ export interface StaffMember {
   initials: string
   role: string
   color: string
+  phone?: string
+  active?: boolean
+  partTime?: boolean
+  sortOrder?: number
 }
 export const STAFF_LIST: StaffMember[] = [
-  { id: "lan", name: "Cô Lan", initials: "CL", role: "Trưởng ca", color: "#ff7a3b" },
-  { id: "tam", name: "Anh Tâm", initials: "AT", role: "Nhân viên", color: "#5eb1ff" },
-  { id: "phu", name: "Anh Phú", initials: "AP", role: "Nhân viên", color: "#bf85ff" },
-  { id: "son", name: "Anh Sơn", initials: "AS", role: "Chủ nhiệm", color: "#06d6a0" },
+  { id: "lan", name: "Cô Lan", initials: "CL", role: "Trưởng ca", color: "#ff7a3b", active: true },
+  { id: "tam", name: "Anh Tâm", initials: "AT", role: "Nhân viên", color: "#5eb1ff", active: true },
+  { id: "phu", name: "Anh Phú", initials: "AP", role: "Nhân viên", color: "#bf85ff", active: true },
+  { id: "son", name: "Anh Sơn", initials: "AS", role: "Chủ nhiệm", color: "#06d6a0", active: true },
+]
+
+export const STAFF_ROLES = ["Chủ nhiệm", "Trưởng ca", "Nhân viên", "Kế toán"]
+export const STAFF_COLOR_PALETTE = [
+  "#ff7a3b",
+  "#5eb1ff",
+  "#bf85ff",
+  "#30d158",
+  "#06d6a0",
+  "#ffb158",
+  "#ff4d6d",
+  "#ffd60a",
 ]
 
 export interface Shift {
@@ -135,8 +151,7 @@ export function useShiftStore() {
   const current = shifts.find((s) => s.status === "open") || null
 
   const openShift = React.useCallback(
-    async (staffId: string, openCash: number, note: string) => {
-      const staff = STAFF_LIST.find((s) => s.id === staffId) || STAFF_LIST[0]
+    async (staff: StaffMember, openCash: number, note: string) => {
       try {
         const res = await fetch("/api/cabanhang/shifts", {
           method: "POST",
@@ -195,6 +210,130 @@ export function useShiftStore() {
   return { shifts, current, openShift, closeShift, hydrated, reload }
 }
 export type ShiftStore = ReturnType<typeof useShiftStore>
+
+// ── Staff (CRUD, DB-backed) ───────────────────────────────────
+export function useStaff() {
+  const [staff, setStaff] = React.useState<StaffMember[]>(STAFF_LIST)
+  const [loading, setLoading] = React.useState(true)
+  const [hydrated, setHydrated] = React.useState(false)
+
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch("/api/cabanhang/staff", { cache: "no-store" }).then((x) =>
+        x.json()
+      )
+      if (r?.success && Array.isArray(r.data) && r.data.length > 0) {
+        setStaff(
+          r.data.map((s: any) => ({
+            id: String(s.id),
+            name: String(s.name),
+            initials: String(s.initials || ""),
+            role: String(s.role || "Nhân viên"),
+            color: String(s.color || "#06d6a0"),
+            phone: String(s.phone || ""),
+            active: Number(s.active) ? true : false,
+            partTime: Number(s.part_time) ? true : false,
+            sortOrder: Number(s.sort_order) || 0,
+          }))
+        )
+      }
+    } catch {
+      /* ignore — keep STAFF_LIST fallback */
+    } finally {
+      setLoading(false)
+      setHydrated(true)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    reload()
+  }, [reload])
+
+  const addStaff = React.useCallback(
+    async (data: Partial<StaffMember>) => {
+      try {
+        const r = await fetch("/api/cabanhang/staff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        }).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Không thêm được nhân viên")
+          return false
+        }
+        toast.success("Đã thêm nhân viên")
+        await reload()
+        return true
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+        return false
+      }
+    },
+    [reload]
+  )
+
+  const updateStaff = React.useCallback(
+    async (id: string, patch: Partial<StaffMember>) => {
+      try {
+        const r = await fetch(`/api/cabanhang/staff?id=${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        }).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Không lưu được nhân viên")
+          return false
+        }
+        toast.success("Đã cập nhật nhân viên")
+        await reload()
+        return true
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+        return false
+      }
+    },
+    [reload]
+  )
+
+  const removeStaff = React.useCallback(
+    async (id: string) => {
+      try {
+        const r = await fetch(`/api/cabanhang/staff?id=${id}`, {
+          method: "DELETE",
+        }).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Không xoá được nhân viên")
+          return false
+        }
+        toast.success("Đã xoá nhân viên")
+        await reload()
+        return true
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+        return false
+      }
+    },
+    [reload]
+  )
+
+  const toggleActive = React.useCallback(
+    async (id: string) => {
+      const s = staff.find((x) => x.id === id)
+      if (!s) return
+      await updateStaff(id, { active: !s.active })
+    },
+    [staff, updateStaff]
+  )
+
+  return { staff, loading, hydrated, reload, addStaff, updateStaff, removeStaff, toggleActive }
+}
+export type StaffState = ReturnType<typeof useStaff>
+
+const StaffContext = React.createContext<StaffMember[]>(STAFF_LIST)
+export function useStaffList(): StaffMember[] {
+  return React.useContext(StaffContext)
+}
 
 // ── Templates & assignments (DB-backed) ───────────────────────
 export interface ShiftTemplate {
@@ -616,9 +755,13 @@ export function OpenShiftModal({
   onConfirm,
 }: {
   onClose: () => void
-  onConfirm: (staffId: string, openCash: number, note: string) => void
+  onConfirm: (staff: StaffMember, openCash: number, note: string) => void
 }) {
-  const [staff, setStaff] = React.useState("lan")
+  const staffList = useStaffList().filter((s) => s.active !== false)
+  const [staff, setStaff] = React.useState<string>(() => staffList[0]?.id || "")
+  React.useEffect(() => {
+    if (!staffList.find((s) => s.id === staff) && staffList[0]) setStaff(staffList[0].id)
+  }, [staffList, staff])
   const [openCash, setOpenCash] = React.useState("2.000.000")
   const [note, setNote] = React.useState("")
 
@@ -679,7 +822,7 @@ export function OpenShiftModal({
         <div>
           <Label>Nhân viên trực ca</Label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {STAFF_LIST.map((s) => {
+            {staffList.map((s) => {
               const on = staff === s.id
               return (
                 <div
@@ -767,7 +910,9 @@ export function OpenShiftModal({
           primary
           size="lg"
           onClick={() => {
-            onConfirm(staff, parseInt(openCash.replace(/\D/g, "")) || 0, note.trim())
+            const picked = staffList.find((x) => x.id === staff)
+            if (!picked) return
+            onConfirm(picked, parseInt(openCash.replace(/\D/g, "")) || 0, note.trim())
             onClose()
           }}
         >
@@ -1007,12 +1152,15 @@ function SumRow({ label, value, color }: { label: string; value: string; color?:
 // ── Web layout ────────────────────────────────────────────────
 function WebShiftPage({
   store,
+  staffState,
   onNavigate,
 }: {
   store: ShiftStore
+  staffState: StaffState
   onNavigate?: (view: string) => void
 }) {
   const { shifts, current, openShift, closeShift, hydrated } = store
+  const { staff: liveStaff, addStaff, updateStaff, removeStaff, toggleActive } = staffState
   const { summary } = useShiftSummary(current)
   const { templates, saveTemplate } = useTemplates()
   const weekRange = React.useMemo(() => {
@@ -1031,6 +1179,7 @@ function WebShiftPage({
   )
   const [openModal, setOpenModal] = React.useState(false)
   const [closeModal, setCloseModal] = React.useState(false)
+  const [staffEdit, setStaffEdit] = React.useState<StaffMember | "new" | null>(null)
   const [templateEdit, setTemplateEdit] = React.useState<ShiftTemplate | null>(null)
   const [cellEdit, setCellEdit] = React.useState<{
     date: string
@@ -1355,118 +1504,232 @@ function WebShiftPage({
       {/* Nhân viên — full-width, 2-col grid */}
       <WSection
         title="Nhân viên"
-        sub={`${STAFF_LIST.length} nhân viên đang hoạt động`}
+        sub={`${liveStaff.filter((s) => s.active !== false).length} nhân viên đang hoạt động${
+          liveStaff.length > liveStaff.filter((s) => s.active !== false).length
+            ? ` · ${liveStaff.length - liveStaff.filter((s) => s.active !== false).length} tạm ngưng`
+            : ""
+        }`}
+        right={
+          <PillBtn primary size="sm" onClick={() => setStaffEdit("new")}>
+            <Icon name="plus" size={13} color="#fff" strokeWidth={2.2} />
+            Thêm nhân viên
+          </PillBtn>
+        }
       >
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
-          {STAFF_LIST.map((s) => {
-            const stats = staffStats[s.id] || { shifts: 0, revenue: 0, txCount: 0 }
-            const isOnShift = current?.staffId === s.id
-            return (
-              <div
-                key={s.id}
-                style={{
-                  background: HX.surface,
-                  border: isOnShift
-                    ? `1px solid ${HX.accent}66`
-                    : `1px solid ${HX.hairline}`,
-                  borderRadius: 14,
-                  padding: 18,
-                  position: "relative",
-                }}
-              >
-                {isOnShift && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 14,
-                      right: 14,
-                      fontSize: 10,
-                      fontWeight: 600,
-                      padding: "3px 9px",
-                      borderRadius: 999,
-                      background: HX.accentSoft,
-                      color: HX.accent,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 5,
-                    }}
-                  >
+        {liveStaff.length === 0 ? (
+          <div
+            style={{
+              padding: 40,
+              textAlign: "center",
+              background: HX.surface,
+              border: `1px dashed ${HX.hairlineStrong}`,
+              borderRadius: 14,
+              color: HX.text3,
+              fontSize: 13,
+            }}
+          >
+            Chưa có nhân viên — bấm “Thêm nhân viên” để bắt đầu.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
+            {liveStaff.map((s) => {
+              const stats = staffStats[s.id] || { shifts: 0, revenue: 0, txCount: 0 }
+              const isOnShift = current?.staffId === s.id
+              const isActive = s.active !== false
+              return (
+                <div
+                  key={s.id}
+                  style={{
+                    background: HX.surface,
+                    border: isOnShift
+                      ? `1px solid ${HX.accent}66`
+                      : `1px solid ${HX.hairline}`,
+                    borderRadius: 14,
+                    padding: 18,
+                    position: "relative",
+                    opacity: isActive ? 1 : 0.55,
+                  }}
+                >
+                  {isOnShift && (
                     <span
                       style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: 3,
-                        background: HX.accent,
-                      }}
-                    />
-                    Đang trực
-                  </span>
-                )}
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <Avatar initials={s.initials} size={48} color={s.color} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 700,
-                        letterSpacing: "-0.01em",
-                      }}
-                    >
-                      {s.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: HX.text3,
-                        marginTop: 4,
-                        display: "flex",
+                        position: "absolute",
+                        top: 14,
+                        right: 14,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        padding: "3px 9px",
+                        borderRadius: 999,
+                        background: HX.accentSoft,
+                        color: HX.accent,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        display: "inline-flex",
                         alignItems: "center",
-                        gap: 8,
+                        gap: 5,
                       }}
                     >
                       <span
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          background: HX.bg,
-                          border: `1px solid ${HX.hairlineStrong}`,
-                          color: HX.text2,
-                          fontWeight: 600,
-                          fontSize: 11,
+                          width: 6,
+                          height: 6,
+                          borderRadius: 3,
+                          background: HX.accent,
+                        }}
+                      />
+                      Đang trực
+                    </span>
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <Avatar initials={s.initials} size={48} color={s.color} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 700,
+                          letterSpacing: "-0.01em",
                         }}
                       >
-                        {s.role}
-                      </span>
+                        {s.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: HX.text3,
+                          marginTop: 4,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            background: HX.bg,
+                            border: `1px solid ${HX.hairlineStrong}`,
+                            color: HX.text2,
+                            fontWeight: 600,
+                            fontSize: 11,
+                          }}
+                        >
+                          {s.role}
+                        </span>
+                        {s.partTime && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 7px",
+                              borderRadius: 999,
+                              background: HX.doPlus,
+                              color: "#fff",
+                              letterSpacing: "0.04em",
+                            }}
+                          >
+                            PT
+                          </span>
+                        )}
+                        {s.phone && (
+                          <span
+                            className="hx-num"
+                            style={{ fontSize: 11, color: HX.text3 }}
+                          >
+                            {s.phone}
+                          </span>
+                        )}
+                        {!isActive && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: HX.text3,
+                              fontWeight: 600,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Tạm ngưng
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div
-                  style={{
-                    marginTop: 16,
-                    paddingTop: 14,
-                    borderTop: `1px solid ${HX.hairline}`,
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: 12,
-                  }}
-                >
-                  <StaffStat label="Tổng ca" value={String(stats.shifts)} />
-                  <StaffStat label="Giao dịch" value={fmtNum(stats.txCount)} />
-                  <StaffStat
-                    label="Doanh thu"
-                    value={stats.revenue > 0 ? fmtBig(stats.revenue) : "—"}
-                    color={stats.revenue > 0 ? HX.good : HX.text3}
-                  />
+                  <div
+                    style={{
+                      marginTop: 16,
+                      paddingTop: 14,
+                      borderTop: `1px solid ${HX.hairline}`,
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, 1fr)",
+                      gap: 12,
+                    }}
+                  >
+                    <StaffStat label="Tổng ca" value={String(stats.shifts)} />
+                    <StaffStat label="Giao dịch" value={fmtNum(stats.txCount)} />
+                    <StaffStat
+                      label="Doanh thu"
+                      value={stats.revenue > 0 ? fmtBig(stats.revenue) : "—"}
+                      color={stats.revenue > 0 ? HX.good : HX.text3}
+                    />
+                  </div>
+
+                  <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setStaffEdit(s)}
+                      className="hxw-press"
+                      style={{
+                        flex: 1,
+                        height: 36,
+                        borderRadius: 8,
+                        background: HX.bg,
+                        border: `1px solid ${HX.hairlineStrong}`,
+                        color: HX.text,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        fontFamily: HX.font,
+                      }}
+                    >
+                      <Icon name="settings" size={13} color={HX.text2} />
+                      Chỉnh sửa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(s.id)}
+                      title={isActive ? "Tạm ngưng nhân viên" : "Kích hoạt lại"}
+                      className="hxw-press"
+                      disabled={isOnShift}
+                      style={{
+                        height: 36,
+                        padding: "0 14px",
+                        borderRadius: 8,
+                        background: HX.bg,
+                        border: `1px solid ${HX.hairlineStrong}`,
+                        color: isActive ? HX.text2 : HX.good,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: isOnShift ? "not-allowed" : "pointer",
+                        opacity: isOnShift ? 0.5 : 1,
+                        fontFamily: HX.font,
+                      }}
+                    >
+                      {isActive ? "Tạm ngưng" : "Kích hoạt"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </WSection>
 
       {/* Khung ca cố định — full-width, 3-col grid */}
@@ -1492,7 +1755,7 @@ function WebShiftPage({
             </div>
           ) : (
             templates.map((t) => {
-              const staff = STAFF_LIST.find((s) => s.id === t.default_staff_id)
+              const staff = liveStaff.find((s) => s.id === t.default_staff_id)
               const color = TEMPLATE_COLOR_MAP[t.color] || HX.accent
               const isNow = t.active === 1 && isTemplateActiveNow(t)
               return (
@@ -1797,8 +2060,8 @@ function WebShiftPage({
       {openModal && (
         <OpenShiftModal
           onClose={() => setOpenModal(false)}
-          onConfirm={(staffId, cash, note) => {
-            openShift(staffId, cash, note)
+          onConfirm={(s, cash, note) => {
+            openShift(s, cash, note)
           }}
         />
       )}
@@ -1815,6 +2078,29 @@ function WebShiftPage({
               summary?.liters || 0
             )
           }}
+        />
+      )}
+      {staffEdit && (
+        <StaffEditModal
+          staff={staffEdit === "new" ? null : staffEdit}
+          onClose={() => setStaffEdit(null)}
+          onSave={async (data) => {
+            if (staffEdit === "new") {
+              const ok = await addStaff(data)
+              if (ok) setStaffEdit(null)
+            } else {
+              const ok = await updateStaff(staffEdit.id, data)
+              if (ok) setStaffEdit(null)
+            }
+          }}
+          onDelete={
+            staffEdit !== "new"
+              ? async () => {
+                  const ok = await removeStaff(staffEdit.id)
+                  if (ok) setStaffEdit(null)
+                }
+              : undefined
+          }
         />
       )}
       {templateEdit && (
@@ -1901,6 +2187,7 @@ function WeeklyScheduleWeb({
     defaultStaffId: string
   }) => void
 }) {
+  const staffList = useStaffList()
   const active = templates.filter((t) => t.active)
   const days = React.useMemo(() => {
     const arr: Date[] = []
@@ -2048,7 +2335,7 @@ function WeeklyScheduleWeb({
                 const isToday = dk === todayKey
                 const overrideId = overrideMap.get(`${dk}::${t.id}`)
                 const staffId = overrideId || t.default_staff_id
-                const s = STAFF_LIST.find((x) => x.id === staffId)
+                const s = staffList.find((x) => x.id === staffId)
                 const isOverride = !!overrideId
                 const isCurrent =
                   isToday && currentShiftStaffId === staffId && isTemplateActiveNow(t)
@@ -2155,6 +2442,7 @@ function TemplateEditModal({
   onClose: () => void
   onSave: (patch: Partial<ShiftTemplate>) => void
 }) {
+  const staffList = useStaffList().filter((s) => s.active !== false)
   const [name, setName] = React.useState(template.name)
   const [startH, setStartH] = React.useState(String(template.start_hour))
   const [startM, setStartM] = React.useState(String(template.start_minute))
@@ -2243,7 +2531,7 @@ function TemplateEditModal({
         <div>
           <Label>Nhân viên mặc định</Label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {STAFF_LIST.map((s) => {
+            {staffList.map((s) => {
               const on = defaultStaffId === s.id
               return (
                 <div
@@ -2396,6 +2684,7 @@ function CellEditModal({
   onClose: () => void
   onPick: (staffId: string) => void
 }) {
+  const staffList = useStaffList().filter((s) => s.active !== false || s.id === cell.currentStaffId)
   return (
     <ModalShell onClose={onClose} width={480}>
       <div
@@ -2420,7 +2709,7 @@ function CellEditModal({
         </div>
       </div>
       <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 8 }}>
-        {STAFF_LIST.map((s) => {
+        {staffList.map((s) => {
           const on = s.id === cell.currentStaffId
           const isDef = s.id === cell.defaultStaffId
           return (
@@ -2539,10 +2828,354 @@ function QuickAction({
   )
 }
 
+// ── Modal: add / edit nhân viên ───────────────────────────────
+export function StaffEditModal({
+  staff,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  staff: StaffMember | null
+  onClose: () => void
+  onSave: (data: Partial<StaffMember>) => void
+  onDelete?: () => void
+}) {
+  const isNew = !staff
+  const [name, setName] = React.useState(staff?.name || "")
+  const [role, setRole] = React.useState(staff?.role || "Nhân viên")
+  const [phone, setPhone] = React.useState(staff?.phone || "")
+  const [color, setColor] = React.useState(staff?.color || STAFF_COLOR_PALETTE[0])
+  const [partTime, setPartTime] = React.useState(!!staff?.partTime)
+  const [active, setActive] = React.useState(staff ? staff.active !== false : true)
+
+  const initials = React.useMemo(() => {
+    const parts = (name || "").trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return "?"
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }, [name])
+  const canSave = name.trim().length >= 2
+
+  return (
+    <ModalShell onClose={onClose} width={540}>
+      <div
+        style={{
+          padding: "22px 26px",
+          borderBottom: `1px solid ${HX.hairline}`,
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 12,
+            background: isNew
+              ? `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`
+              : color,
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 16,
+            fontWeight: 800,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {isNew ? <Icon name="plus" size={22} color="#fff" strokeWidth={2.4} /> : initials}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em" }}>
+            {isNew ? "Thêm nhân viên mới" : `Chỉnh sửa · ${staff?.name}`}
+          </div>
+          <div style={{ fontSize: 12, color: HX.text3, marginTop: 2 }}>
+            {isNew
+              ? "Nhập thông tin để thêm vào danh sách trực ca"
+              : "Cập nhật thông tin, vai trò hoặc số điện thoại"}
+          </div>
+        </div>
+        <div
+          onClick={onClose}
+          className="hxw-press"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: HX.bg,
+            border: `1px solid ${HX.hairline}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14">
+            <path d="M3 3l8 8M11 3l-8 8" stroke={HX.text2} strokeWidth="1.7" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+
+      <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 18 }}>
+        <div>
+          <Label>Họ tên</Label>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <Avatar initials={initials} size={44} color={color} />
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="VD: Chị Hoa"
+              style={{ ...inputStyle(true), flex: 1 }}
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label>Vai trò</Label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {STAFF_ROLES.map((r) => {
+              const on = role === r
+              return (
+                <div
+                  key={r}
+                  onClick={() => setRole(r)}
+                  className="hxw-press"
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 999,
+                    background: on ? HX.accentSoft : HX.bg,
+                    border: on
+                      ? `1.5px solid ${HX.accent}`
+                      : `1px solid ${HX.hairline}`,
+                    color: on ? HX.accent : HX.text2,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  {r}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div>
+          <Label>Số điện thoại</Label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="0905…"
+            className="hx-num"
+            style={inputStyle()}
+          />
+        </div>
+
+        <div>
+          <Label>Màu nhận diện</Label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {STAFF_COLOR_PALETTE.map((c) => (
+              <div
+                key={c}
+                onClick={() => setColor(c)}
+                className="hxw-press"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: c,
+                  cursor: "pointer",
+                  border: color === c ? `2px solid #fff` : `2px solid transparent`,
+                  boxShadow: color === c ? `0 0 0 2px ${c}55` : "none",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div
+          onClick={() => setPartTime((v) => !v)}
+          className="hxw-press"
+          style={{
+            padding: "12px 14px",
+            borderRadius: 10,
+            background: partTime ? HX.accentSoft : HX.bg,
+            border: partTime
+              ? `1.5px solid ${HX.accent}55`
+              : `1px solid ${HX.hairline}`,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <span
+            style={{
+              width: 32,
+              height: 18,
+              borderRadius: 999,
+              padding: 2,
+              background: partTime ? HX.accent : HX.hairlineStrong,
+              display: "flex",
+            }}
+          >
+            <span
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 999,
+                background: "#fff",
+                transform: partTime ? "translateX(14px)" : "translateX(0)",
+                transition: "transform .2s",
+              }}
+            />
+          </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>
+              Nhân viên thời vụ (part-time)
+            </div>
+            <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
+              Chỉ làm theo ngày, không có ca mặc định
+            </div>
+          </div>
+        </div>
+
+        {!isNew && (
+          <div
+            onClick={() => setActive((v) => !v)}
+            className="hxw-press"
+            style={{
+              padding: "12px 14px",
+              borderRadius: 10,
+              background: HX.bg,
+              border: `1px solid ${HX.hairline}`,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <span
+              style={{
+                width: 32,
+                height: 18,
+                borderRadius: 999,
+                padding: 2,
+                background: active ? HX.good : HX.hairlineStrong,
+                display: "flex",
+              }}
+            >
+              <span
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 999,
+                  background: "#fff",
+                  transform: active ? "translateX(14px)" : "translateX(0)",
+                  transition: "transform .2s",
+                }}
+              />
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                {active ? "Đang hoạt động" : "Tạm ngưng"}
+              </div>
+              <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
+                Tắt để ẩn nhân viên khỏi danh sách chọn ca
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          padding: "18px 26px",
+          borderTop: `1px solid ${HX.hairline}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+          background: HX.bg,
+        }}
+      >
+        <div>
+          {!isNew && onDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Xoá ${staff?.name} khỏi danh sách nhân viên?`)) {
+                  onDelete()
+                }
+              }}
+              className="hxw-press"
+              style={{
+                padding: "8px 14px",
+                borderRadius: 9,
+                background: "transparent",
+                border: `1px solid ${HX.bad}55`,
+                color: HX.bad,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: HX.font,
+              }}
+            >
+              Xoá nhân viên
+            </button>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <PillBtn size="lg" onClick={onClose}>
+            Huỷ
+          </PillBtn>
+          <PillBtn
+            primary
+            size="lg"
+            disabled={!canSave}
+            onClick={() =>
+              onSave({
+                name: name.trim(),
+                initials,
+                role,
+                phone: phone.trim(),
+                color,
+                partTime,
+                active,
+              })
+            }
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path
+                d="m2.5 7 3 3 6-7"
+                stroke="#fff"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {isNew ? "Thêm nhân viên" : "Lưu thay đổi"}
+          </PillBtn>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
 // ── Main ──────────────────────────────────────────────────────
 export function CaBanHangContent({ onNavigate }: CaBanHangContentProps) {
   const isMobile = useIsMobile()
   const store = useShiftStore()
-  if (isMobile) return <CaBanHangContentMobile store={store} onNavigate={onNavigate} />
-  return <WebShiftPage store={store} onNavigate={onNavigate} />
+  const staffState = useStaff()
+  return (
+    <StaffContext.Provider value={staffState.staff}>
+      {isMobile ? (
+        <CaBanHangContentMobile store={store} onNavigate={onNavigate} staffState={staffState} />
+      ) : (
+        <WebShiftPage store={store} onNavigate={onNavigate} staffState={staffState} />
+      )}
+    </StaffContext.Provider>
+  )
 }

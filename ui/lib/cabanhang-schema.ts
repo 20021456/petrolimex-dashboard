@@ -2,13 +2,31 @@ import { query } from '@/lib/db'
 
 // ════════════════════════════════════════════════════════════════
 // Schema helpers cho module Ca bán hàng.
-//   - shift_templates   : khung ca cố định (sáng/chiều/đêm…)
-//   - shift_assignments : phân công override theo ngày × khung
-//   - shifts            : ca thực tế đã mở/đóng
+//   - shift_staff      : danh sách nhân viên (CRUD)
+//   - shift_templates  : khung ca cố định (sáng/chiều/đêm…)
+//   - shift_assignments: phân công override theo ngày × khung
+//   - shifts           : ca thực tế đã mở/đóng
 // Bảng tự tạo lần đầu được gọi (giống pattern inventory_items).
 // ════════════════════════════════════════════════════════════════
 
 let _ensured = false
+
+const DEFAULT_STAFF: Array<{
+  id: string
+  name: string
+  initials: string
+  role: string
+  phone: string
+  color: string
+  active: number
+  part_time: number
+  sort_order: number
+}> = [
+  { id: 'lan', name: 'Cô Lan', initials: 'CL', role: 'Trưởng ca', phone: '', color: '#ff7a3b', active: 1, part_time: 0, sort_order: 1 },
+  { id: 'tam', name: 'Anh Tâm', initials: 'AT', role: 'Nhân viên', phone: '', color: '#5eb1ff', active: 1, part_time: 0, sort_order: 2 },
+  { id: 'phu', name: 'Anh Phú', initials: 'AP', role: 'Nhân viên', phone: '', color: '#bf85ff', active: 1, part_time: 0, sort_order: 3 },
+  { id: 'son', name: 'Anh Sơn', initials: 'AS', role: 'Chủ nhiệm', phone: '', color: '#06d6a0', active: 1, part_time: 0, sort_order: 4 },
+]
 
 const DEFAULT_TEMPLATES: Array<{
   id: string
@@ -29,6 +47,21 @@ const DEFAULT_TEMPLATES: Array<{
 
 export async function ensureCaBanHangTables() {
   if (_ensured) return
+  await query(`
+    CREATE TABLE IF NOT EXISTS shift_staff (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      initials VARCHAR(10),
+      role VARCHAR(50) DEFAULT 'Nhân viên',
+      phone VARCHAR(30) DEFAULT '',
+      color VARCHAR(20) DEFAULT '#06d6a0',
+      active TINYINT(1) DEFAULT 1,
+      part_time TINYINT(1) DEFAULT 0,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `)
   await query(`
     CREATE TABLE IF NOT EXISTS shift_templates (
       id VARCHAR(50) PRIMARY KEY,
@@ -82,9 +115,22 @@ export async function ensureCaBanHangTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `)
 
+  // Seed default staff nếu bảng rỗng
+  const [staffCnt] = await query<any[]>(`SELECT COUNT(*) AS cnt FROM shift_staff`)
+  if ((staffCnt?.cnt ?? 0) === 0) {
+    for (const s of DEFAULT_STAFF) {
+      await query(
+        `INSERT INTO shift_staff
+           (id, name, initials, role, phone, color, active, part_time, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [s.id, s.name, s.initials, s.role, s.phone, s.color, s.active, s.part_time, s.sort_order]
+      )
+    }
+  }
+
   // Seed default templates nếu bảng rỗng
-  const existing = await query<any[]>(`SELECT COUNT(*) AS cnt FROM shift_templates`)
-  if ((existing[0]?.cnt ?? 0) === 0) {
+  const [tplCnt] = await query<any[]>(`SELECT COUNT(*) AS cnt FROM shift_templates`)
+  if ((tplCnt?.cnt ?? 0) === 0) {
     for (const t of DEFAULT_TEMPLATES) {
       await query(
         `INSERT INTO shift_templates
