@@ -2,7 +2,7 @@
 
 // ════════════════════════════════════════════════════════════════
 // Đơn giá — port từ design web-pricing-page.jsx.
-// Thẻ giá xăng dầu (inline edit, /api/prices) + bảng giá retail
+// Thẻ giá xăng dầu (5 cột bơm, đọc từ fuel_pump) + bảng giá retail
 // (inline edit + ±5%, /api/retail-products). Web/mobile chung.
 // ════════════════════════════════════════════════════════════════
 
@@ -12,12 +12,15 @@ import { HX, Icon, FuelDot, fuelKind, useIsMobile } from "@/components/htx-kit"
 import { useRetailProducts, type PosProduct } from "@/components/pos-page"
 import { RETAIL_CATS } from "@/components/stock-page"
 
-interface FuelPrice {
-  id: number
+interface PumpPrice {
+  cot_bom: number
   fuel_name: string
-  price: number
-  unit: string
-  updated_at?: string
+  current_price: number | null
+  latest_pump_price: number | null
+  latest_pump_ts: string | null
+  override_price: number | null
+  source: "override" | "pump"
+  updated_at: string | null
 }
 
 const fmtNum = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
@@ -41,24 +44,37 @@ function timeAgo(ts?: string | null): string {
   if (d < 30) return `${d} ngày trước`
   return new Date(ts).toLocaleDateString("vi-VN")
 }
+function fmtDateOnly(ts?: string | null): string {
+  if (!ts) return "—"
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return "—"
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
+}
 
 // ── Hooks ─────────────────────────────────────────────────────
-function useFuelPrices() {
-  const [prices, setPrices] = React.useState<FuelPrice[]>([])
+function usePumpPrices() {
+  const [prices, setPrices] = React.useState<PumpPrice[]>([])
   const [loading, setLoading] = React.useState(true)
 
   const reload = React.useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch("/api/prices", { cache: "no-store" }).then((x) => x.json())
+      const r = await fetch("/api/pump-prices", { cache: "no-store" }).then((x) =>
+        x.json()
+      )
       if (r?.success && Array.isArray(r.data)) {
         setPrices(
           r.data.map((p: any) => ({
-            id: Number(p.id),
-            fuel_name: String(p.fuel_name),
-            price: Number(p.price) || 0,
-            unit: String(p.unit || "lít"),
-            updated_at: p.updated_at,
+            cot_bom: Number(p.cot_bom),
+            fuel_name: String(p.fuel_name || ""),
+            current_price: p.current_price == null ? null : Number(p.current_price),
+            latest_pump_price:
+              p.latest_pump_price == null ? null : Number(p.latest_pump_price),
+            latest_pump_ts: p.latest_pump_ts || null,
+            override_price: p.override_price == null ? null : Number(p.override_price),
+            source: p.source === "override" ? "override" : "pump",
+            updated_at: p.updated_at || null,
           }))
         )
       }
@@ -74,31 +90,46 @@ function useFuelPrices() {
   }, [reload])
 
   const setPrice = React.useCallback(
-    async (id: number, newPrice: number) => {
-      const cur = prices.find((p) => p.id === id)
-      if (!cur) return
+    async (cot_bom: number, newPrice: number) => {
       try {
-        const r = await fetch("/api/prices", {
+        const r = await fetch(`/api/pump-prices?cot_bom=${cot_bom}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prices: [{ id, price: newPrice, unit: cur.unit }],
-          }),
+          body: JSON.stringify({ price: newPrice }),
         }).then((x) => x.json())
         if (!r?.success) {
           toast.error(r?.error || "Không lưu được giá")
           return
         }
-        toast.success(`Đã cập nhật giá ${cur.fuel_name}`)
+        toast.success(`Đã cập nhật giá Cột ${cot_bom}`)
         await reload()
       } catch (e: any) {
         toast.error(e?.message || "Có lỗi xảy ra")
       }
     },
-    [prices, reload]
+    [reload]
   )
 
-  return { prices, loading, setPrice, reload }
+  const resetPrice = React.useCallback(
+    async (cot_bom: number) => {
+      try {
+        const r = await fetch(`/api/pump-prices?cot_bom=${cot_bom}`, {
+          method: "DELETE",
+        }).then((x) => x.json())
+        if (!r?.success) {
+          toast.error(r?.error || "Không khôi phục được")
+          return
+        }
+        toast.success(`Đã khôi phục giá gốc Cột ${cot_bom}`)
+        await reload()
+      } catch (e: any) {
+        toast.error(e?.message || "Có lỗi xảy ra")
+      }
+    },
+    [reload]
+  )
+
+  return { prices, loading, setPrice, resetPrice, reload }
 }
 
 function useRetailPriceUpdate(reload: () => void) {
@@ -124,28 +155,36 @@ function useRetailPriceUpdate(reload: () => void) {
   )
 }
 
-// ── Fuel card ─────────────────────────────────────────────────
-function FuelCard({
-  fuel,
+// ── Pump card (per cot_bom) ───────────────────────────────────
+function PumpCard({
+  pump,
   onSave,
+  onReset,
   compact,
 }: {
-  fuel: FuelPrice
-  onSave: (id: number, price: number) => void
+  pump: PumpPrice
+  onSave: (cot_bom: number, price: number) => void
+  onReset: (cot_bom: number) => void
   compact?: boolean
 }) {
   const [editing, setEditing] = React.useState(false)
   const [draft, setDraft] = React.useState("")
-  const kind = fuelKind(fuel.fuel_name) || "—"
-  const color = KIND_COLOR[kind] || HX.accent
+  const kind = fuelKind(pump.fuel_name) || "—"
+  const color = KIND_COLOR[kind] || HX.text2
+  const hasData = pump.current_price != null
+  const hasOverride = pump.source === "override" && pump.latest_pump_price != null
 
   const startEdit = () => {
-    setDraft(fuel.price.toLocaleString("vi-VN"))
+    if (!hasData) {
+      setDraft("")
+    } else {
+      setDraft((pump.current_price ?? 0).toLocaleString("vi-VN"))
+    }
     setEditing(true)
   }
   const commit = () => {
     const v = parseInt((draft || "").replace(/\D/g, "")) || 0
-    if (v > 0 && v !== fuel.price) onSave(fuel.id, v)
+    if (v > 0 && v !== pump.current_price) onSave(pump.cot_bom, v)
     setEditing(false)
   }
 
@@ -153,11 +192,12 @@ function FuelCard({
     <div
       style={{
         background: HX.surface,
-        border: `1px solid ${HX.hairline}`,
-        borderRadius: 16,
-        padding: compact ? 16 : 22,
+        border: `1px solid ${hasOverride ? color + "66" : HX.hairline}`,
+        borderRadius: 14,
+        padding: compact ? 14 : 18,
         position: "relative",
         overflow: "hidden",
+        opacity: hasData ? 1 : 0.7,
       }}
     >
       <div
@@ -171,63 +211,99 @@ function FuelCard({
         }}
       />
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <FuelDot kind={kind} size={10} />
-        <span
-          style={{
-            fontSize: compact ? 14 : 16,
-            fontWeight: 700,
-            color,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          {kind}
-        </span>
-        <span style={{ fontSize: 11, color: HX.text3, marginLeft: 4 }}>
-          {fuel.fuel_name}
-        </span>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 6,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <FuelDot kind={kind} size={9} />
+            <span
+              style={{
+                fontSize: compact ? 13 : 15,
+                fontWeight: 700,
+                color,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {kind}
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: HX.text3,
+              marginTop: 3,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {pump.fuel_name}
+          </div>
+        </div>
+        {hasOverride && (
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              padding: "2px 7px",
+              borderRadius: 999,
+              background: color + "22",
+              color,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              flexShrink: 0,
+            }}
+          >
+            Đã chỉnh
+          </span>
+        )}
       </div>
 
+      {/* Price */}
       {!editing ? (
         <div
           onClick={startEdit}
           className="hxw-press"
           style={{
-            marginTop: 14,
-            padding: "8px 10px",
-            marginLeft: -10,
-            marginRight: -10,
-            borderRadius: 10,
+            marginTop: 12,
+            padding: "6px 8px",
+            marginLeft: -8,
+            marginRight: -8,
+            borderRadius: 8,
             cursor: "pointer",
             display: "flex",
             alignItems: "baseline",
-            gap: 6,
+            gap: 4,
           }}
         >
           <span
             className="hx-num"
             style={{
-              fontSize: compact ? 24 : 30,
+              fontSize: compact ? 22 : 26,
               fontWeight: 800,
-              color: HX.text,
+              color: hasData ? HX.text : HX.text3,
               letterSpacing: "-0.03em",
               lineHeight: 1,
             }}
           >
-            {fmtNum(fuel.price)}
+            {hasData ? fmtNum(pump.current_price as number) : "—"}
           </span>
-          <span style={{ fontSize: compact ? 12 : 14, color: HX.text2 }}>
-            ₫/{fuel.unit}
-          </span>
+          <span style={{ fontSize: 11, color: HX.text2 }}>₫/lít</span>
           <Icon
             name="settings"
-            size={compact ? 12 : 14}
+            size={12}
             color={HX.text3}
             style={{ marginLeft: "auto" }}
           />
         </div>
       ) : (
-        <div style={{ marginTop: 14, display: "flex", gap: 6 }}>
+        <div style={{ marginTop: 12, display: "flex", gap: 5 }}>
           <input
             autoFocus
             value={draft}
@@ -244,15 +320,16 @@ function FuelCard({
             className="hx-num"
             style={{
               flex: 1,
-              height: 44,
-              padding: "0 12px",
-              fontSize: 22,
+              minWidth: 0,
+              height: 40,
+              padding: "0 10px",
+              fontSize: 18,
               fontWeight: 800,
               textAlign: "right",
               background: HX.bg,
               border: `1.5px solid ${color}`,
               color,
-              borderRadius: 10,
+              borderRadius: 8,
               outline: "none",
               fontFamily: HX.font,
             }}
@@ -263,18 +340,19 @@ function FuelCard({
             onClick={commit}
             className="hxw-press"
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
+              width: 40,
+              height: 40,
+              borderRadius: 8,
               background: color,
               border: "none",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              flexShrink: 0,
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 14 14">
+            <svg width="14" height="14" viewBox="0 0 14 14">
               <path
                 d="m2.5 7 3 3 6-7"
                 stroke="#fff"
@@ -287,20 +365,62 @@ function FuelCard({
         </div>
       )}
 
+      {/* Footer */}
       <div
         style={{
-          marginTop: 12,
-          paddingTop: 12,
+          marginTop: 10,
+          paddingTop: 10,
           borderTop: `1px solid ${HX.hairline}`,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          fontSize: 11,
+          fontSize: 10,
           color: HX.text3,
+          gap: 6,
         }}
       >
-        <span>{timeAgo(fuel.updated_at)}</span>
-        <span>Cập nhật trực tiếp · áp dụng ngay</span>
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {hasOverride && pump.latest_pump_ts ? (
+            <>
+              Giá gốc {fmtNum(pump.latest_pump_price || 0)} ·{" "}
+              {fmtDateOnly(pump.latest_pump_ts)}
+            </>
+          ) : pump.latest_pump_ts ? (
+            <>Giá gốc · {fmtDateOnly(pump.latest_pump_ts)}</>
+          ) : (
+            "Chưa có giao dịch"
+          )}
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: HX.text3 }}>Cột {pump.cot_bom}</span>
+          {hasOverride && (
+            <button
+              type="button"
+              onClick={() => onReset(pump.cot_bom)}
+              title="Khôi phục giá gốc"
+              className="hxw-press"
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 5,
+                background: HX.bg,
+                border: `1px solid ${HX.hairlineStrong}`,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="refresh" size={10} color={HX.text2} />
+            </button>
+          )}
+        </span>
       </div>
     </div>
   )
@@ -478,7 +598,7 @@ function RetailRow({
 
 // ── Web layout ────────────────────────────────────────────────
 function DonGiaWeb() {
-  const { prices: fuels, setPrice: setFuelPrice, loading: fuelLoading } = useFuelPrices()
+  const { prices: pumps, setPrice, resetPrice, loading: pumpsLoading } = usePumpPrices()
   const { products, reload: reloadProducts } = useRetailProducts()
   const saveRetail = useRetailPriceUpdate(reloadProducts)
   const [search, setSearch] = React.useState("")
@@ -498,7 +618,7 @@ function DonGiaWeb() {
       className="hxw"
       style={{ maxWidth: 1320, margin: "0 auto", width: "100%", color: HX.text }}
     >
-      {/* ── Fuel ── */}
+      {/* ── Fuel — 5 cards per row (per cột bơm) ── */}
       <div style={{ marginBottom: 28 }}>
         <div
           style={{
@@ -515,8 +635,8 @@ function DonGiaWeb() {
               Giá xăng dầu
             </div>
             <div style={{ fontSize: 13, color: HX.text3, marginTop: 4 }}>
-              {fuels.length} loại · Nhấp vào giá để chỉnh · áp dụng ngay tại các bơm
-              {fuelLoading && " · Đang tải…"}
+              5 cột bơm · Nhấp vào giá để chỉnh · áp dụng ngay
+              {pumpsLoading && " · Đang tải…"}
             </div>
           </div>
           <span
@@ -533,26 +653,15 @@ function DonGiaWeb() {
           </span>
         </div>
         <div
-          style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}
+          style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}
         >
-          {fuels.length === 0 && !fuelLoading && (
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                padding: 28,
-                textAlign: "center",
-                background: HX.surface,
-                border: `1px dashed ${HX.hairlineStrong}`,
-                borderRadius: 14,
-                color: HX.text3,
-                fontSize: 13,
-              }}
-            >
-              Chưa có giá xăng dầu trong DB
-            </div>
-          )}
-          {fuels.map((f) => (
-            <FuelCard key={f.id} fuel={f} onSave={setFuelPrice} />
+          {pumps.map((p) => (
+            <PumpCard
+              key={p.cot_bom}
+              pump={p}
+              onSave={setPrice}
+              onReset={resetPrice}
+            />
           ))}
         </div>
       </div>
@@ -717,7 +826,7 @@ function DonGiaWeb() {
 
 // ── Mobile layout ─────────────────────────────────────────────
 function DonGiaMobile() {
-  const { prices: fuels, setPrice: setFuelPrice } = useFuelPrices()
+  const { prices: pumps, setPrice, resetPrice } = usePumpPrices()
   const { products, reload: reloadProducts } = useRetailProducts()
   const saveRetail = useRetailPriceUpdate(reloadProducts)
   const [cat, setCat] = React.useState("all")
@@ -732,19 +841,39 @@ function DonGiaMobile() {
 
   return (
     <div style={{ color: HX.text, fontFamily: HX.font }}>
-      {/* Fuel cards 2-col */}
+      {/* Pump cards — horizontal scroll for 5 columns */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Giá xăng dầu</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {fuels.map((f) => (
-            <FuelCard key={f.id} fuel={f} onSave={setFuelPrice} compact />
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+          Giá xăng dầu · 5 cột bơm
+        </div>
+        <div
+          className="hxw-scroll"
+          style={{
+            display: "grid",
+            gridAutoFlow: "column",
+            gridAutoColumns: "minmax(200px, 1fr)",
+            gap: 8,
+            overflowX: "auto",
+            paddingBottom: 4,
+          }}
+        >
+          {pumps.map((p) => (
+            <PumpCard
+              key={p.cot_bom}
+              pump={p}
+              onSave={setPrice}
+              onReset={resetPrice}
+              compact
+            />
           ))}
         </div>
       </div>
 
       {/* Retail filter chips + search */}
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Giá sản phẩm bán lẻ</div>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+          Giá sản phẩm bán lẻ
+        </div>
         <div
           style={{
             display: "flex",
@@ -806,7 +935,6 @@ function DonGiaMobile() {
         </div>
       </div>
 
-      {/* Retail list */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.map((p) => (
           <MobileRetailCard key={p.sku} p={p} onSave={saveRetail} />
