@@ -16,6 +16,7 @@ import {
   OpenShiftModal,
   CloseShiftModal,
   StaffEditModal,
+  TemplateEditModal,
   useShiftSummary,
   useTemplates,
   useAssignments,
@@ -56,7 +57,8 @@ export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props)
   const [staffEdit, setStaffEdit] = React.useState<StaffMember | "new" | null>(null)
   const { shifts, current, openShift, closeShift, hydrated } = store
   const { summary } = useShiftSummary(current)
-  const { templates } = useTemplates()
+  const { templates, saveTemplate, addTemplate, deleteTemplate } = useTemplates()
+  const [templateEdit, setTemplateEdit] = React.useState<ShiftTemplate | "new" | null>(null)
   const weekRange = React.useMemo(() => getWeekRange(), [])
   const { assignments, setAssignment, clearAssignment } = useAssignments(
     weekRange.from,
@@ -414,7 +416,18 @@ export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props)
               Lặp lại mỗi ngày · nhân viên mặc định
             </div>
           </div>
-          <span style={{ fontSize: 11, color: HX.text3 }}>{templates.length} khung</span>
+          <span
+            onClick={() => setTemplateEdit("new")}
+            className="hxw-press"
+            style={{
+              fontSize: 12,
+              color: HX.accent,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            + Khung
+          </span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {templates.map((t) => {
@@ -424,6 +437,8 @@ export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props)
             return (
               <div
                 key={t.id}
+                onClick={() => setTemplateEdit(t)}
+                className="hxw-press"
                 style={{
                   position: "relative",
                   overflow: "hidden",
@@ -432,6 +447,7 @@ export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props)
                   background: HX.surface,
                   border: isNow ? `1px solid ${color}88` : `1px solid ${HX.hairline}`,
                   opacity: t.active ? 1 : 0.55,
+                  cursor: "pointer",
                 }}
               >
                 <div
@@ -656,6 +672,29 @@ export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props)
         />
       )}
 
+      {templateEdit && (
+        <TemplateEditModal
+          template={templateEdit === "new" ? null : templateEdit}
+          onClose={() => setTemplateEdit(null)}
+          onSave={async (patch) => {
+            if (templateEdit === "new") {
+              const ok = await addTemplate(patch)
+              if (ok) setTemplateEdit(null)
+            } else {
+              await saveTemplate(templateEdit.id, patch)
+              setTemplateEdit(null)
+            }
+          }}
+          onDelete={
+            templateEdit !== "new"
+              ? async () => {
+                  const ok = await deleteTemplate(templateEdit.id)
+                  if (ok) setTemplateEdit(null)
+                }
+              : undefined
+          }
+        />
+      )}
       {staffEdit && (
         <StaffEditModal
           staff={staffEdit === "new" ? null : staffEdit}
