@@ -9,6 +9,8 @@
 import * as React from "react"
 import { HX, Icon, FuelDot, fuelKind, Delta, WKpi, WSection, useIsMobile } from "@/components/htx-kit"
 import { ChiTietContentMobile } from "@/components/chitiet-content-mobile"
+import { useStaff, type StaffMember } from "@/components/cabanhang-content"
+import { useRetailProducts, type PosProduct } from "@/components/pos-page"
 
 export type Period = "today" | "week" | "month" | "quarter" | "year"
 
@@ -339,6 +341,297 @@ export function AreaChart({
   )
 }
 
+// ── Staff sales pivot table ───────────────────────────────────
+export function StaffSalesTable({
+  activeStaff,
+  products,
+  sales,
+}: {
+  activeStaff: StaffMember[]
+  products: PosProduct[]
+  sales: RetailSale[]
+}) {
+  // Pivot: Map<sku, Map<seller_name, qty>>. Match theo sku (chính),
+  // fallback theo item_name nếu sale không có sku.
+  const pivot = React.useMemo(() => {
+    const m = new Map<string, Map<string, number>>()
+    sales.forEach((s) => {
+      const key = s.sku || s.item_name
+      if (!key) return
+      const seller = s.seller_name || "(không ghi nhận)"
+      if (!m.has(key)) m.set(key, new Map())
+      const inner = m.get(key)!
+      inner.set(seller, (inner.get(seller) || 0) + s.quantity)
+    })
+    return m
+  }, [sales])
+
+  // Lookup theo item_name → sku trong trường hợp sale chỉ có name.
+  const nameToSku = React.useMemo(() => {
+    const m = new Map<string, string>()
+    products.forEach((p) => m.set(p.name, p.sku))
+    return m
+  }, [products])
+
+  function qtyForStaffProduct(sku: string, name: string, staffName: string): number {
+    const bySku = pivot.get(sku)
+    const byName = pivot.get(name)
+    let total = 0
+    if (bySku?.has(staffName)) total += bySku.get(staffName) || 0
+    if (byName && byName !== bySku && byName.has(staffName)) {
+      total += byName.get(staffName) || 0
+    }
+    return total
+  }
+  void nameToSku
+
+  // Cột: 40px icon + 1.6fr tên + Nstaff × 110px + 110px tồn kho
+  const staffCount = activeStaff.length
+  const staffColsCss = staffCount > 0 ? `repeat(${staffCount}, 110px)` : ""
+  const cols = `40px 1.6fr ${staffColsCss} 110px`.replace(/\s+/g, " ").trim()
+
+  const totalSoldByStaff = React.useMemo(() => {
+    const m = new Map<string, number>()
+    activeStaff.forEach((s) => {
+      let total = 0
+      products.forEach((p) => {
+        total += qtyForStaffProduct(p.sku, p.name, s.name)
+      })
+      m.set(s.id, total)
+    })
+    return m
+  }, [activeStaff, products, pivot]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div
+      style={{
+        background: HX.surface,
+        border: `1px solid ${HX.hairline}`,
+        borderRadius: 14,
+        overflow: "hidden",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: cols,
+          gap: 12,
+          padding: "12px 20px",
+          background: HX.bg,
+          borderBottom: `1px solid ${HX.hairline}`,
+          fontSize: 11,
+          color: HX.text3,
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        <span></span>
+        <span>Sản phẩm</span>
+        {activeStaff.map((s) => (
+          <span key={s.id} style={{ textAlign: "right" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+              <div
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 4,
+                  background: s.color,
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 8,
+                  fontWeight: 700,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                {s.initials}
+              </div>
+              <span style={{ textTransform: "none", letterSpacing: 0, fontSize: 11 }}>
+                {s.name}
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: 9,
+                color: HX.text3,
+                fontWeight: 500,
+                letterSpacing: 0,
+                marginTop: 2,
+                textTransform: "none",
+              }}
+            >
+              Người bán hàng
+            </div>
+          </span>
+        ))}
+        <span style={{ textAlign: "right" }}>Tồn kho</span>
+      </div>
+
+      {/* Rows */}
+      {products.length === 0 ? (
+        <div style={{ padding: 30, textAlign: "center", color: HX.text3, fontSize: 13 }}>
+          Chưa có sản phẩm bán lẻ
+        </div>
+      ) : (
+        products.map((p) => (
+          <div
+            key={p.sku}
+            style={{
+              display: "grid",
+              gridTemplateColumns: cols,
+              gap: 12,
+              padding: "12px 20px",
+              fontSize: 13,
+              color: HX.text,
+              borderBottom: `1px solid ${HX.hairline}`,
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: p.color + "22",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name={p.icon} size={15} color={p.color} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: 600,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {p.name}
+              </div>
+              <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
+                {p.cat} · <span className="hx-num">{p.sku}</span>
+              </div>
+            </div>
+            {activeStaff.map((s) => {
+              const qty = qtyForStaffProduct(p.sku, p.name, s.name)
+              return (
+                <span
+                  key={s.id}
+                  className="hx-num"
+                  style={{
+                    textAlign: "right",
+                    fontWeight: qty > 0 ? 700 : 400,
+                    color: qty > 0 ? HX.text : HX.text3,
+                  }}
+                >
+                  {qty}
+                </span>
+              )
+            })}
+            <span
+              className="hx-num"
+              style={{
+                textAlign: "right",
+                fontWeight: 600,
+                color: p.low ? HX.bad : HX.text,
+              }}
+            >
+              {fmtNum(p.stock)}
+              <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}>
+                {" "}
+                / {fmtNum(p.min_stock)}
+              </span>
+            </span>
+          </div>
+        ))
+      )}
+
+      {/* Footer totals */}
+      {activeStaff.length > 0 && products.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: cols,
+            gap: 12,
+            padding: "12px 20px",
+            background: HX.bg,
+            fontSize: 12,
+            fontWeight: 600,
+            color: HX.text2,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+          }}
+        >
+          <span></span>
+          <span>Tổng bán</span>
+          {activeStaff.map((s) => (
+            <span
+              key={s.id}
+              className="hx-num"
+              style={{ textAlign: "right", color: HX.text, fontWeight: 700 }}
+            >
+              {totalSoldByStaff.get(s.id) || 0}
+            </span>
+          ))}
+          <span
+            className="hx-num"
+            style={{ textAlign: "right", color: HX.text, fontWeight: 700 }}
+          >
+            {fmtNum(products.reduce((s, p) => s + p.stock, 0))}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Hook: retail sales trong khoảng thời gian ─────────────────
+interface RetailSale {
+  sku: string
+  item_name: string
+  seller_name: string
+  quantity: number
+  sale_time: string
+}
+export function useRetailSales(from: Date, to: Date) {
+  const [sales, setSales] = React.useState<RetailSale[]>([])
+  const fromMs = from.getTime()
+  const toMs = to.getTime()
+  React.useEffect(() => {
+    let alive = true
+    fetch("/api/inventory", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((r) => {
+        if (!alive || !r?.success || !Array.isArray(r.data)) return
+        setSales(
+          r.data
+            .filter((x: any) => {
+              const t = new Date(x.sale_time || x.created_at).getTime()
+              return Number.isFinite(t) && t >= fromMs && t <= toMs
+            })
+            .map((x: any) => ({
+              sku: String(x.sku || ""),
+              item_name: String(x.item_name || ""),
+              seller_name: String(x.seller_name || ""),
+              quantity: Number(x.quantity) || 0,
+              sale_time: x.sale_time || x.created_at || "",
+            }))
+        )
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [fromMs, toMs])
+  return sales
+}
+
 // ── Main ──────────────────────────────────────────────────────
 export function useReport() {
   const [period, setPeriod] = React.useState<Period>("today")
@@ -491,6 +784,10 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
     byPump,
     bestPump,
   } = report
+
+  const { staff } = useStaff()
+  const { products: retailProducts } = useRetailProducts()
+  const retailSales = useRetailSales(ranges.cur.from, ranges.cur.to)
 
   return (
     <div
@@ -971,27 +1268,16 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
         </div>
       </div>
 
-      {/* Staff section — DB không lưu seller_name cho fuel_pump */}
-      <WSection title={`Nhân viên · ${meta.label}`} sub="Hiệu suất bán hàng theo nhân viên">
-        <div
-          style={{
-            background: HX.surface,
-            border: `1px solid ${HX.hairline}`,
-            borderRadius: 14,
-            padding: 40,
-            textAlign: "center",
-            color: HX.text3,
-            fontSize: 13,
-            lineHeight: 1.6,
-          }}
-        >
-          Chưa có dữ liệu nhân viên cho từng giao dịch xăng dầu trong DB.
-          <br />
-          <span style={{ fontSize: 12 }}>
-            Bảng <code style={{ color: HX.text2 }}>fuel_pump</code> chưa có cột{" "}
-            <code style={{ color: HX.text2 }}>seller_name</code>.
-          </span>
-        </div>
+      {/* Nhân viên — sản phẩm bán lẻ theo người bán + tồn kho */}
+      <WSection
+        title={`Nhân viên · ${meta.label}`}
+        sub="Số lượng bán theo nhân viên trực ca + tồn kho hiện tại"
+      >
+        <StaffSalesTable
+          activeStaff={staff.filter((s) => s.active !== false)}
+          products={retailProducts}
+          sales={retailSales}
+        />
       </WSection>
     </div>
   )

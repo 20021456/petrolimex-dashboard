@@ -10,6 +10,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import { HX, Icon, useIsMobile } from "@/components/htx-kit"
 import { RETAIL_STOCK, RETAIL_CATS } from "@/components/stock-page"
+import { useShiftStore } from "@/components/cabanhang-content"
 import { PosPageMobile } from "@/components/pos-page-mobile"
 
 interface PosPageProps {
@@ -136,7 +137,10 @@ function saleTimeStr(d: Date) {
 }
 
 // ── Shared POS state + save logic (web + mobile) ──────────────
-export function usePos(products: PosProduct[], onSaved?: () => void) {
+export function usePos(
+  products: PosProduct[],
+  opts: { onSaved?: () => void; sellerName?: string } = {}
+) {
   const [cart, setCart] = React.useState<CartItem[]>([])
   const [customer, setCustomer] = React.useState("")
   const [status, setStatus] = React.useState<PayStatus>("paid")
@@ -200,7 +204,7 @@ export function usePos(products: PosProduct[], onSaved?: () => void) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             customer_name: customer.trim(),
-            seller_name: "",
+            seller_name: opts.sellerName || "",
             item_name: l.product.name,
             sku: l.product.sku,
             category: "retail",
@@ -220,7 +224,7 @@ export function usePos(products: PosProduct[], onSaved?: () => void) {
         `Đã lưu ${cartLines.length} mặt hàng (${itemCount} SP) · ${fmtVN(total)} ₫`
       )
       clearCart()
-      onSaved?.()
+      opts.onSaved?.()
     } catch (e: any) {
       toast.error(e?.message || "Có lỗi xảy ra")
     } finally {
@@ -281,7 +285,11 @@ const PAY_OPTIONS: { k: PayStatus; l: string; c: string }[] = [
 function PosPageWeb() {
   const { products, reload: reloadProducts } = useRetailProducts()
   const customers = useCustomers()
-  const pos = usePos(products, reloadProducts)
+  const { current: currentShift } = useShiftStore()
+  const pos = usePos(products, {
+    onSaved: reloadProducts,
+    sellerName: currentShift?.staffName || "",
+  })
   const {
     cart,
     customer,

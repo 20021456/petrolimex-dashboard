@@ -15,6 +15,7 @@ import {
   fmtVN,
   type PayStatus,
 } from "@/components/pos-page"
+import { useShiftStore } from "@/components/cabanhang-content"
 
 const TABBAR_OFFSET = "calc(72px + env(safe-area-inset-bottom))"
 
@@ -27,6 +28,7 @@ const PAY_OPTIONS: { k: PayStatus; l: string; c: string }[] = [
 export function PosPageMobile() {
   const { products, reload: reloadProducts } = useRetailProducts()
   const customers = useCustomers()
+  const { current: currentShift } = useShiftStore()
   const {
     cart,
     addToCart,
@@ -46,7 +48,10 @@ export function PosPageMobile() {
     canSave,
     submitting,
     handleSubmit,
-  } = usePos(products, reloadProducts)
+  } = usePos(products, {
+    onSaved: reloadProducts,
+    sellerName: currentShift?.staffName || "",
+  })
 
   const [cat, setCat] = React.useState("all")
   const [showCart, setShowCart] = React.useState(false)
