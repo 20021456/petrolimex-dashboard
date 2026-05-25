@@ -11,11 +11,15 @@ import {
   type ReportState,
   type Period,
   AreaChart,
+  StaffSalesTable,
+  useRetailSales,
   fmtNum,
   fmtBig,
   KIND_COLOR,
   rangeLabel,
 } from "@/components/chitiet-content"
+import { useStaff } from "@/components/cabanhang-content"
+import { useRetailProducts } from "@/components/pos-page"
 
 const TABS: { k: Period; t: string }[] = [
   { k: "today", t: "Hôm nay" },
@@ -50,6 +54,10 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
     byPump,
     bestPump,
   } = report
+
+  const { staff } = useStaff()
+  const { products: retailProducts } = useRetailProducts()
+  const retailSales = useRetailSales(ranges.cur.from, ranges.cur.to)
 
   return (
     <div style={{ color: HX.text, fontFamily: HX.font }}>
@@ -452,6 +460,33 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
             <div style={{ fontSize: 11, color: HX.text2, marginTop: 4 }}>
               {fmtNum(liters)} L · {fmtNum(txCount)} GD
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Nhân viên · pivot table (scroll ngang vì có thể nhiều cột) */}
+      <div style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+          Nhân viên · {meta.label}
+        </div>
+        <div style={{ fontSize: 11, color: HX.text3, marginBottom: 10 }}>
+          Số lượng bán theo nhân viên trực ca + tồn kho · vuốt ngang để xem hết
+        </div>
+        <div
+          className="hxw-scroll"
+          style={{
+            overflowX: "auto",
+            WebkitOverflowScrolling: "touch",
+            margin: "0 -12px",
+            padding: "0 12px",
+          }}
+        >
+          <div style={{ minWidth: 520 }}>
+            <StaffSalesTable
+              activeStaff={staff.filter((s) => s.active !== false)}
+              products={retailProducts}
+              sales={retailSales}
+            />
           </div>
         </div>
       </div>
