@@ -16,6 +16,10 @@ interface TxPageProps {
 }
 
 export const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
+export const fmtLit = (n: number) =>
+  new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+    Number(n) || 0
+  )
 export const KIND_COLOR: Record<string, string> = {
   RON95: HX.ron95,
   E5: HX.e5,
@@ -585,7 +589,7 @@ export function TxPage({ onNavigate }: TxPageProps) {
                               </span>
                             </span>
                             <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
-                              {fmtVN(Number(tx.liters) || 0)} L
+                              {fmtLit(Number(tx.liters) || 0)} L
                             </span>
                             <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
                               {fmtVN(Number(tx.price) || 0)}
