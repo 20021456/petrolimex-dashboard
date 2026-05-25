@@ -41,59 +41,101 @@ const TANK_COT_BOM_NUMS: Record<string, number[]> = {
   'BỒN 4': [1],
 }
 
+// Tên nhiên liệu (fuel_name lưu trong fuel_inventory_import) cho từng bồn.
+const TANK_FUEL_NAMES: Record<string, string[]> = {
+  'BỒN 1': ['RON95-III'],
+  'BỒN 2': ['DO 0,05S-II'],
+  'BỒN 3': ['E5'],
+  'BỒN 4': ['DO 0,001S-V'],
+}
+
 function applyCotBomOverride(tenBon: string, cotBom: string): string {
   const key = (tenBon || '').trim().toUpperCase()
   return TANK_COT_BOM_OVERRIDES[key] ?? cotBom
 }
 
-// Deterministic random ∈ [0, 1) seeded by string — để giá trị ổn định
-// qua các lần request (chỉ thay đổi khi đổi seed/tên bồn).
-function seededRand(seed: string): number {
-  let h = 0
-  for (let i = 0; i < seed.length; i++) {
-    h = ((h << 5) - h) + seed.charCodeAt(i)
-    h |= 0
-  }
-  const x = Math.sin(Math.abs(h)) * 10000
-  return x - Math.floor(x)
+function fmtMySql(d: Date) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
-// Tính lại ton_kho/dung_tich/ty_le theo công thức:
-// - Lấy ngày nhập "random" (1-7 ngày trước, seeded theo tên bồn).
-// - sold = SUM(lit) bán qua các cột bơm của bồn từ ngày nhập tới giờ.
-// - imported = số "random" > sold (cap ở capacity).
-// - ton_kho = imported - sold; ty_le = ton_kho / capacity.
+// Tính tồn kho thực tế:
+//   - Mốc reset = lần nhập kho gần nhất cho loại nhiên liệu của bồn,
+//     hoặc 7 ngày trước nếu chưa có lần nhập nào.
+//   - Tại mốc reset, giả định bồn được nạp đầy (capacity).
+//   - sold = SUM(lit) trong fuel_pump cho các cot_bom của bồn kể từ
+//     mốc reset.
+//   - imported = SUM(quantity) trong fuel_inventory_import sau mốc
+//     reset (intake bổ sung giữa các lần nạp đầy).
+//   - ton_kho = max(0, min(capacity, capacity + imported − sold)).
 async function computeInventoryOverride(
   tenBon: string
 ): Promise<{ ton_kho: number; dung_tich: number; ty_le: string } | null> {
   const key = (tenBon || '').trim().toUpperCase()
   const capacity = TANK_CAPACITY[key]
   const cotBomList = TANK_COT_BOM_NUMS[key]
+  const fuelNames = TANK_FUEL_NAMES[key]
   if (!capacity || !cotBomList || cotBomList.length === 0) return null
 
-  const daysAgo = 1 + Math.floor(seededRand(`${key}:date`) * 7) // 1..7
-  const cotBomCsv = cotBomList.join(',')
+  // Tìm mốc reset: lần nhập kho gần nhất cho fuel của bồn.
+  let resetTs: Date | null = null
+  if (fuelNames && fuelNames.length > 0) {
+    try {
+      const placeholders = fuelNames.map(() => '?').join(',')
+      const rows = await query<any[]>(
+        `SELECT MAX(import_time) AS last_intake
+         FROM fuel_inventory_import
+         WHERE fuel_name IN (${placeholders})`,
+        fuelNames
+      )
+      if (rows?.[0]?.last_intake) {
+        resetTs = new Date(rows[0].last_intake)
+      }
+    } catch {
+      /* bảng có thể chưa tồn tại — bỏ qua */
+    }
+  }
+  if (!resetTs || isNaN(resetTs.getTime())) {
+    resetTs = new Date(Date.now() - 7 * 86400000)
+  }
+  const resetStr = fmtMySql(resetTs)
 
+  // Sold kể từ mốc reset.
   let sold = 0
   try {
-    const rows = await query<any[]>(`
-      SELECT COALESCE(SUM(lit), 0) as sold
-      FROM fuel_pump
-      WHERE cot_bom IN (${cotBomCsv})
-        AND ket_thuc_bom >= DATE_SUB(NOW(), INTERVAL ${daysAgo} DAY)
-    `)
+    const cotCsv = cotBomList.join(',')
+    const rows = await query<any[]>(
+      `SELECT COALESCE(SUM(lit), 0) AS sold
+       FROM fuel_pump
+       WHERE cot_bom IN (${cotCsv})
+         AND ket_thuc_bom >= ?`,
+      [resetStr]
+    )
     sold = Number(rows?.[0]?.sold) || 0
   } catch {
     sold = 0
   }
 
-  // Buffer ngẫu nhiên 2-40% capacity, đảm bảo imported > sold.
-  const buffer = (0.02 + seededRand(`${key}:buffer`) * 0.38) * capacity
-  let imported = sold + buffer
-  if (imported > capacity) imported = capacity
-  if (imported < sold + 100) imported = Math.min(sold + 100, capacity)
+  // Intake sau mốc reset.
+  let imported = 0
+  if (fuelNames && fuelNames.length > 0) {
+    try {
+      const placeholders = fuelNames.map(() => '?').join(',')
+      const rows = await query<any[]>(
+        `SELECT COALESCE(SUM(quantity), 0) AS imported
+         FROM fuel_inventory_import
+         WHERE fuel_name IN (${placeholders})
+           AND import_time > ?`,
+        [...fuelNames, resetStr]
+      )
+      imported = Number(rows?.[0]?.imported) || 0
+    } catch {
+      imported = 0
+    }
+  }
 
-  const tonKho = Math.max(0, imported - sold)
+  const raw = capacity + imported - sold
+  const tonKho = Math.max(0, Math.min(capacity, raw))
   const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
   return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
 }
