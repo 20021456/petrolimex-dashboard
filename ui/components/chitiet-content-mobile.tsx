@@ -481,7 +481,11 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
             padding: "0 12px",
           }}
         >
-          <div style={{ minWidth: 520 }}>
+          <div
+            style={{
+              minWidth: 52 + 220 + staff.filter((s) => s.active !== false).length * 160 + 140,
+            }}
+          >
             <StaffSalesTable
               activeStaff={staff.filter((s) => s.active !== false)}
               products={retailProducts}

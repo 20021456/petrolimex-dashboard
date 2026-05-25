@@ -385,10 +385,10 @@ export function StaffSalesTable({
   }
   void nameToSku
 
-  // Cột: 40px icon + 1.6fr tên + Nstaff × 110px + 110px tồn kho
+  // Cols match design: 52px icon · flexible product · 160px / staff · 140px tồn kho
   const staffCount = activeStaff.length
-  const staffColsCss = staffCount > 0 ? `repeat(${staffCount}, 110px)` : ""
-  const cols = `40px 1.6fr ${staffColsCss} 110px`.replace(/\s+/g, " ").trim()
+  const staffColsCss = staffCount > 0 ? `repeat(${staffCount}, 160px)` : ""
+  const cols = `52px minmax(0, 1fr) ${staffColsCss} 140px`.replace(/\s+/g, " ").trim()
 
   const totalSoldByStaff = React.useMemo(() => {
     const m = new Map<string, number>()
@@ -417,57 +417,82 @@ export function StaffSalesTable({
           display: "grid",
           gridTemplateColumns: cols,
           gap: 12,
-          padding: "12px 20px",
+          padding: "16px 24px",
           background: HX.bg,
           borderBottom: `1px solid ${HX.hairline}`,
-          fontSize: 11,
-          color: HX.text3,
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
+          alignItems: "flex-start",
         }}
       >
         <span></span>
-        <span>Sản phẩm</span>
+        <span
+          style={{
+            fontSize: 11,
+            color: HX.text3,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            alignSelf: "center",
+          }}
+        >
+          Sản phẩm
+        </span>
         {activeStaff.map((s) => (
-          <span key={s.id} style={{ textAlign: "right" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+          <div
+            key={s.id}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: 4,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div
                 style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 4,
+                  width: 26,
+                  height: 26,
+                  borderRadius: 7,
                   background: s.color,
                   color: "#fff",
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 8,
+                  fontSize: 10,
                   fontWeight: 700,
-                  letterSpacing: "-0.01em",
+                  letterSpacing: "0.01em",
+                  flexShrink: 0,
+                  fontFamily: HX.font,
                 }}
               >
                 {s.initials}
               </div>
-              <span style={{ textTransform: "none", letterSpacing: 0, fontSize: 11 }}>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: HX.text,
+                  letterSpacing: "-0.005em",
+                }}
+              >
                 {s.name}
               </span>
             </div>
-            <div
-              style={{
-                fontSize: 9,
-                color: HX.text3,
-                fontWeight: 500,
-                letterSpacing: 0,
-                marginTop: 2,
-                textTransform: "none",
-              }}
-            >
-              Người bán hàng
-            </div>
-          </span>
+            <div style={{ fontSize: 11, color: HX.text3 }}>Người bán hàng</div>
+          </div>
         ))}
-        <span style={{ textAlign: "right" }}>Tồn kho</span>
+        <span
+          style={{
+            fontSize: 11,
+            color: HX.text3,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            textAlign: "right",
+            alignSelf: "center",
+          }}
+        >
+          Tồn kho
+        </span>
       </div>
 
       {/* Rows */}
@@ -476,80 +501,104 @@ export function StaffSalesTable({
           Chưa có sản phẩm bán lẻ
         </div>
       ) : (
-        products.map((p) => (
-          <div
-            key={p.sku}
-            style={{
-              display: "grid",
-              gridTemplateColumns: cols,
-              gap: 12,
-              padding: "12px 20px",
-              fontSize: 13,
-              color: HX.text,
-              borderBottom: `1px solid ${HX.hairline}`,
-              alignItems: "center",
-            }}
-          >
+        products.map((p, i) => {
+          const low = p.stock < p.min_stock
+          return (
             <div
+              key={p.sku}
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: p.color + "22",
-                display: "flex",
+                display: "grid",
+                gridTemplateColumns: cols,
+                gap: 12,
+                padding: "16px 24px",
                 alignItems: "center",
-                justifyContent: "center",
+                borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
               }}
             >
-              <Icon name={p.icon} size={15} color={p.color} />
-            </div>
-            <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  fontWeight: 600,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  width: 36,
+                  height: 36,
+                  borderRadius: 9,
+                  background: "rgba(255,177,88,0.10)",
+                  border: "1px solid rgba(255,177,88,0.18)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                {p.name}
+                <Icon name="drop" size={16} color={HX.accent2} />
               </div>
-              <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
-                {p.cat} · <span className="hx-num">{p.sku}</span>
-              </div>
-            </div>
-            {activeStaff.map((s) => {
-              const qty = qtyForStaffProduct(p.sku, p.name, s.name)
-              return (
-                <span
-                  key={s.id}
-                  className="hx-num"
+              <div style={{ minWidth: 0 }}>
+                <div
                   style={{
-                    textAlign: "right",
-                    fontWeight: qty > 0 ? 700 : 400,
-                    color: qty > 0 ? HX.text : HX.text3,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: HX.text,
+                    letterSpacing: "-0.005em",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                   }}
                 >
-                  {qty}
+                  {p.name}
+                </div>
+                <div style={{ fontSize: 11, color: HX.text3, marginTop: 3 }}>
+                  {p.cat}
+                  <span style={{ margin: "0 6px", opacity: 0.55 }}>·</span>
+                  <span className="hx-num" style={{ letterSpacing: "0.04em" }}>
+                    {p.sku}
+                  </span>
+                </div>
+              </div>
+              {activeStaff.map((s) => {
+                const qty = qtyForStaffProduct(p.sku, p.name, s.name)
+                return (
+                  <div
+                    key={s.id}
+                    className="hx-num"
+                    style={{
+                      textAlign: "right",
+                      fontSize: 16,
+                      fontWeight: qty > 0 ? 700 : 500,
+                      color: qty > 0 ? HX.text : "rgba(255,255,255,0.28)",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    {qty}
+                  </div>
+                )
+              })}
+              <div
+                style={{
+                  textAlign: "right",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  alignItems: "baseline",
+                  gap: 4,
+                }}
+              >
+                <span
+                  className="hx-num"
+                  style={{
+                    fontSize: 19,
+                    fontWeight: 700,
+                    color: low ? HX.bad : HX.text,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {fmtNum(p.stock)}
                 </span>
-              )
-            })}
-            <span
-              className="hx-num"
-              style={{
-                textAlign: "right",
-                fontWeight: 600,
-                color: p.low ? HX.bad : HX.text,
-              }}
-            >
-              {fmtNum(p.stock)}
-              <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}>
-                {" "}
-                / {fmtNum(p.min_stock)}
-              </span>
-            </span>
-          </div>
-        ))
+                <span
+                  className="hx-num"
+                  style={{ fontSize: 12, color: HX.text3, fontWeight: 400 }}
+                >
+                  / {fmtNum(p.min_stock)}
+                </span>
+              </div>
+            </div>
+          )
+        })
       )}
 
       {/* Footer totals */}
@@ -559,13 +608,15 @@ export function StaffSalesTable({
             display: "grid",
             gridTemplateColumns: cols,
             gap: 12,
-            padding: "12px 20px",
+            padding: "14px 24px",
             background: HX.bg,
+            borderTop: `1px solid ${HX.hairline}`,
             fontSize: 12,
             fontWeight: 600,
             color: HX.text2,
             letterSpacing: "0.04em",
             textTransform: "uppercase",
+            alignItems: "center",
           }}
         >
           <span></span>
