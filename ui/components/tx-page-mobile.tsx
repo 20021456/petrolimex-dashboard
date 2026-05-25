@@ -10,6 +10,7 @@ import { HX, Icon, FuelDot, fuelKind } from "@/components/htx-kit"
 import { CustomerEditPopover } from "@/components/customer-edit-popover"
 import {
   fmtVN,
+  fmtLit,
   fmtTime,
   dayKey,
   dayLabel,
@@ -379,7 +380,7 @@ export function TxPageMobile({ onNavigate }: TxPageMobileProps) {
                           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                             <span style={{ fontWeight: 600, fontSize: 14 }}>{tx.fuelType || "—"}</span>
                             <span className="hx-num" style={{ fontSize: 13, color: HX.text2 }}>
-                              · {fmtVN(Number(tx.liters) || 0)} L
+                              · {fmtLit(Number(tx.liters) || 0)} L
                             </span>
                           </div>
                           <div style={{ fontSize: 12, color: HX.text3, marginTop: 2 }}>
