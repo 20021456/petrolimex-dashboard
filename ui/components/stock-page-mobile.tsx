@@ -26,8 +26,6 @@ const KIND_COLOR: Record<string, string> = {
 }
 const KIND_ORDER = ["RON95", "E5", "DO", "DO+"]
 const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
-const fmtLit = (n: number) =>
-  new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0)
 
 function MCard({
   children,
@@ -233,7 +231,7 @@ export function StockPageMobile({
                     <div style={{ marginTop: 2, fontSize: 12, color: HX.text3 }}>{t.pumps}</div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
                       <span className="hx-num" style={{ fontSize: 18, fontWeight: 700, color: t.color }}>
-                        {fmtLit(t.vol)}
+                        {fmtVN(t.vol)}
                       </span>
                       <span className="hx-num" style={{ color: HX.text2, fontSize: 12 }}>
                         / {fmtVN(t.cap)} L
