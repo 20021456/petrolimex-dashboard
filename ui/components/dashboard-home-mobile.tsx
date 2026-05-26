@@ -11,6 +11,8 @@ import {
   Icon,
   FuelDot,
   fuelKind,
+  tankKind,
+  tankLabel,
   Sparkline,
   BarChart,
   Tank,
@@ -120,12 +122,12 @@ export function DashboardHomeMobile({ home, tanksRaw, onNavigate, reload }: Mobi
   // Tank cards
   const tankCards = tanksRaw
     .map((t) => {
-      const kind = fuelKind(t.nhien_lieu)
+      const kind = tankKind(t.ten_bon, t.nhien_lieu)
       const cap = Number(t.dung_tich) || 0
       const vol = Number(t.ton_kho) || 0
       return {
         kind,
-        name: kind || t.ten_bon || "Bồn",
+        name: tankLabel(t.ten_bon, t.nhien_lieu),
         pct: cap > 0 ? Math.round((vol / cap) * 100) : 0,
         color: KIND_COLOR[kind] || HX.text2,
       }

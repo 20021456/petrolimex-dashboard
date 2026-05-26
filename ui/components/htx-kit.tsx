@@ -140,6 +140,36 @@ export function fuelKind(fuelType: string): "RON95" | "E5" | "DO" | "DO+" | "" {
   return ""
 }
 
+// Bồn → fuel kind, theo ánh xạ thực tế tại trạm (xem TANK_COT_BOM_NUMS
+// trong /api/fuel/tanks). Dùng làm fallback khi nhien_lieu upstream rỗng.
+const BON_TO_KIND: Record<string, "RON95" | "E5" | "DO" | "DO+"> = {
+  "BỒN 1": "RON95",
+  "BỒN 2": "DO",
+  "BỒN 3": "E5",
+  "BỒN 4": "DO+",
+}
+
+// "BỒN 1" → "Bồn 1"; nếu rỗng trả "Bồn".
+export function prettyBon(tenBon: string): string {
+  const t = (tenBon || "").trim()
+  if (!t) return "Bồn"
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()
+}
+
+// Suy ra kind từ ten_bon nếu fuelKind(nhien_lieu) rỗng.
+export function tankKind(tenBon: string, fuelType: string): "RON95" | "E5" | "DO" | "DO+" | "" {
+  const k = fuelKind(fuelType)
+  if (k) return k
+  return BON_TO_KIND[(tenBon || "").trim().toUpperCase()] || ""
+}
+
+// Nhãn hiển thị "Bồn N (KIND)" — luôn có cả số bồn và loại nhiên liệu.
+export function tankLabel(tenBon: string, fuelType: string): string {
+  const kind = tankKind(tenBon, fuelType)
+  const bon = prettyBon(tenBon)
+  return kind ? `${bon} (${kind})` : bon
+}
+
 // ── Delta badge ───────────────────────────────────────────────
 export function Delta({
   value,
