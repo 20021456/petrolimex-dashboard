@@ -49,58 +49,43 @@ const TANK_FUEL_NAMES: Record<string, string[]> = {
   'BỒN 4': ['DO 0,001S-V'],
 }
 
+// Lượng tồn kho cố định tại ngày BASELINE_DATE (mốc 20/05/2026).
+// Từ mốc này trở đi, tồn kho = baseline − SUM(lit đã bán).
+const TANK_BASELINE: Record<string, number> = {
+  'BỒN 1': 9000,    // RON95-III  (cap 10000)
+  'BỒN 2': 9500,    // DO 0,05S-II (cap 10000)
+  'BỒN 3': 8500,    // E5         (cap 10000)
+  'BỒN 4': 18500,   // DO 0,001S-V (cap 20000)
+}
+const BASELINE_DATE = '2026-05-20 00:00:00'
+
 function applyCotBomOverride(tenBon: string, cotBom: string): string {
   const key = (tenBon || '').trim().toUpperCase()
   return TANK_COT_BOM_OVERRIDES[key] ?? cotBom
 }
 
-function fmtMySql(d: Date) {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+// Làm tròn đến 2 chữ số sau dấu phẩy.
+function round2(n: number) {
+  return Math.round((Number(n) || 0) * 100) / 100
 }
 
-// Tính tồn kho thực tế:
-//   - Mốc reset = lần nhập kho gần nhất cho loại nhiên liệu của bồn,
-//     hoặc 7 ngày trước nếu chưa có lần nhập nào.
-//   - Tại mốc reset, giả định bồn được nạp đầy (capacity).
-//   - sold = SUM(lit) trong fuel_pump cho các cot_bom của bồn kể từ
-//     mốc reset.
-//   - imported = SUM(quantity) trong fuel_inventory_import sau mốc
-//     reset (intake bổ sung giữa các lần nạp đầy).
-//   - ton_kho = max(0, min(capacity, capacity + imported − sold)).
+// Tính tồn kho thực tế theo mô hình baseline cố định:
+//   - Tại mốc BASELINE_DATE, tồn kho = TANK_BASELINE[bồn] (hardcoded).
+//   - Mỗi giao dịch bán xăng sau mốc đó trừ đi số lít bán ra.
+//   - ton_kho = max(0, min(capacity, baseline − sold)), làm tròn 2 chữ số.
+//   - Việc nhập kho KHÔNG reset bồn về capacity — chỉ trừ đi lượng đã bán.
 async function computeInventoryOverride(
   tenBon: string
 ): Promise<{ ton_kho: number; dung_tich: number; ty_le: string } | null> {
   const key = (tenBon || '').trim().toUpperCase()
   const capacity = TANK_CAPACITY[key]
   const cotBomList = TANK_COT_BOM_NUMS[key]
-  const fuelNames = TANK_FUEL_NAMES[key]
-  if (!capacity || !cotBomList || cotBomList.length === 0) return null
-
-  // Tìm mốc reset: lần nhập kho gần nhất cho fuel của bồn.
-  let resetTs: Date | null = null
-  if (fuelNames && fuelNames.length > 0) {
-    try {
-      const placeholders = fuelNames.map(() => '?').join(',')
-      const rows = await query<any[]>(
-        `SELECT MAX(import_time) AS last_intake
-         FROM fuel_inventory_import
-         WHERE fuel_name IN (${placeholders})`,
-        fuelNames
-      )
-      if (rows?.[0]?.last_intake) {
-        resetTs = new Date(rows[0].last_intake)
-      }
-    } catch {
-      /* bảng có thể chưa tồn tại — bỏ qua */
-    }
+  const baseline = TANK_BASELINE[key]
+  if (!capacity || !cotBomList || cotBomList.length === 0 || baseline == null) {
+    return null
   }
-  if (!resetTs || isNaN(resetTs.getTime())) {
-    resetTs = new Date(Date.now() - 7 * 86400000)
-  }
-  const resetStr = fmtMySql(resetTs)
 
-  // Sold kể từ mốc reset.
+  // Sold kể từ mốc baseline (đơn vị: lít, làm tròn 2 chữ số).
   let sold = 0
   try {
     const cotCsv = cotBomList.join(',')
@@ -109,33 +94,15 @@ async function computeInventoryOverride(
        FROM fuel_pump
        WHERE cot_bom IN (${cotCsv})
          AND ket_thuc_bom >= ?`,
-      [resetStr]
+      [BASELINE_DATE]
     )
-    sold = Number(rows?.[0]?.sold) || 0
+    sold = round2(rows?.[0]?.sold)
   } catch {
     sold = 0
   }
 
-  // Intake sau mốc reset.
-  let imported = 0
-  if (fuelNames && fuelNames.length > 0) {
-    try {
-      const placeholders = fuelNames.map(() => '?').join(',')
-      const rows = await query<any[]>(
-        `SELECT COALESCE(SUM(quantity), 0) AS imported
-         FROM fuel_inventory_import
-         WHERE fuel_name IN (${placeholders})
-           AND import_time > ?`,
-        [...fuelNames, resetStr]
-      )
-      imported = Number(rows?.[0]?.imported) || 0
-    } catch {
-      imported = 0
-    }
-  }
-
-  const raw = capacity + imported - sold
-  const tonKho = Math.max(0, Math.min(capacity, raw))
+  const raw = baseline - sold
+  const tonKho = round2(Math.max(0, Math.min(capacity, raw)))
   const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
   return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
 }
