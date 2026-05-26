@@ -18,7 +18,7 @@ import {
   KIND_COLOR,
   rangeLabel,
 } from "@/components/chitiet-content"
-import { useStaff } from "@/components/cabanhang-content"
+import { useStaff, useTemplates } from "@/components/cabanhang-content"
 import { useRetailProducts } from "@/components/pos-page"
 
 const TABS: { k: Period; t: string }[] = [
@@ -56,8 +56,18 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
   } = report
 
   const { staff } = useStaff()
+  const { templates } = useTemplates()
   const { products: retailProducts } = useRetailProducts()
   const retailSales = useRetailSales(ranges.cur.from, ranges.cur.to)
+
+  const activeStaffForReport = React.useMemo(() => {
+    const activeTemplateDefaultIds = new Set(
+      templates.filter((t) => t.active).map((t) => t.default_staff_id)
+    )
+    return staff.filter(
+      (s) => s.active !== false && activeTemplateDefaultIds.has(s.id)
+    )
+  }, [staff, templates])
 
   return (
     <div style={{ color: HX.text, fontFamily: HX.font }}>
@@ -483,11 +493,11 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
         >
           <div
             style={{
-              minWidth: 52 + 220 + staff.filter((s) => s.active !== false).length * 160 + 140,
+              minWidth: 52 + 220 + activeStaffForReport.length * 160 + 140,
             }}
           >
             <StaffSalesTable
-              activeStaff={staff.filter((s) => s.active !== false)}
+              activeStaff={activeStaffForReport}
               products={retailProducts}
               sales={retailSales}
             />
