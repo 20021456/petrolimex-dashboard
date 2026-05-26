@@ -9,7 +9,7 @@
 import * as React from "react"
 import { HX, Icon, FuelDot, fuelKind, Delta, WKpi, WSection, useIsMobile } from "@/components/htx-kit"
 import { ChiTietContentMobile } from "@/components/chitiet-content-mobile"
-import { useStaff, useTemplates, type StaffMember } from "@/components/cabanhang-content"
+import { useStaff, type StaffMember } from "@/components/cabanhang-content"
 import { useRetailProducts, type PosProduct } from "@/components/pos-page"
 
 export type Period = "today" | "week" | "month" | "quarter" | "year"
@@ -643,7 +643,7 @@ export function StaffSalesTable({
 }
 
 // ── Hook: retail sales trong khoảng thời gian ─────────────────
-interface RetailSale {
+export interface RetailSale {
   sku: string
   item_name: string
   seller_name: string
@@ -837,21 +837,12 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
   } = report
 
   const { staff } = useStaff()
-  const { templates } = useTemplates()
   const { products: retailProducts } = useRetailProducts()
   const retailSales = useRetailSales(ranges.cur.from, ranges.cur.to)
-
-  // Staff hiển thị = staff active + là default_staff_id của ít nhất
-  // 1 khung ca đang bật. Tắt khung trong Ca bán hàng → ẩn cột nhân
-  // viên đó khỏi báo cáo.
-  const activeStaffForReport = React.useMemo(() => {
-    const activeTemplateDefaultIds = new Set(
-      templates.filter((t) => t.active).map((t) => t.default_staff_id)
-    )
-    return staff.filter(
-      (s) => s.active !== false && activeTemplateDefaultIds.has(s.id)
-    )
-  }, [staff, templates])
+  const activeStaffForReport = React.useMemo(
+    () => staff.filter((s) => s.active !== false),
+    [staff]
+  )
 
   return (
     <div
