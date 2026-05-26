@@ -71,8 +71,9 @@ function round2(n: number) {
 
 // Tính tồn kho thực tế theo mô hình baseline cố định:
 //   - Tại mốc BASELINE_DATE, tồn kho = TANK_BASELINE[bồn] (hardcoded).
-//   - Mỗi giao dịch bán xăng sau mốc đó trừ đi số lít bán ra.
-//   - ton_kho = max(0, min(capacity, baseline − sold)), làm tròn 2 chữ số.
+//   - Mỗi giao dịch bán xăng sau mốc đó trừ đi số lít bán ra
+//     (sold cộng dồn làm tròn 2 chữ số).
+//   - ton_kho cuối cùng làm tròn về số nguyên (lít).
 //   - Việc nhập kho KHÔNG reset bồn về capacity — chỉ trừ đi lượng đã bán.
 async function computeInventoryOverride(
   tenBon: string
@@ -102,7 +103,7 @@ async function computeInventoryOverride(
   }
 
   const raw = baseline - sold
-  const tonKho = round2(Math.max(0, Math.min(capacity, raw)))
+  const tonKho = Math.round(Math.max(0, Math.min(capacity, raw)))
   const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
   return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
 }

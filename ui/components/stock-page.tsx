@@ -37,8 +37,6 @@ const KIND_COLOR: Record<string, string> = {
 const KIND_ORDER = ["RON95", "E5", "DO", "DO+"]
 
 const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
-const fmtLit = (n: number) =>
-  new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0)
 
 // ── Sản phẩm bán lẻ (theo sổ kho xăng dầu) ──
 // Tồn / min / bán hôm nay là số liệu mẫu — sẽ chỉnh theo thực tế sau.
@@ -447,7 +445,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
                       className="hx-num"
                       style={{ fontSize: 30, fontWeight: 700, color: t.color, letterSpacing: "-0.02em" }}
                     >
-                      {fmtLit(t.vol)}
+                      {fmtVN(t.vol)}
                     </span>
                     <span className="hx-num" style={{ color: HX.text2, fontSize: 14 }}>
                       / {fmtVN(t.cap)} L
