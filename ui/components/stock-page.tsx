@@ -13,6 +13,8 @@ import {
   Icon,
   FuelDot,
   fuelKind,
+  tankKind,
+  tankLabel,
   Tank,
   Donut,
   ProgressBar,
@@ -134,7 +136,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
 
   const tankCards = tanksRaw
     .map((t) => {
-      const kind = fuelKind(t.nhien_lieu)
+      const kind = tankKind(t.ten_bon, t.nhien_lieu)
       const vol = Number(t.ton_kho) || 0
       const cap = Number(t.dung_tich) || 0
       const pct = cap > 0 ? Math.round((vol / cap) * 100) : 0
@@ -143,7 +145,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
       const rate = litersToday / hoursElapsed
       const hrs = rate > 0 ? Math.round(vol / rate) : 999
       return {
-        name: t.nhien_lieu || t.ten_bon || "Bồn",
+        name: tankLabel(t.ten_bon, t.nhien_lieu),
         kind,
         vol,
         cap,

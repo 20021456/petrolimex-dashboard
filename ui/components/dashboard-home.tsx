@@ -12,6 +12,8 @@ import {
   Icon,
   FuelDot,
   fuelKind,
+  tankKind,
+  tankLabel,
   Sparkline,
   BarChart,
   Tank,
@@ -166,7 +168,7 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
   // ── Tank cards ──
   const tankCards = tanksRaw
     .map((t) => {
-      const kind = fuelKind(t.nhien_lieu)
+      const kind = tankKind(t.ten_bon, t.nhien_lieu)
       const vol = Number(t.ton_kho) || 0
       const cap = Number(t.dung_tich) || 0
       const tpct = cap > 0 ? Math.round((vol / cap) * 100) : 0
@@ -176,7 +178,7 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
       const rate = litersToday / hoursElapsed
       const hrs = rate > 0 ? Math.round(vol / rate) : 999
       return {
-        name: kind || t.ten_bon || "Bồn",
+        name: tankLabel(t.ten_bon, t.nhien_lieu),
         kind,
         vol,
         cap,
