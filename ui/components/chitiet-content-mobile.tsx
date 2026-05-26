@@ -10,16 +10,16 @@ import { HX, Icon, FuelDot, Delta, ProgressBar } from "@/components/htx-kit"
 import {
   type ReportState,
   type Period,
+  type RetailSale,
   AreaChart,
-  StaffSalesTable,
   useRetailSales,
   fmtNum,
   fmtBig,
   KIND_COLOR,
   rangeLabel,
 } from "@/components/chitiet-content"
-import { useStaff, useTemplates } from "@/components/cabanhang-content"
-import { useRetailProducts } from "@/components/pos-page"
+import { useStaff, type StaffMember } from "@/components/cabanhang-content"
+import { useRetailProducts, type PosProduct } from "@/components/pos-page"
 
 const TABS: { k: Period; t: string }[] = [
   { k: "today", t: "Hôm nay" },
@@ -56,18 +56,12 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
   } = report
 
   const { staff } = useStaff()
-  const { templates } = useTemplates()
   const { products: retailProducts } = useRetailProducts()
   const retailSales = useRetailSales(ranges.cur.from, ranges.cur.to)
-
-  const activeStaffForReport = React.useMemo(() => {
-    const activeTemplateDefaultIds = new Set(
-      templates.filter((t) => t.active).map((t) => t.default_staff_id)
-    )
-    return staff.filter(
-      (s) => s.active !== false && activeTemplateDefaultIds.has(s.id)
-    )
-  }, [staff, templates])
+  const activeStaffForReport = React.useMemo(
+    () => staff.filter((s) => s.active !== false),
+    [staff]
+  )
 
   return (
     <div style={{ color: HX.text, fontFamily: HX.font }}>
@@ -474,36 +468,235 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
         </div>
       </div>
 
-      {/* Nhân viên · pivot table (scroll ngang vì có thể nhiều cột) */}
+      {/* Nhân viên · sản phẩm bán + tồn kho — card layout (fit 1 screen) */}
       <div style={{ marginTop: 16 }}>
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
           Nhân viên · {meta.label}
         </div>
         <div style={{ fontSize: 11, color: HX.text3, marginBottom: 10 }}>
-          Số lượng bán theo nhân viên trực ca + tồn kho · vuốt ngang để xem hết
+          Số lượng bán theo từng nhân viên + tồn kho hiện tại
         </div>
-        <div
-          className="hxw-scroll"
-          style={{
-            overflowX: "auto",
-            WebkitOverflowScrolling: "touch",
-            margin: "0 -12px",
-            padding: "0 12px",
-          }}
-        >
+        <StaffMobileList
+          activeStaff={activeStaffForReport}
+          products={retailProducts}
+          sales={retailSales}
+        />
+      </div>
+    </div>
+  )
+}
+
+function StaffMobileList({
+  activeStaff,
+  products,
+  sales,
+}: {
+  activeStaff: StaffMember[]
+  products: PosProduct[]
+  sales: RetailSale[]
+}) {
+  // Pivot: Map<sku|name, Map<staffName, qty>>.
+  const pivot = React.useMemo(() => {
+    const m = new Map<string, Map<string, number>>()
+    sales.forEach((s) => {
+      const key = s.sku || s.item_name
+      if (!key) return
+      const seller = s.seller_name || "(không ghi nhận)"
+      if (!m.has(key)) m.set(key, new Map())
+      const inner = m.get(key)!
+      inner.set(seller, (inner.get(seller) || 0) + s.quantity)
+    })
+    return m
+  }, [sales])
+  const qtyFor = (sku: string, name: string, staffName: string) => {
+    const bySku = pivot.get(sku)
+    const byName = pivot.get(name)
+    let t = 0
+    if (bySku?.has(staffName)) t += bySku.get(staffName) || 0
+    if (byName && byName !== bySku && byName.has(staffName)) {
+      t += byName.get(staffName) || 0
+    }
+    return t
+  }
+  if (products.length === 0) {
+    return (
+      <div
+        style={{
+          padding: 30,
+          textAlign: "center",
+          color: HX.text3,
+          fontSize: 12,
+          background: HX.surface,
+          border: `1px dashed ${HX.hairlineStrong}`,
+          borderRadius: 12,
+        }}
+      >
+        Chưa có sản phẩm bán lẻ
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {products.map((p) => {
+        const low = p.stock < p.min_stock
+        return (
           <div
+            key={p.sku}
             style={{
-              minWidth: 52 + 220 + activeStaffForReport.length * 160 + 140,
+              background: HX.surface,
+              border: `1px solid ${HX.hairline}`,
+              borderRadius: 12,
+              padding: 12,
             }}
           >
-            <StaffSalesTable
-              activeStaff={activeStaffForReport}
-              products={retailProducts}
-              sales={retailSales}
-            />
+            {/* Top row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: "rgba(255,177,88,0.10)",
+                  border: "1px solid rgba(255,177,88,0.18)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Icon name="drop" size={14} color={HX.accent2} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: HX.text,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {p.name}
+                </div>
+                <div style={{ fontSize: 10, color: HX.text3, marginTop: 2 }}>
+                  {p.cat} · {p.sku}
+                </div>
+              </div>
+              <div
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 8,
+                  background: low ? HX.badSoft : HX.bg,
+                  border: low
+                    ? "1px solid rgba(255,69,58,0.28)"
+                    : `1px solid ${HX.hairlineStrong}`,
+                  textAlign: "right",
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: HX.text3,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    fontWeight: 600,
+                  }}
+                >
+                  Tồn
+                </div>
+                <div
+                  className="hx-num"
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: low ? HX.bad : HX.text,
+                    marginTop: 1,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {fmtNum(p.stock)}
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: HX.text3,
+                      fontWeight: 400,
+                    }}
+                  >
+                    {" / "}
+                    {fmtNum(p.min_stock)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Staff chips */}
+            {activeStaff.length > 0 && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${activeStaff.length}, 1fr)`,
+                  gap: 6,
+                  marginTop: 10,
+                  paddingTop: 10,
+                  borderTop: `1px solid ${HX.hairline}`,
+                }}
+              >
+                {activeStaff.map((s) => {
+                  const qty = qtyFor(p.sku, p.name, s.name)
+                  return (
+                    <div
+                      key={s.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "5px 7px",
+                        borderRadius: 7,
+                        background: HX.bg,
+                        border: `1px solid ${HX.hairline}`,
+                        minWidth: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: 5,
+                          background: s.color,
+                          color: "#fff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 8,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {s.initials}
+                      </div>
+                      <span
+                        className="hx-num"
+                        style={{
+                          flex: 1,
+                          textAlign: "right",
+                          fontSize: 14,
+                          fontWeight: qty > 0 ? 700 : 500,
+                          color: qty > 0 ? HX.text : "rgba(255,255,255,0.28)",
+                          letterSpacing: "-0.01em",
+                        }}
+                      >
+                        {qty}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+        )
+      })}
     </div>
   )
 }
