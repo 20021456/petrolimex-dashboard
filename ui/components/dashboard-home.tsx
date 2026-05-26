@@ -49,6 +49,8 @@ const KIND_COLOR: Record<string, string> = {
 const KIND_ORDER = ["RON95", "E5", "DO", "DO+"]
 
 const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
+const fmtLit = (n: number) =>
+  new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n) || 0)
 
 function fmtTime(ts: string): string {
   if (!ts) return ""
@@ -514,7 +516,7 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   )}
                 </div>
                 <div className="hx-num" style={{ fontSize: 20, fontWeight: 700, color: t.color, marginTop: 8 }}>
-                  {fmtVN(t.vol)}
+                  {fmtLit(t.vol)}
                 </div>
                 <div className="hx-num" style={{ fontSize: 11, color: HX.text3, marginTop: 1 }}>
                   / {fmtVN(t.cap)} L
