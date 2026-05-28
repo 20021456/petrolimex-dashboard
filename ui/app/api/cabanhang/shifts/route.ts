@@ -104,7 +104,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH — đóng ca (?id=...)
+// PATCH — đóng ca (?id=...) hoặc cập nhật quỹ đầu ca trên ca đang mở.
+// Nếu body có close_cash → close shift (hành vi cũ).
+// Nếu body chỉ có open_cash → update open_cash khi ca còn 'open'.
 export async function PATCH(req: NextRequest) {
   try {
     await ensureCaBanHangTables()
@@ -114,19 +116,31 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Thiếu id' }, { status: 400 })
     }
     const b = await req.json()
-    await query(
-      `UPDATE shifts
-         SET status = 'closed', close_ts = NOW(),
-             close_cash = ?, revenue = ?, tx_count = ?, liters = ?
-       WHERE id = ? AND status = 'open'`,
-      [
-        Number(b.close_cash) || 0,
-        Number(b.revenue) || 0,
-        Number(b.tx_count) || 0,
-        Number(b.liters) || 0,
-        id,
-      ]
-    )
+
+    const hasCloseCash = b.close_cash !== undefined
+    const hasOpenCash = b.open_cash !== undefined
+
+    if (!hasCloseCash && hasOpenCash) {
+      await query(
+        `UPDATE shifts SET open_cash = ? WHERE id = ? AND status = 'open'`,
+        [Number(b.open_cash) || 0, id]
+      )
+    } else {
+      await query(
+        `UPDATE shifts
+           SET status = 'closed', close_ts = NOW(),
+               close_cash = ?, revenue = ?, tx_count = ?, liters = ?
+         WHERE id = ? AND status = 'open'`,
+        [
+          Number(b.close_cash) || 0,
+          Number(b.revenue) || 0,
+          Number(b.tx_count) || 0,
+          Number(b.liters) || 0,
+          id,
+        ]
+      )
+    }
+
     const [row] = await query<any[]>(
       `SELECT id, code, staff_id, staff_name, staff_initials, staff_color,
               template_id, open_ts, close_ts, open_cash, close_cash,

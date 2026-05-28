@@ -151,7 +151,12 @@ export function useShiftStore() {
   const current = shifts.find((s) => s.status === "open") || null
 
   const openShift = React.useCallback(
-    async (staff: StaffMember, openCash: number, note: string) => {
+    async (
+      staff: StaffMember,
+      openCash: number,
+      note: string,
+      opts: { templateId?: string; silent?: boolean } = {}
+    ) => {
       try {
         const res = await fetch("/api/cabanhang/shifts", {
           method: "POST",
@@ -163,16 +168,42 @@ export function useShiftStore() {
             staff_color: staff.color,
             open_cash: openCash,
             note,
+            template_id: opts.templateId,
           }),
         }).then((x) => x.json())
         if (!res?.success) {
-          toast.error(res?.error || "Không mở được ca")
-          return
+          if (!opts.silent) toast.error(res?.error || "Không mở được ca")
+          return false
         }
-        toast.success("Đã mở ca bán hàng mới")
+        if (!opts.silent) toast.success("Đã mở ca bán hàng mới")
         await reload()
+        return true
+      } catch (e: any) {
+        if (!opts.silent) toast.error(e?.message || "Có lỗi xảy ra")
+        return false
+      }
+    },
+    [reload]
+  )
+
+  const updateOpenCash = React.useCallback(
+    async (shiftId: string, openCash: number) => {
+      try {
+        const res = await fetch(`/api/cabanhang/shifts?id=${shiftId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ open_cash: openCash }),
+        }).then((x) => x.json())
+        if (!res?.success) {
+          toast.error(res?.error || "Không cập nhật được quỹ đầu ca")
+          return false
+        }
+        toast.success("Đã cập nhật quỹ đầu ca")
+        await reload()
+        return true
       } catch (e: any) {
         toast.error(e?.message || "Có lỗi xảy ra")
+        return false
       }
     },
     [reload]
@@ -207,7 +238,7 @@ export function useShiftStore() {
     [shifts, reload]
   )
 
-  return { shifts, current, openShift, closeShift, hydrated, reload }
+  return { shifts, current, openShift, closeShift, updateOpenCash, hydrated, reload }
 }
 export type ShiftStore = ReturnType<typeof useShiftStore>
 
@@ -592,6 +623,230 @@ export function useAssignments(from: Date, to: Date) {
   return { assignments, loading, reload, setAssignment, clearAssignment }
 }
 export type AssignmentsState = ReturnType<typeof useAssignments>
+
+// ── Edit open_cash modal — sửa quỹ đầu ca trên ca đang mở. ────
+export function EditOpenCashModal({
+  initial,
+  shiftCode,
+  onClose,
+  onConfirm,
+}: {
+  initial: number
+  shiftCode?: string
+  onClose: () => void
+  onConfirm: (amount: number) => Promise<boolean | void> | boolean | void
+}) {
+  const [val, setVal] = React.useState(
+    initial > 0 ? new Intl.NumberFormat("vi-VN").format(Math.round(initial)) : ""
+  )
+  const [submitting, setSubmitting] = React.useState(false)
+  const numVal = parseInt(val.replace(/\D/g, "")) || 0
+  const valid = numVal >= 0
+
+  async function handleSubmit() {
+    if (!valid || submitting) return
+    setSubmitting(true)
+    try {
+      const ok = await onConfirm(numVal)
+      if (ok !== false) onClose()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(8px)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: HX.elevated,
+          border: `1px solid ${HX.hairlineStrong}`,
+          borderRadius: 18,
+          padding: 24,
+          width: "100%",
+          maxWidth: 420,
+          boxShadow: "0 30px 80px -20px rgba(0,0,0,0.7)",
+        }}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: HX.text3,
+              fontWeight: 500,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+            }}
+          >
+            Ca {shiftCode || "đang mở"}
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: HX.text, marginTop: 2 }}>
+            Sửa quỹ tiền mặt đầu ca
+          </div>
+        </div>
+        <input
+          autoFocus
+          value={val}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/\D/g, "")
+            setVal(raw ? parseInt(raw).toLocaleString("vi-VN") : "")
+          }}
+          placeholder="0"
+          inputMode="numeric"
+          className="hx-num"
+          style={{
+            width: "100%",
+            height: 52,
+            padding: "0 16px",
+            borderRadius: 12,
+            background: HX.bg,
+            border: `1px solid ${HX.hairlineStrong}`,
+            color: HX.text,
+            fontSize: 22,
+            fontWeight: 700,
+            fontFamily: HX.font,
+            outline: "none",
+            textAlign: "right",
+            marginBottom: 16,
+          }}
+        />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="hxw-press"
+            style={{
+              flex: 1,
+              height: 46,
+              borderRadius: 12,
+              background: "transparent",
+              border: `1px solid ${HX.hairlineStrong}`,
+              color: HX.text2,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!valid || submitting}
+            className={valid && !submitting ? "hxw-press" : ""}
+            style={{
+              flex: 1,
+              height: 46,
+              borderRadius: 12,
+              background:
+                valid && !submitting
+                  ? `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`
+                  : HX.surface,
+              border: "1px solid transparent",
+              color: valid && !submitting ? "#fff" : HX.text3,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: valid && !submitting ? "pointer" : "not-allowed",
+            }}
+          >
+            {submitting ? "Đang lưu…" : "Lưu"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Auto-open shifts theo lịch (template + assignment) ────────
+// Mỗi 60 giây kiểm tra template nào đang active "ngay bây giờ".
+// Nếu không có ca nào đang mở → tự mở ca cho template đó với nhân
+// viên đã phân (assignment hôm nay → fallback default_staff_id).
+// Khi user chỉnh lịch (đổi staff/giờ), lần kiểm tra kế tiếp sẽ
+// dùng dữ liệu mới mà không cần reload. Carry-over open_cash từ
+// ca đóng gần nhất (mặc định 0).
+export function useAutoOpenShifts(opts: {
+  hydrated: boolean
+  current: Shift | null
+  shifts: Shift[]
+  templates: ShiftTemplate[]
+  assignments: ShiftAssignment[]
+  staff: StaffMember[]
+  openShift: (
+    staff: StaffMember,
+    openCash: number,
+    note: string,
+    opts?: { templateId?: string; silent?: boolean }
+  ) => Promise<boolean | void>
+  enabled?: boolean
+}) {
+  const {
+    hydrated,
+    current,
+    shifts,
+    templates,
+    assignments,
+    staff,
+    openShift,
+    enabled = true,
+  } = opts
+  const lastTriedRef = React.useRef<{ key: string; ts: number } | null>(null)
+
+  const tryAutoOpen = React.useCallback(async () => {
+    if (!enabled || !hydrated) return
+    if (current) return // đã có ca mở; không can thiệp
+
+    const now = new Date()
+    const active = templates.find((t) => isTemplateActiveNow(t, now))
+    if (!active) return
+
+    // Nhân viên: assignment hôm nay > default
+    const todayKey = ymd(now)
+    const assignment = assignments.find(
+      (a) => a.assign_date === todayKey && a.template_id === active.id
+    )
+    const staffId = assignment?.staff_id || active.default_staff_id
+    if (!staffId) return
+    const staffMember = staff.find((s) => s.id === staffId)
+    if (!staffMember || staffMember.active === false) return
+
+    // Tránh thử lại liên tiếp cùng template trong < 5 phút
+    const key = `${todayKey}::${active.id}::${staffMember.id}`
+    const last = lastTriedRef.current
+    if (last && last.key === key && Date.now() - last.ts < 5 * 60_000) return
+
+    // Carry-over openCash từ ca đóng gần nhất
+    const lastClosed = shifts
+      .filter((s) => s.status === "closed" && typeof s.closeCash === "number")
+      .sort((a, b) => (b.endTs ?? 0) - (a.endTs ?? 0))[0]
+    const carryCash = Number(lastClosed?.closeCash) || 0
+
+    lastTriedRef.current = { key, ts: Date.now() }
+    await openShift(staffMember, carryCash, `Tự mở theo lịch · ${active.name}`, {
+      templateId: active.id,
+      silent: true,
+    })
+  }, [enabled, hydrated, current, templates, assignments, staff, shifts, openShift])
+
+  React.useEffect(() => {
+    tryAutoOpen()
+    const t = setInterval(tryAutoOpen, 60_000)
+    return () => clearInterval(t)
+  }, [tryAutoOpen])
+}
 
 // ── /api/stats summary for a shift ─────────────────────────────
 function fmtMySql(d: Date) {
@@ -1213,8 +1468,9 @@ function WebShiftPage({
   staffState: StaffState
   onNavigate?: (view: string) => void
 }) {
-  const { shifts, current, openShift, closeShift, hydrated } = store
+  const { shifts, current, openShift, closeShift, updateOpenCash, hydrated } = store
   const { staff: liveStaff, addStaff, updateStaff, removeStaff, toggleActive } = staffState
+  const [editCashOpen, setEditCashOpen] = React.useState(false)
   const { summary } = useShiftSummary(current)
   const { templates, saveTemplate, addTemplate, deleteTemplate } = useTemplates()
   const weekRange = React.useMemo(() => {
@@ -1393,11 +1649,30 @@ function WebShiftPage({
                     {fmtDuration(duration)}
                   </span>
                 </span>
-                <span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   Quỹ đầu ca{" "}
                   <span className="hx-num" style={{ fontWeight: 700 }}>
                     {fmtNum(current.openCash)} ₫
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditCashOpen(true)}
+                    className="hxw-press"
+                    title="Sửa quỹ đầu ca"
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: 6,
+                      background: "rgba(255,255,255,0.18)",
+                      border: "1px solid rgba(255,255,255,0.25)",
+                      color: "#fff",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Sửa
+                  </button>
                 </span>
               </div>
             </div>
@@ -2138,6 +2413,14 @@ function WebShiftPage({
               summary?.liters || 0
             )
           }}
+        />
+      )}
+      {editCashOpen && current && (
+        <EditOpenCashModal
+          initial={current.openCash}
+          shiftCode={current.code || current.id}
+          onClose={() => setEditCashOpen(false)}
+          onConfirm={(amount) => updateOpenCash(current.id, amount)}
         />
       )}
       {staffEdit && (
@@ -3280,6 +3563,23 @@ export function CaBanHangContent({ onNavigate }: CaBanHangContentProps) {
   const isMobile = useIsMobile()
   const store = useShiftStore()
   const staffState = useStaff()
+  // Auto-open theo lịch: cần templates + assignments hôm nay.
+  const { templates } = useTemplates()
+  const today = React.useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+  const { assignments } = useAssignments(today, today)
+  useAutoOpenShifts({
+    hydrated: store.hydrated,
+    current: store.current,
+    shifts: store.shifts,
+    templates,
+    assignments,
+    staff: staffState.staff,
+    openShift: store.openShift,
+  })
   return (
     <StaffContext.Provider value={staffState.staff}>
       {isMobile ? (
