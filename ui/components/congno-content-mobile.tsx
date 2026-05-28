@@ -14,6 +14,7 @@ import {
   Avatar,
   KindTag,
   PaymentModal,
+  AddCustomerModal,
   fmtNum,
   fmtBig,
   dayKey,
@@ -39,8 +40,9 @@ export function CongNoContentMobile({ state }: { state: CongNoState }) {
 
 // ── List ──────────────────────────────────────────────────────
 function MobileList({ state }: { state: CongNoState }) {
-  const { customers, loading, setSelectedId } = state
+  const { customers, loading, setSelectedId, reload } = state
   const [filter, setFilter] = React.useState<"debt" | "all" | "paid">("debt")
+  const [addOpen, setAddOpen] = React.useState(false)
 
   const customersInDebt = customers.filter((c) => Number(c.debt) > 0).length
   const totalDebt = customers.reduce((s, c) => s + Math.max(0, Number(c.debt) || 0), 0)
@@ -139,6 +141,29 @@ function MobileList({ state }: { state: CongNoState }) {
             </div>
           )
         })}
+        <div
+          onClick={() => setAddOpen(true)}
+          className="hxw-press"
+          style={{
+            flexShrink: 0,
+            marginLeft: "auto",
+            padding: "7px 13px",
+            borderRadius: 999,
+            background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
+            color: "#fff",
+            border: "1px solid transparent",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Icon name="plus" size={12} color="#fff" strokeWidth={2.4} />
+          Thêm khách
+        </div>
       </div>
 
       {/* List */}
@@ -231,6 +256,10 @@ function MobileList({ state }: { state: CongNoState }) {
           </div>
         )}
       </div>
+
+      {addOpen && (
+        <AddCustomerModal onClose={() => setAddOpen(false)} onSaved={reload} />
+      )}
     </div>
   )
 }

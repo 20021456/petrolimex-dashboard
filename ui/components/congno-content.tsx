@@ -249,6 +249,17 @@ export async function postPayment(customerId: number, amount: number, note: stri
   return r
 }
 
+export async function postCreateCustomer(ten: string, sdt: string, ghi_chu: string) {
+  const res = await fetch(`/api/khachquen`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ten, sdt, ghi_chu }),
+  })
+  const r = await res.json()
+  if (!r?.success) throw new Error(r?.error || "Không thêm được khách quen")
+  return r
+}
+
 // ── Atoms ─────────────────────────────────────────────────────
 export function Avatar({
   name,
@@ -599,11 +610,192 @@ export function PaymentModal({
   )
 }
 
+// ── Add customer modal ────────────────────────────────────────
+export function AddCustomerModal({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [ten, setTen] = React.useState("")
+  const [sdt, setSdt] = React.useState("")
+  const [ghiChu, setGhiChu] = React.useState("")
+  const [submitting, setSubmitting] = React.useState(false)
+
+  const valid = ten.trim().length > 0
+  const fieldStyle: React.CSSProperties = {
+    width: "100%",
+    height: 44,
+    padding: "0 14px",
+    borderRadius: 11,
+    background: HX.bg,
+    border: `1px solid ${HX.hairlineStrong}`,
+    color: HX.text,
+    fontSize: 14,
+    fontFamily: HX.font,
+    outline: "none",
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10,
+    color: HX.text3,
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  }
+
+  async function handleSubmit() {
+    if (!valid || submitting) return
+    setSubmitting(true)
+    try {
+      await postCreateCustomer(ten.trim(), sdt.trim(), ghiChu.trim())
+      toast.success(`Đã thêm khách quen "${ten.trim()}"`)
+      onSaved()
+      onClose()
+    } catch (e: any) {
+      toast.error(e?.message || "Có lỗi xảy ra")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(8px)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: HX.elevated,
+          border: `1px solid ${HX.hairlineStrong}`,
+          borderRadius: 18,
+          padding: 24,
+          width: "100%",
+          maxWidth: 440,
+          boxShadow: "0 30px 80px -20px rgba(0,0,0,0.7)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                color: HX.text3,
+                fontWeight: 500,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}
+            >
+              Khách quen
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: HX.text, marginTop: 2 }}>
+              Thêm khách hàng mới
+            </div>
+          </div>
+          <div onClick={onClose} className="hxw-press" style={{ cursor: "pointer", padding: 4, lineHeight: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16">
+              <path d="M4 4l8 8M12 4l-8 8" stroke={HX.text3} strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={labelStyle}>Tên khách *</div>
+          <input
+            autoFocus
+            value={ten}
+            onChange={(e) => setTen(e.target.value)}
+            placeholder="VD: anh Công Thành"
+            style={fieldStyle}
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={labelStyle}>Số điện thoại</div>
+          <input
+            value={sdt}
+            onChange={(e) => setSdt(e.target.value)}
+            placeholder="VD: 0967xxxxxx"
+            inputMode="tel"
+            className="hx-num"
+            style={fieldStyle}
+          />
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <div style={labelStyle}>Ghi chú</div>
+          <input
+            value={ghiChu}
+            onChange={(e) => setGhiChu(e.target.value)}
+            placeholder="VD: Xưởng cơ khí, Khối 3"
+            style={fieldStyle}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="hxw-press"
+            style={{
+              flex: 1,
+              height: 46,
+              borderRadius: 12,
+              background: "transparent",
+              border: `1px solid ${HX.hairlineStrong}`,
+              color: HX.text2,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!valid || submitting}
+            className={valid && !submitting ? "hxw-press" : ""}
+            style={{
+              flex: 1,
+              height: 46,
+              borderRadius: 12,
+              background:
+                valid && !submitting
+                  ? `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`
+                  : HX.surface,
+              border: "1px solid transparent",
+              color: valid && !submitting ? "#fff" : HX.text3,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: valid && !submitting ? "pointer" : "not-allowed",
+            }}
+          >
+            {submitting ? "Đang lưu…" : "Thêm khách"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Web list view ─────────────────────────────────────────────
 function WebListView({ state }: { state: CongNoState }) {
-  const { customers, loading, setSelectedId } = state
+  const { customers, loading, setSelectedId, reload } = state
   const [filter, setFilter] = React.useState<"debt" | "all" | "paid">("debt")
   const [search, setSearch] = React.useState("")
+  const [addOpen, setAddOpen] = React.useState(false)
 
   const customersInDebt = customers.filter((c) => Number(c.debt) > 0).length
   const totalDebt = customers.reduce((s, c) => s + Math.max(0, Number(c.debt) || 0), 0)
@@ -796,7 +988,31 @@ function WebListView({ state }: { state: CongNoState }) {
             )
           })}
         </div>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: HX.text3, whiteSpace: "nowrap" }}>
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="hxw-press"
+          style={{
+            marginLeft: "auto",
+            height: 36,
+            padding: "0 14px",
+            borderRadius: 10,
+            background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
+            color: "#fff",
+            border: "1px solid transparent",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Icon name="plus" size={14} color="#fff" strokeWidth={2.4} />
+          Thêm khách quen
+        </button>
+        <span style={{ fontSize: 12, color: HX.text3, whiteSpace: "nowrap" }}>
           {filtered.length} khách
           {loading && " · Đang tải…"}
         </span>
@@ -932,6 +1148,10 @@ function WebListView({ state }: { state: CongNoState }) {
           </div>
         )}
       </div>
+
+      {addOpen && (
+        <AddCustomerModal onClose={() => setAddOpen(false)} onSaved={reload} />
+      )}
     </div>
   )
 }
