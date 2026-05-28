@@ -8,6 +8,7 @@ import { ChartSection } from "@/components/chart-section"
 import { ChiTietContent } from "@/components/chitiet-content"
 import { PosPage } from "@/components/pos-page"
 import { TonkhoContent } from "@/components/tonkho-content"
+import { NhapKhoMobile } from "@/components/nhap-kho-mobile"
 import { CaBanHangContent } from "@/components/cabanhang-content"
 import { CongNoContent } from "@/components/congno-content"
 import { DashboardHome } from "@/components/dashboard-home"
@@ -300,6 +301,7 @@ export default function Page() {
     chitiet: "Báo cáo",
     kho: "Bán hàng",
     tonkho: "Tồn kho",
+    nhap: "Nhập kho",
     gia: "Đơn giá",
     giaoca: "Ca bán hàng",
     khachquen: "Công nợ",
@@ -315,6 +317,7 @@ export default function Page() {
     chitiet: "Báo cáo doanh thu & sản lượng",
     kho: "Bán lẻ sản phẩm tại quầy",
     tonkho: "Cảm biến bồn + kho bán lẻ",
+    nhap: "Ghi nhận phiếu nhập xăng dầu",
     giaoca: "Mở / đóng ca làm việc",
     gia: "Cập nhật giá xăng dầu & bán lẻ",
     khachquen: "Theo dõi & thu nợ khách quen",
@@ -485,6 +488,8 @@ export default function Page() {
             <PosPage onNavigate={setActiveView} />
           ) : activeView === "tonkho" ? (
             <StockPage onNavigate={setActiveView} />
+          ) : activeView === "nhap" ? (
+            isMobile ? <NhapKhoMobile /> : <TonkhoContent />
           ) : activeView === "tx" ? (
             <TxPage onNavigate={setActiveView} />
           ) : activeView === "giaoca" ? (

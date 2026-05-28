@@ -343,7 +343,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
               </div>
               <button
                 className="hxw-press"
-                onClick={() => onNavigate?.("kho")}
+                onClick={() => onNavigate?.("nhap")}
                 style={{
                   height: 32,
                   padding: "0 14px",

@@ -417,7 +417,7 @@ export function StockPageMobile({
       {/* CTA — Nhập kho */}
       <button
         type="button"
-        onClick={() => onNavigate?.("kho")}
+        onClick={() => onNavigate?.("nhap")}
         className="hxw-press"
         style={{
           marginTop: 6,
