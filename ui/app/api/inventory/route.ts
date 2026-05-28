@@ -116,6 +116,30 @@ async function updatePaymentStatusEnum() {
   }
 }
 
+// Đảm bảo bảng regular_customers tồn tại — dùng để auto-create khách quen
+// khi POS bán hàng có ghi nợ (payment_status != 'paid'). Schema khớp với
+// /api/khachquen/route.ts: cùng UNIQUE KEY uniq_ten để INSERT IGNORE hoạt động.
+async function ensureRegularCustomersTable() {
+  try {
+    await query(`SELECT id FROM regular_customers LIMIT 1`);
+  } catch (error: any) {
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      await query(`
+        CREATE TABLE regular_customers (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ten VARCHAR(100) NOT NULL,
+          sdt VARCHAR(30),
+          ghi_chu TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uniq_ten (ten),
+          INDEX idx_sdt (sdt)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+    }
+  }
+}
+
 // Kiểm tra và cập nhật schema
 async function ensureCorrectSchema() {
   try {
@@ -251,6 +275,25 @@ export async function POST(request: NextRequest) {
         newStock = await decrementStock(sku, Number(data.quantity));
       } catch (e) {
         console.warn('decrementStock failed for sku', sku, e);
+      }
+    }
+
+    // Khi POS ghi nợ (unpaid/partial) cho 1 khách hàng có tên, tự thêm
+    // họ vào regular_customers nếu chưa có — để khách hiện ngay ở trang
+    // Công nợ. Bỏ qua "Khách lẻ" / "khách vãng lai" — đó là khách không
+    // theo dõi công nợ.
+    const customerName = (data.customer_name || '').trim();
+    const tracksDebt = paymentStatus === 'unpaid' || paymentStatus === 'partial';
+    const isWalkIn = /^kh[áa]ch\s*(l[ẻe]|v[ãa]ng)/i.test(customerName);
+    if (customerName && tracksDebt && !isWalkIn) {
+      try {
+        await ensureRegularCustomersTable();
+        await query(
+          `INSERT IGNORE INTO regular_customers (ten) VALUES (?)`,
+          [customerName]
+        );
+      } catch (e) {
+        console.warn('auto-create regular_customers failed:', e);
       }
     }
 
