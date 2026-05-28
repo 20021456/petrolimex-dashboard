@@ -684,15 +684,93 @@ class FuelAPI:
             
             self.mysql_connection.commit()
             cursor.close()
-            
+
             print(f"✓ Insert thành công {success_count}/{len(data)} bản ghi")
             if error_count > 0:
                 print(f"⚠️  Có {error_count} bản ghi lỗi")
-            
+
+            # Khôi phục gán khách hàng do user nhập (qua dashboard) sau
+            # khi ETL re-write/upsert. Bảo đảm các giá trị "khach_hang"
+            # và "khach_hang_paid" mà user đã chỉnh không bị mất.
+            try:
+                self.restore_customer_overrides()
+            except Exception as e:
+                print(f"⚠️  Không restore được customer overrides: {e}")
+
             return success_count
-            
+
         except Error as e:
             print(f"✗ Lỗi khi insert dữ liệu: {e}")
+            return 0
+
+    def ensure_customer_overrides_table(self) -> bool:
+        """Tạo bảng fuel_pump_customer_overrides (idempotent)."""
+        if not self.mysql_connection or not self.mysql_connection.is_connected():
+            return False
+        try:
+            cursor = self.mysql_connection.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS fuel_pump_customer_overrides (
+                    ma_bom VARCHAR(50) PRIMARY KEY,
+                    khach_hang VARCHAR(100),
+                    khach_hang_paid TINYINT(1) NOT NULL DEFAULT 1,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            self.mysql_connection.commit()
+            cursor.close()
+            return True
+        except Exception as e:
+            print(f"⚠ ensure_customer_overrides_table lỗi: {e}")
+            return False
+
+    def restore_customer_overrides(self) -> int:
+        """
+        Áp các gán khách hàng do user nhập (khach_hang, khach_hang_paid)
+        từ bảng fuel_pump_customer_overrides vào lại fuel_pump theo
+        ma_bom. Trả về số dòng được khôi phục.
+
+        Dùng sau ETL re-import (mode 1/2/3) để không mất thông tin
+        user đã chỉnh trong dashboard.
+        """
+        if not self.mysql_connection or not self.mysql_connection.is_connected():
+            if not self.connect_mysql():
+                return 0
+        try:
+            self.ensure_customer_overrides_table()
+
+            # Bảo đảm fuel_pump có cột khach_hang_paid (tương đương
+            # ensureKhachHangPaidColumn bên Next.js).
+            try:
+                cursor = self.mysql_connection.cursor()
+                cursor.execute(
+                    "ALTER TABLE fuel_pump ADD COLUMN khach_hang_paid TINYINT(1) NOT NULL DEFAULT 1"
+                )
+                self.mysql_connection.commit()
+                cursor.close()
+            except Exception:
+                pass  # cột đã có
+
+            cursor = self.mysql_connection.cursor()
+            cursor.execute(
+                """
+                UPDATE fuel_pump f
+                INNER JOIN fuel_pump_customer_overrides o
+                  ON o.ma_bom = f.ma_bom
+                SET f.khach_hang = o.khach_hang,
+                    f.khach_hang_paid = o.khach_hang_paid
+                """
+            )
+            affected = cursor.rowcount
+            self.mysql_connection.commit()
+            cursor.close()
+            if affected:
+                print(f"✓ Khôi phục {affected} dòng từ customer overrides")
+            return affected
+        except Exception as e:
+            print(f"⚠ restore_customer_overrides lỗi: {e}")
             return 0
     
     def export_to_mysql(self, data: List[Dict]) -> int:
