@@ -175,39 +175,57 @@ def update_fuel_data():
 @app.route('/api/auto-update', methods=['POST'])
 def auto_update():
     """
-    API endpoint để chạy auto-update (cập nhật thông minh)
+    API endpoint để chạy auto-update (cập nhật thông minh) — mirror
+    behavior của `python dags/etl_daily.py --mode 1`:
+      1. Auto-update fuel_pump từ ngày cuối trong DB tới hôm nay.
+      2. Cập nhật fuel_tanks (snapshot bồn bể hiện tại).
     """
     try:
         from src.ingestion.fuel_api import FuelAPI
         from src.utils.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
-        
-        print("[API] Bắt đầu auto-update...")
-        
+
+        print("[API] Bắt đầu auto-update (etl_daily mode 1)...")
+
         api = FuelAPI(
             username=FUEL_USERNAME,
             password=FUEL_PASSWORD,
             headless=True,
             mysql_config=MYSQL_CONFIG
         )
-        
+
         try:
             if not api.login():
                 return jsonify({
                     'success': False,
                     'message': 'Không thể đăng nhập'
                 }), 500
-            
+
             total_imported = api.auto_update(max_days_back=90)
-            
+
+            # Cập nhật bồn bể (giống bước 2 của etl_daily mode 1)
+            tanks_updated = 0
+            try:
+                tank_data = api.get_tank_inventory()
+                if tank_data and api.connect_mysql():
+                    if api.create_tanks_table():
+                        tanks_updated = api.insert_tanks_to_mysql(tank_data) or 0
+                    api.close_mysql()
+            except Exception as tank_err:
+                print(f"[API] Cảnh báo: lỗi cập nhật bồn bể: {tank_err}")
+
             return jsonify({
                 'success': True,
-                'message': f'Auto-update thành công! Đã cập nhật {total_imported} bản ghi',
-                'total_imported': total_imported
+                'message': (
+                    f'Đã cập nhật {total_imported} bản ghi giao dịch'
+                    f' + {tanks_updated} bồn bể'
+                ),
+                'total_imported': total_imported,
+                'tanks_updated': tanks_updated,
             })
-            
+
         finally:
             api.cleanup()
-            
+
     except Exception as e:
         print(f"[API] Lỗi auto-update: {e}")
         import traceback
