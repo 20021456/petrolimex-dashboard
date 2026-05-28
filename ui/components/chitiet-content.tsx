@@ -650,13 +650,30 @@ export interface RetailSale {
   quantity: number
   sale_time: string
 }
+// Lần backfill toàn cục (per page lifecycle) để tránh gọi POST nhiều lần
+// khi nhiều khoảng thời gian render song song.
+let __backfillPromise: Promise<void> | null = null
+async function backfillSellerOnce() {
+  if (__backfillPromise) return __backfillPromise
+  __backfillPromise = fetch("/api/inventory/backfill-seller", {
+    method: "POST",
+    cache: "no-store",
+  })
+    .then(() => undefined)
+    .catch(() => undefined)
+  return __backfillPromise
+}
+
 export function useRetailSales(from: Date, to: Date) {
   const [sales, setSales] = React.useState<RetailSale[]>([])
   const fromMs = from.getTime()
   const toMs = to.getTime()
   React.useEffect(() => {
     let alive = true
-    fetch("/api/inventory", { cache: "no-store" })
+    // Trước khi fetch, khớp lại seller_name cho các dòng còn rỗng từ
+    // bảng shifts (theo sale_time). Chỉ chạy 1 lần mỗi page load.
+    backfillSellerOnce()
+      .then(() => fetch("/api/inventory", { cache: "no-store" }))
       .then((r) => r.json())
       .then((r) => {
         if (!alive || !r?.success || !Array.isArray(r.data)) return
