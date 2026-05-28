@@ -69,7 +69,21 @@ export async function POST(request: NextRequest) {
       
       const result = await response.json()
       console.log(`[update-fuel-data] Result:`, result)
-      
+
+      // Sau khi Python re-import (delete-by-date + insert), khôi phục các
+      // gán khách hàng do user đã chỉnh để không bị mất.
+      if (result?.success) {
+        try {
+          const { restoreCustomerOverrides } = await import(
+            '@/lib/fuel-pump-schema'
+          )
+          const restored = await restoreCustomerOverrides()
+          ;(result as any).restored_overrides = restored
+        } catch (e) {
+          console.warn('restore overrides after per-day update failed:', e)
+        }
+      }
+
       return NextResponse.json(result, {
         status: result.success ? 200 : 500
       })
