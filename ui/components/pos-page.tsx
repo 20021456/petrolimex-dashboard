@@ -823,52 +823,75 @@ function PosPageWeb() {
                     textTransform: "uppercase",
                     letterSpacing: "0.08em",
                     marginBottom: 6,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
                   }}
                 >
                   Người bán
-                  {currentShift?.staffName && seller === currentShift.staffName && (
+                </div>
+                {currentShift?.staffName ? (
+                  <div
+                    style={{
+                      width: "100%",
+                      minHeight: 36,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      background: HX.goodSoft,
+                      border: "1px solid rgba(48,209,88,0.32)",
+                      color: HX.text,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
                     <span
                       style={{
-                        fontSize: 9,
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        background: HX.good,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>
+                      {currentShift.staffName}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10,
                         fontWeight: 700,
                         color: HX.good,
-                        padding: "1px 5px",
-                        background: HX.goodSoft,
-                        borderRadius: 3,
                         letterSpacing: "0.04em",
+                        marginLeft: "auto",
                       }}
                     >
-                      CA HIỆN TẠI
+                      CA ĐANG MỞ
                     </span>
-                  )}
-                </div>
-                <select
-                  value={seller}
-                  onChange={(e) => setSeller(e.target.value)}
-                  style={{
-                    width: "100%",
-                    height: 36,
-                    padding: "0 10px",
-                    borderRadius: 8,
-                    background: HX.bg,
-                    border: `1px solid ${seller ? HX.hairlineStrong : "rgba(255,69,58,0.5)"}`,
-                    color: seller ? HX.text : HX.text3,
-                    fontSize: 13,
-                    fontFamily: HX.font,
-                    outline: "none",
-                  }}
-                >
-                  <option value="">— Chọn người bán —</option>
-                  {activeStaff.map((s) => (
-                    <option key={s.id} value={s.name}>
-                      {s.name}
-                      {s.role ? ` (${s.role})` : ""}
-                    </option>
-                  ))}
-                </select>
+                  </div>
+                ) : (
+                  <select
+                    value={seller}
+                    onChange={(e) => setSeller(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: 36,
+                      padding: "0 10px",
+                      borderRadius: 8,
+                      background: HX.bg,
+                      border: `1px solid ${seller ? HX.hairlineStrong : "rgba(255,69,58,0.5)"}`,
+                      color: seller ? HX.text : HX.text3,
+                      fontSize: 13,
+                      fontFamily: HX.font,
+                      outline: "none",
+                    }}
+                  >
+                    <option value="">— Chưa có ca · chọn người bán —</option>
+                    {activeStaff.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name}
+                        {s.role ? ` (${s.role})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <div

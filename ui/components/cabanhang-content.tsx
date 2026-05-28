@@ -146,6 +146,11 @@ export function useShiftStore() {
 
   React.useEffect(() => {
     reload()
+    // Poll mỗi 60 giây để mọi component dùng useShiftStore đều thấy
+    // ca mới khi ca được mở (kể cả auto-open theo lịch ở trang Ca
+    // bán hàng) — quan trọng để POS gán seller_name kịp thời.
+    const t = setInterval(reload, 60_000)
+    return () => clearInterval(t)
   }, [reload])
 
   const current = shifts.find((s) => s.status === "open") || null
