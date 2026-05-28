@@ -103,6 +103,7 @@ export function PosPageMobile() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         {filtered.map((p) => {
           const inCart = cart.find((c) => c.sku === p.sku)
+          const outOfStock = Number(p.stock) <= 0
           return (
             <div
               key={p.sku}
@@ -113,10 +114,34 @@ export function PosPageMobile() {
                 padding: 12,
                 borderRadius: 16,
                 background: inCart ? HX.accentSoft : HX.surface,
-                border: inCart ? `1.5px solid ${HX.accent}` : `1px solid ${HX.hairline}`,
+                border: inCart
+                  ? `1.5px solid ${HX.accent}`
+                  : outOfStock
+                    ? `1px dashed ${HX.hairlineStrong}`
+                    : `1px solid ${HX.hairline}`,
                 cursor: "pointer",
+                opacity: outOfStock && !inCart ? 0.55 : 1,
               }}
             >
+              {outOfStock && !inCart && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    background: HX.badSoft,
+                    color: HX.bad,
+                    fontSize: 8,
+                    fontWeight: 700,
+                    padding: "2px 5px",
+                    borderRadius: 4,
+                    letterSpacing: "0.04em",
+                    border: "1px solid rgba(255,69,58,0.32)",
+                  }}
+                >
+                  HẾT
+                </div>
+              )}
               {inCart && (
                 <div
                   className="hx-num"
