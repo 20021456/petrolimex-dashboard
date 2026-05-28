@@ -57,11 +57,11 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         id,
         ket_thuc_bom AS timestamp,
         CASE COALESCE(cot_bom, 0)
-          WHEN 1 THEN 'DO 0,001S-V'
+          WHEN 1 THEN 'DO 0,05S-II'
           WHEN 2 THEN 'RON95-III'
           WHEN 3 THEN 'RON95-III'
           WHEN 4 THEN 'E5'
-          WHEN 5 THEN 'DO 0,05S-II'
+          WHEN 5 THEN 'DO 0,001S-V'
           ELSE 'Khác'
         END AS fuelType,
         ma_bom AS pumpCode,

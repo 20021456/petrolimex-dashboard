@@ -5,11 +5,11 @@ import { ensureKhachHangPaidColumn } from '@/lib/fuel-pump-schema'
 // Suy nhiên liệu từ cot_bom theo bố trí bồn-cột (đồng bộ /api/stats).
 const FUEL_CASE = `
   CASE COALESCE(cot_bom, 0)
-    WHEN 1 THEN 'DO 0,001S-V'
+    WHEN 1 THEN 'DO 0,05S-II'
     WHEN 2 THEN 'RON95-III'
     WHEN 3 THEN 'RON95-III'
     WHEN 4 THEN 'E5'
-    WHEN 5 THEN 'DO 0,05S-II'
+    WHEN 5 THEN 'DO 0,001S-V'
     ELSE 'Khác'
   END`
 

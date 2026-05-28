@@ -44,18 +44,18 @@ const TANK_COT_BOM_NUMS: Record<string, number[]> = {
 // Tên nhiên liệu (fuel_name lưu trong fuel_inventory_import) cho từng bồn.
 const TANK_FUEL_NAMES: Record<string, string[]> = {
   'BỒN 1': ['RON95-III'],
-  'BỒN 2': ['DO 0,05S-II'],
+  'BỒN 2': ['DO 0,001S-V'],
   'BỒN 3': ['E5'],
-  'BỒN 4': ['DO 0,001S-V'],
+  'BỒN 4': ['DO 0,05S-II'],
 }
 
 // Lượng tồn kho cố định tại ngày BASELINE_DATE (mốc 20/05/2026).
 // Từ mốc này trở đi, tồn kho = baseline − SUM(lit đã bán).
 const TANK_BASELINE: Record<string, number> = {
   'BỒN 1': 9000,    // RON95-III  (cap 10000)
-  'BỒN 2': 9500,    // DO 0,05S-II (cap 10000)
+  'BỒN 2': 9500,    // DO 0,001S-V (cap 10000)
   'BỒN 3': 8500,    // E5         (cap 10000)
-  'BỒN 4': 18500,   // DO 0,001S-V (cap 20000)
+  'BỒN 4': 18500,   // DO 0,05S-II (cap 20000)
 }
 const BASELINE_DATE = '2026-05-20 00:00:00'
 
