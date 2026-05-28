@@ -776,13 +776,53 @@ export function EditOpenCashModal({
   )
 }
 
-// ── Auto-open shifts theo lịch (template + assignment) ────────
-// Mỗi 60 giây kiểm tra template nào đang active "ngay bây giờ".
-// Nếu không có ca nào đang mở → tự mở ca cho template đó với nhân
-// viên đã phân (assignment hôm nay → fallback default_staff_id).
-// Khi user chỉnh lịch (đổi staff/giờ), lần kiểm tra kế tiếp sẽ
-// dùng dữ liệu mới mà không cần reload. Carry-over open_cash từ
-// ca đóng gần nhất (mặc định 0).
+// ── Auto-open / auto-close shifts theo lịch ──────────────────
+// Mỗi 60 giây:
+//   1. Nếu có ca đang mở mà giờ kết thúc của template đã trôi qua →
+//      tự đóng ca (revenue/txCount/liters lấy từ /api/stats; closeCash
+//      = openCash + cashRevenue).
+//   2. Nếu không có ca nào mở và đang trong khung giờ của template →
+//      tự mở ca cho nhân viên đã phân (assignment hôm nay → fallback
+//      default_staff_id). Carry-over open_cash từ ca đóng gần nhất.
+// Khi user chỉnh lịch, lần check kế tiếp dùng dữ liệu mới.
+
+// Tính mốc kết thúc dự kiến của ca: ngày bắt đầu @ end_hour:end_minute;
+// nếu rơi vào trước startTs (ca qua đêm) → cộng 1 ngày.
+function computeExpectedEnd(startTs: number, t: ShiftTemplate): number {
+  const d = new Date(startTs)
+  d.setHours(t.end_hour, t.end_minute, 0, 0)
+  if (d.getTime() <= startTs) d.setDate(d.getDate() + 1)
+  return d.getTime()
+}
+
+// Lấy summary cho 1 ca dạng plain async (không phải hook) — dùng trong
+// auto-close để tính closeCash/revenue.
+async function fetchShiftSummary(shift: Shift): Promise<ShiftSummary> {
+  const startTs = shift.startTs ?? 0
+  const endTs = shift.endTs ?? Date.now()
+  const from = fmtMySql(new Date(startTs))
+  const to = fmtMySql(new Date(endTs))
+  try {
+    const r = await fetch(
+      `/api/stats?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { cache: "no-store" }
+    ).then((x) => x.json())
+    if (r?.success && r.data?.overview) {
+      const o = r.data.overview
+      const revenue = Number(o.totalRevenue) || 0
+      return {
+        revenue,
+        liters: Number(o.totalLiters) || 0,
+        txCount: Number(o.totalTransactions) || 0,
+        cashRevenue: revenue,
+      }
+    }
+  } catch {
+    /* ignore — trả 0 */
+  }
+  return { revenue: 0, liters: 0, txCount: 0, cashRevenue: 0 }
+}
+
 export function useAutoOpenShifts(opts: {
   hydrated: boolean
   current: Shift | null
@@ -796,6 +836,12 @@ export function useAutoOpenShifts(opts: {
     note: string,
     opts?: { templateId?: string; silent?: boolean }
   ) => Promise<boolean | void>
+  closeShift: (
+    closeCash: number,
+    revenue: number,
+    txCount: number,
+    liters: number
+  ) => Promise<void> | void
   enabled?: boolean
 }) {
   const {
@@ -806,19 +852,41 @@ export function useAutoOpenShifts(opts: {
     assignments,
     staff,
     openShift,
+    closeShift,
     enabled = true,
   } = opts
   const lastTriedRef = React.useRef<{ key: string; ts: number } | null>(null)
+  const lastClosedIdRef = React.useRef<string | null>(null)
 
-  const tryAutoOpen = React.useCallback(async () => {
+  const tick = React.useCallback(async () => {
     if (!enabled || !hydrated) return
-    if (current) return // đã có ca mở; không can thiệp
 
     const now = new Date()
+
+    // 1. Auto-close: ca đang mở quá giờ template
+    if (current && current.templateId && lastClosedIdRef.current !== current.id) {
+      const tpl = templates.find((t) => t.id === current.templateId)
+      if (tpl) {
+        const expectedEnd = computeExpectedEnd(current.startTs, tpl)
+        if (now.getTime() > expectedEnd) {
+          lastClosedIdRef.current = current.id
+          const summary = await fetchShiftSummary(current)
+          await closeShift(
+            Math.round((current.openCash || 0) + (summary.cashRevenue || 0)),
+            Math.round(summary.revenue || 0),
+            summary.txCount || 0,
+            Math.round(summary.liters || 0)
+          )
+          return // chờ tick kế để xét auto-open
+        }
+      }
+    }
+
+    // 2. Auto-open: không có ca mở và đang trong khung template
+    if (current) return
     const active = templates.find((t) => isTemplateActiveNow(t, now))
     if (!active) return
 
-    // Nhân viên: assignment hôm nay > default
     const todayKey = ymd(now)
     const assignment = assignments.find(
       (a) => a.assign_date === todayKey && a.template_id === active.id
@@ -844,13 +912,23 @@ export function useAutoOpenShifts(opts: {
       templateId: active.id,
       silent: true,
     })
-  }, [enabled, hydrated, current, templates, assignments, staff, shifts, openShift])
+  }, [
+    enabled,
+    hydrated,
+    current,
+    templates,
+    assignments,
+    staff,
+    shifts,
+    openShift,
+    closeShift,
+  ])
 
   React.useEffect(() => {
-    tryAutoOpen()
-    const t = setInterval(tryAutoOpen, 60_000)
+    tick()
+    const t = setInterval(tick, 60_000)
     return () => clearInterval(t)
-  }, [tryAutoOpen])
+  }, [tick])
 }
 
 // ── /api/stats summary for a shift ─────────────────────────────
@@ -3584,6 +3662,7 @@ export function CaBanHangContent({ onNavigate }: CaBanHangContentProps) {
     assignments,
     staff: staffState.staff,
     openShift: store.openShift,
+    closeShift: store.closeShift,
   })
   return (
     <StaffContext.Provider value={staffState.staff}>
