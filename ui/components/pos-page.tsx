@@ -159,24 +159,66 @@ export function usePos(
     }
   }, [opts.sellerName])
 
-  const addToCart = (sku: string) =>
+  // Helper: tra cứu sản phẩm + tồn kho hiện tại từ products prop.
+  const productMap = React.useMemo(() => {
+    const m = new Map<string, PosProduct>()
+    products.forEach((p) => m.set(p.sku, p))
+    return m
+  }, [products])
+
+  const addToCart = (sku: string) => {
+    const product = productMap.get(sku)
+    const stock = Number(product?.stock) || 0
+    const inCart = cart.find((c) => c.sku === sku)?.qty || 0
+    if (stock <= 0) {
+      toast.error("Sản phẩm này đã hết hàng, vui lòng chọn sản phẩm khác")
+      return
+    }
+    if (inCart + 1 > stock) {
+      toast.error(
+        `Chỉ còn ${stock} ${product?.unit || "sản phẩm"} trong kho — không thể thêm`
+      )
+      return
+    }
     setCart((prev) => {
       const exist = prev.find((c) => c.sku === sku)
       if (exist) return prev.map((c) => (c.sku === sku ? { ...c, qty: c.qty + 1 } : c))
       return [...prev, { sku, qty: 1 }]
     })
-  const updateQty = (sku: string, delta: number) =>
+  }
+  const updateQty = (sku: string, delta: number) => {
+    if (delta > 0) {
+      const product = productMap.get(sku)
+      const stock = Number(product?.stock) || 0
+      const inCart = cart.find((c) => c.sku === sku)?.qty || 0
+      if (inCart + delta > stock) {
+        toast.error(
+          `Chỉ còn ${stock} ${product?.unit || "sản phẩm"} trong kho — không thể thêm`
+        )
+        return
+      }
+    }
     setCart((prev) =>
       prev
         .map((c) => (c.sku === sku ? { ...c, qty: Math.max(0, c.qty + delta) } : c))
         .filter((c) => c.qty > 0)
     )
-  const setQty = (sku: string, q: number) =>
+  }
+  const setQty = (sku: string, q: number) => {
+    const product = productMap.get(sku)
+    const stock = Number(product?.stock) || 0
+    if (q > stock) {
+      toast.error(
+        `Chỉ còn ${stock} ${product?.unit || "sản phẩm"} trong kho`
+      )
+      q = stock
+    }
     setCart((prev) =>
       prev
         .map((c) => (c.sku === sku ? { ...c, qty: Math.max(0, q) } : c))
         .filter((c) => c.qty > 0)
     )
+  }
   const removeFromCart = (sku: string) => setCart((prev) => prev.filter((c) => c.sku !== sku))
   const clearCart = () => {
     setCart([])
@@ -446,6 +488,7 @@ function PosPageWeb() {
           >
             {filtered.map((p) => {
               const inCart = cart.find((c) => c.sku === p.sku)
+              const outOfStock = Number(p.stock) <= 0
               return (
                 <div
                   key={p.sku}
@@ -455,15 +498,37 @@ function PosPageWeb() {
                     background: HX.surface,
                     border: inCart
                       ? `1.5px solid ${HX.accent}`
-                      : `1px solid ${HX.hairline}`,
+                      : outOfStock
+                        ? `1px dashed ${HX.hairlineStrong}`
+                        : `1px solid ${HX.hairline}`,
                     borderRadius: 14,
                     padding: 14,
                     cursor: "pointer",
                     position: "relative",
                     display: "flex",
                     flexDirection: "column",
+                    opacity: outOfStock && !inCart ? 0.55 : 1,
                   }}
                 >
+                  {outOfStock && !inCart && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        right: 8,
+                        background: HX.badSoft,
+                        color: HX.bad,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                        letterSpacing: "0.04em",
+                        border: "1px solid rgba(255,69,58,0.32)",
+                      }}
+                    >
+                      HẾT HÀNG
+                    </div>
+                  )}
                   {inCart && (
                     <div
                       className="hx-num"
