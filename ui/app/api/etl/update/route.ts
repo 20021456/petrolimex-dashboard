@@ -27,9 +27,26 @@ export async function POST() {
     })
 
     const result = await response.json()
-    return NextResponse.json(result, {
-      status: result.success ? 200 : 500,
-    })
+
+    // Sau khi ETL re-import xong, khôi phục các gán khách hàng do user
+    // đã chỉnh (bảng fuel_pump_customer_overrides) — tránh mất "Thanh
+    // Tùng" / "Khách lẻ" → mặc định khi data refresh.
+    let restored = 0
+    if (result?.success) {
+      try {
+        const { restoreCustomerOverrides } = await import(
+          '@/lib/fuel-pump-schema'
+        )
+        restored = await restoreCustomerOverrides()
+      } catch (e) {
+        console.warn('restore overrides after ETL failed:', e)
+      }
+    }
+
+    return NextResponse.json(
+      { ...result, restored_overrides: restored },
+      { status: result.success ? 200 : 500 }
+    )
   } catch (err: any) {
     if (err.name === 'AbortError') {
       return NextResponse.json(
