@@ -53,11 +53,11 @@ function fmtDateOnly(ts?: string | null): string {
 }
 
 const FUEL_BY_COT_BOM: Record<number, string> = {
-  1: "DO 0,001S-V",
+  1: "DO 0,05S-II",
   2: "RON95-III",
   3: "RON95-III",
   4: "E5",
-  5: "DO 0,05S-II",
+  5: "DO 0,001S-V",
 }
 
 const EMPTY_PUMPS: PumpPrice[] = [1, 2, 3, 4, 5].map((n) => ({

@@ -10,11 +10,11 @@ import { ensureKhachHangPaidColumn } from '@/lib/fuel-pump-schema';
 // vào cot_bom.
 const FUEL_BY_COT_BOM_SQL = `
   CASE COALESCE(cot_bom, 0)
-    WHEN 1 THEN 'DO 0,001S-V'
+    WHEN 1 THEN 'DO 0,05S-II'
     WHEN 2 THEN 'RON95-III'
     WHEN 3 THEN 'RON95-III'
     WHEN 4 THEN 'E5'
-    WHEN 5 THEN 'DO 0,05S-II'
+    WHEN 5 THEN 'DO 0,001S-V'
     ELSE 'Khác'
   END`
 
