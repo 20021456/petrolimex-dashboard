@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { type DateRange } from "react-day-picker"
 import { X, PanelLeftClose, PanelLeftOpen, RefreshCw, Plus, Search } from "lucide-react"
+import { toast } from "sonner"
 import { DonGiaContent } from "@/components/donggia-content"
 import { usePriceDialog } from "@/components/global-price-dialog"
 import {
@@ -117,6 +118,30 @@ export default function Page() {
   const [error, setError] = React.useState<string | null>(null)
   const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false)
   const [activeView, setActiveView] = React.useState("dashboard")
+  const [updating, setUpdating] = React.useState(false)
+
+  // Chạy ETL mode 1 qua Python API (giống `python dags/etl_daily.py
+  // --mode 1`) rồi reload trang để hiển thị dữ liệu mới.
+  const handleEtlUpdate = React.useCallback(async () => {
+    if (updating) return
+    setUpdating(true)
+    const id = toast.loading("Đang cập nhật dữ liệu từ nguồn… (có thể mất vài phút)")
+    try {
+      const res = await fetch("/api/etl/update", { method: "POST" })
+      const r = await res.json()
+      if (r?.success) {
+        toast.success(r.message || "Đã cập nhật xong", { id })
+        // Reload sau 1s để user kịp đọc toast
+        setTimeout(() => window.location.reload(), 1000)
+      } else {
+        toast.error(r?.message || "Cập nhật thất bại", { id })
+        setUpdating(false)
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Có lỗi xảy ra", { id })
+      setUpdating(false)
+    }
+  }, [updating])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -332,8 +357,10 @@ export default function Page() {
           <div className="hidden shrink-0 items-center gap-2.5 md:flex">
             <button
               type="button"
-              onClick={() => window.location.reload()}
-              className="hxw-press"
+              onClick={handleEtlUpdate}
+              disabled={updating}
+              className={updating ? "" : "hxw-press"}
+              title="Chạy ETL mode 1 — đồng bộ giao dịch + bồn bể từ nguồn"
               style={{
                 height: 40,
                 padding: "0 16px",
@@ -346,11 +373,14 @@ export default function Page() {
                 gap: 8,
                 fontSize: 14,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: updating ? "not-allowed" : "pointer",
+                opacity: updating ? 0.6 : 1,
               }}
             >
-              <RefreshCw className="h-4 w-4" />
-              Làm mới
+              <RefreshCw
+                className={`h-4 w-4 ${updating ? "animate-spin" : ""}`}
+              />
+              {updating ? "Đang cập nhật…" : "Cập nhật"}
             </button>
             <button
               type="button"
