@@ -10,7 +10,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import { HX, Icon, useIsMobile } from "@/components/htx-kit"
 import { RETAIL_STOCK, RETAIL_CATS } from "@/components/stock-page"
-import { useShiftStore } from "@/components/cabanhang-content"
+import { useShiftStore, useStaff } from "@/components/cabanhang-content"
 import { PosPageMobile } from "@/components/pos-page-mobile"
 
 interface PosPageProps {
@@ -146,6 +146,18 @@ export function usePos(
   const [status, setStatus] = React.useState<PayStatus>("paid")
   const [paid, setPaid] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
+  // Người bán: mặc định lấy từ ca đang mở; cho phép override bằng dropdown.
+  const [seller, setSeller] = React.useState<string>(opts.sellerName || "")
+  const lastDefaultRef = React.useRef<string>(opts.sellerName || "")
+  React.useEffect(() => {
+    const next = opts.sellerName || ""
+    // Chỉ đồng bộ khi default đổi (vd: ca khác mở) — không ghi đè khi user
+    // đang chọn thủ công với ca trống.
+    if (next !== lastDefaultRef.current) {
+      lastDefaultRef.current = next
+      if (next) setSeller(next)
+    }
+  }, [opts.sellerName])
 
   const addToCart = (sku: string) =>
     setCart((prev) => {
@@ -185,6 +197,7 @@ export function usePos(
   const canSave =
     cartLines.length > 0 &&
     !!customer.trim() &&
+    !!seller.trim() &&
     (status !== "partial" || (paidAmount > 0 && paidAmount < total))
 
   async function handleSubmit() {
@@ -204,7 +217,7 @@ export function usePos(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             customer_name: customer.trim(),
-            seller_name: opts.sellerName || "",
+            seller_name: seller.trim(),
             item_name: l.product.name,
             sku: l.product.sku,
             category: "retail",
@@ -236,6 +249,8 @@ export function usePos(
     cart,
     customer,
     setCustomer,
+    seller,
+    setSeller,
     status,
     setStatus,
     paid,
@@ -286,6 +301,11 @@ function PosPageWeb() {
   const { products, reload: reloadProducts } = useRetailProducts()
   const customers = useCustomers()
   const { current: currentShift } = useShiftStore()
+  const { staff } = useStaff()
+  const activeStaff = React.useMemo(
+    () => staff.filter((s) => s.active !== false),
+    [staff]
+  )
   const pos = usePos(products, {
     onSaved: reloadProducts,
     sellerName: currentShift?.staffName || "",
@@ -294,6 +314,8 @@ function PosPageWeb() {
     cart,
     customer,
     setCustomer,
+    seller,
+    setSeller,
     status,
     setStatus,
     paid,
@@ -801,6 +823,62 @@ function PosPageWeb() {
                     textTransform: "uppercase",
                     letterSpacing: "0.08em",
                     marginBottom: 6,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  Người bán
+                  {currentShift?.staffName && seller === currentShift.staffName && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        color: HX.good,
+                        padding: "1px 5px",
+                        background: HX.goodSoft,
+                        borderRadius: 3,
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      CA HIỆN TẠI
+                    </span>
+                  )}
+                </div>
+                <select
+                  value={seller}
+                  onChange={(e) => setSeller(e.target.value)}
+                  style={{
+                    width: "100%",
+                    height: 36,
+                    padding: "0 10px",
+                    borderRadius: 8,
+                    background: HX.bg,
+                    border: `1px solid ${seller ? HX.hairlineStrong : "rgba(255,69,58,0.5)"}`,
+                    color: seller ? HX.text : HX.text3,
+                    fontSize: 13,
+                    fontFamily: HX.font,
+                    outline: "none",
+                  }}
+                >
+                  <option value="">— Chọn người bán —</option>
+                  {activeStaff.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name}
+                      {s.role ? ` (${s.role})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: HX.text3,
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: 6,
                   }}
                 >
                   Khách hàng
@@ -1028,8 +1106,10 @@ function PosPageWeb() {
 
               {!canSave && (
                 <div style={{ fontSize: 11, color: HX.text3, textAlign: "center", marginTop: -4 }}>
-                  {!customer.trim() && "Hãy nhập tên khách hàng"}
-                  {customer.trim() &&
+                  {!seller.trim() && "Hãy chọn người bán"}
+                  {seller.trim() && !customer.trim() && "Hãy nhập tên khách hàng"}
+                  {seller.trim() &&
+                    customer.trim() &&
                     status === "partial" &&
                     "Nhập số tiền đã trả (lớn hơn 0 và nhỏ hơn tổng)"}
                 </div>

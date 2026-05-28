@@ -15,7 +15,7 @@ import {
   fmtVN,
   type PayStatus,
 } from "@/components/pos-page"
-import { useShiftStore } from "@/components/cabanhang-content"
+import { useShiftStore, useStaff } from "@/components/cabanhang-content"
 
 const TABBAR_OFFSET = "calc(72px + env(safe-area-inset-bottom))"
 
@@ -29,6 +29,11 @@ export function PosPageMobile() {
   const { products, reload: reloadProducts } = useRetailProducts()
   const customers = useCustomers()
   const { current: currentShift } = useShiftStore()
+  const { staff } = useStaff()
+  const activeStaff = React.useMemo(
+    () => staff.filter((s) => s.active !== false),
+    [staff]
+  )
   const {
     cart,
     addToCart,
@@ -40,6 +45,8 @@ export function PosPageMobile() {
     itemCount,
     customer,
     setCustomer,
+    seller,
+    setSeller,
     status,
     setStatus,
     paid,
@@ -425,6 +432,60 @@ export function PosPageMobile() {
 
         {hasItems && (
           <>
+            {/* Seller */}
+            <div
+              style={{
+                padding: "8px 12px",
+                background: HX.surface,
+                border: `1px solid ${seller ? HX.hairline : "rgba(255,69,58,0.5)"}`,
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 10,
+              }}
+            >
+              <Icon name="user" size={15} color={HX.accent} />
+              <select
+                value={seller}
+                onChange={(e) => setSeller(e.target.value)}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  color: seller ? HX.text : HX.text3,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: HX.font,
+                }}
+              >
+                <option value="">— Chọn người bán —</option>
+                {activeStaff.map((s) => (
+                  <option key={s.id} value={s.name}>
+                    {s.name}
+                    {s.role ? ` (${s.role})` : ""}
+                  </option>
+                ))}
+              </select>
+              {currentShift?.staffName && seller === currentShift.staffName && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: HX.good,
+                    padding: "1px 5px",
+                    background: HX.goodSoft,
+                    borderRadius: 3,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  CA
+                </span>
+              )}
+            </div>
+
             {/* Customer */}
             <div
               style={{
@@ -585,11 +646,13 @@ export function PosPageMobile() {
               <div
                 style={{ fontSize: 11, color: HX.text3, textAlign: "center", marginTop: 8 }}
               >
-                {!customer.trim()
-                  ? "Hãy nhập tên khách hàng"
-                  : status === "partial"
-                    ? "Nhập số tiền đã trả (lớn hơn 0 và nhỏ hơn tổng)"
-                    : ""}
+                {!seller.trim()
+                  ? "Hãy chọn người bán"
+                  : !customer.trim()
+                    ? "Hãy nhập tên khách hàng"
+                    : status === "partial"
+                      ? "Nhập số tiền đã trả (lớn hơn 0 và nhỏ hơn tổng)"
+                      : ""}
               </div>
             )}
 
