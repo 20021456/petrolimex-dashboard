@@ -161,6 +161,7 @@ export function NhapKhoMobile() {
       <RetailForm
         products={retail}
         onBack={() => setView("hub")}
+        onReload={loadRetail}
         onSaved={() => {
           loadRetail()
           setView("hub")
@@ -903,21 +904,28 @@ function RetailForm({
   products,
   onBack,
   onSaved,
+  onReload,
 }: {
   products: RetailProduct[]
   onBack: () => void
   onSaved: () => void
+  onReload: () => void
 }) {
   const cats = React.useMemo(() => {
     const set = new Set<string>()
     products.forEach((p) => p.cat && set.add(p.cat))
     return ["all", ...Array.from(set)]
   }, [products])
+  const knownCats = React.useMemo(
+    () => cats.filter((c) => c !== "all"),
+    [cats]
+  )
   const [cat, setCat] = React.useState("all")
   const [search, setSearch] = React.useState("")
   const [lines, setLines] = React.useState<RetailLineDraft[]>([])
   const [note, setNote] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
+  const [newOpen, setNewOpen] = React.useState(false)
 
   const filtered = products.filter((p) => {
     if (cat !== "all" && p.cat !== cat) return false
@@ -1108,6 +1116,29 @@ function RetailForm({
             </div>
           )
         })}
+      </div>
+
+      {/* CTA — thêm sản phẩm mới */}
+      <div
+        onClick={() => setNewOpen(true)}
+        className="hxw-press"
+        style={{
+          height: 46,
+          borderRadius: 12,
+          background: HX.surface,
+          border: `1.5px dashed ${HX.hairlineStrong}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          color: HX.accent,
+          fontSize: 14,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        <Icon name="plus" size={16} color={HX.accent} strokeWidth={2.2} />
+        Thêm sản phẩm mới
       </div>
 
       {/* Product list — each row has +/- + qty input */}
@@ -1363,6 +1394,319 @@ function RetailForm({
               ? "Chọn sản phẩm để nhập"
               : `Xác nhận nhập kho · ${fmtVN(grandTotal)} ₫`}
         </button>
+      </div>
+
+      {newOpen && (
+        <NewProductModal
+          knownCats={knownCats}
+          onClose={() => setNewOpen(false)}
+          onCreated={(sku, qty) => {
+            // Tải lại danh sách rồi (nếu user nhập sẵn qty) preselect dòng
+            // cộng dồn vào tồn kho.
+            onReload()
+            if (qty > 0) {
+              setLines((cur) => {
+                if (cur.find((l) => l.sku === sku)) return cur
+                return [...cur, { id: `r${sku}`, sku, quantity: String(qty) }]
+              })
+            }
+            setNewOpen(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Modal: tạo sản phẩm bán lẻ mới ─────────────────────────────
+function NewProductModal({
+  knownCats,
+  onClose,
+  onCreated,
+}: {
+  knownCats: string[]
+  onClose: () => void
+  onCreated: (sku: string, initialStock: number) => void
+}) {
+  const defaultCats = ["Dầu nhớt", "Dầu pha xăng", "Mỡ", "Khác"]
+  const allCats = Array.from(new Set([...knownCats, ...defaultCats]))
+  const [sku, setSku] = React.useState("")
+  const [name, setName] = React.useState("")
+  const [cat, setCat] = React.useState(allCats[0] || "Khác")
+  const [price, setPrice] = React.useState("")
+  const [unit, setUnit] = React.useState("cái")
+  const [minStock, setMinStock] = React.useState("")
+  const [initialStock, setInitialStock] = React.useState("")
+  const [submitting, setSubmitting] = React.useState(false)
+
+  const skuTrim = sku.trim().toUpperCase().slice(0, 50)
+  const nameTrim = name.trim()
+  const priceNum = parseInt(price.replace(/\D/g, "")) || 0
+  const minStockNum = parseInt(minStock.replace(/\D/g, "")) || 0
+  const initialStockNum = parseInt(initialStock.replace(/\D/g, "")) || 0
+  const valid = skuTrim.length > 0 && nameTrim.length > 0 && priceNum > 0
+
+  async function handleSubmit() {
+    if (!valid || submitting) return
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/retail-products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sku: skuTrim,
+          name: nameTrim,
+          cat,
+          price: priceNum,
+          stock: initialStockNum,
+          min_stock: minStockNum,
+          unit: unit.trim() || "cái",
+        }),
+      })
+      const r = await res.json()
+      if (r?.success) {
+        toast.success(`Đã thêm "${nameTrim}" (${skuTrim})`)
+        onCreated(skuTrim, initialStockNum)
+      } else {
+        toast.error(r?.error || "Không thêm được sản phẩm")
+        setSubmitting(false)
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Có lỗi xảy ra")
+      setSubmitting(false)
+    }
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    width: "100%",
+    height: 44,
+    padding: "0 14px",
+    borderRadius: 11,
+    background: HX.bg,
+    border: `1px solid ${HX.hairlineStrong}`,
+    color: HX.text,
+    fontSize: 14,
+    fontFamily: HX.font,
+    outline: "none",
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10,
+    color: HX.text3,
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(8px)",
+        zIndex: 60,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          background: HX.elevated,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          border: `1px solid ${HX.hairlineStrong}`,
+          borderBottom: "none",
+          padding: "14px 16px calc(28px + env(safe-area-inset-bottom))",
+          boxShadow: "0 -20px 40px -10px rgba(0,0,0,0.6)",
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 4,
+            borderRadius: 2,
+            background: HX.hairlineStrong,
+            margin: "0 auto 16px",
+          }}
+        />
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            marginBottom: 16,
+            padding: "0 4px",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 11, color: HX.text3, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              Bán lẻ
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: HX.text, marginTop: 2 }}>
+              Thêm sản phẩm mới
+            </div>
+          </div>
+          <span
+            onClick={onClose}
+            style={{
+              fontSize: 13,
+              color: HX.accent,
+              fontWeight: 600,
+              padding: "4px 10px",
+              cursor: "pointer",
+            }}
+          >
+            Đóng
+          </span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <div style={labelStyle}>Mã SKU *</div>
+            <input
+              autoFocus
+              value={sku}
+              onChange={(e) => setSku(e.target.value.toUpperCase())}
+              placeholder="VD: DN-CASTGTX"
+              className="hx-num"
+              style={fieldStyle}
+            />
+          </div>
+
+          <div>
+            <div style={labelStyle}>Tên sản phẩm *</div>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="VD: Nhớt Castrol GTX 1L"
+              style={fieldStyle}
+            />
+          </div>
+
+          <div>
+            <div style={labelStyle}>Danh mục</div>
+            <select
+              value={cat}
+              onChange={(e) => setCat(e.target.value)}
+              style={fieldStyle}
+            >
+              {allCats.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 8 }}>
+            <div>
+              <div style={labelStyle}>Giá bán (₫) *</div>
+              <input
+                value={price}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "")
+                  setPrice(raw ? parseInt(raw).toLocaleString("vi-VN") : "")
+                }}
+                placeholder="0"
+                inputMode="numeric"
+                className="hx-num"
+                style={{ ...fieldStyle, textAlign: "right", fontWeight: 700 }}
+              />
+            </div>
+            <div>
+              <div style={labelStyle}>Đơn vị</div>
+              <input
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                placeholder="cái / lít / chai"
+                style={fieldStyle}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div>
+              <div style={labelStyle}>Tồn ban đầu</div>
+              <input
+                value={initialStock}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "")
+                  setInitialStock(raw ? parseInt(raw).toLocaleString("vi-VN") : "")
+                }}
+                placeholder="0"
+                inputMode="numeric"
+                className="hx-num"
+                style={fieldStyle}
+              />
+            </div>
+            <div>
+              <div style={labelStyle}>Mức tối thiểu</div>
+              <input
+                value={minStock}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "")
+                  setMinStock(raw ? parseInt(raw).toLocaleString("vi-VN") : "")
+                }}
+                placeholder="0"
+                inputMode="numeric"
+                className="hx-num"
+                style={fieldStyle}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="hxw-press"
+            style={{
+              flex: 1,
+              height: 46,
+              borderRadius: 12,
+              background: "transparent",
+              border: `1px solid ${HX.hairlineStrong}`,
+              color: HX.text2,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!valid || submitting}
+            className={valid && !submitting ? "hxw-press" : ""}
+            style={{
+              flex: 1.4,
+              height: 46,
+              borderRadius: 12,
+              background:
+                valid && !submitting
+                  ? `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`
+                  : HX.surface,
+              border: "1px solid transparent",
+              color: valid && !submitting ? "#fff" : HX.text3,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: valid && !submitting ? "pointer" : "not-allowed",
+            }}
+          >
+            {submitting ? "Đang lưu…" : "Thêm sản phẩm"}
+          </button>
+        </div>
       </div>
     </div>
   )
