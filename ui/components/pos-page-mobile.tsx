@@ -432,12 +432,18 @@ export function PosPageMobile() {
 
         {hasItems && (
           <>
-            {/* Seller */}
+            {/* Seller — read-only khi đã có ca mở, dropdown khi chưa */}
             <div
               style={{
                 padding: "8px 12px",
-                background: HX.surface,
-                border: `1px solid ${seller ? HX.hairline : "rgba(255,69,58,0.5)"}`,
+                background: currentShift?.staffName ? HX.goodSoft : HX.surface,
+                border: `1px solid ${
+                  currentShift?.staffName
+                    ? "rgba(48,209,88,0.32)"
+                    : seller
+                      ? HX.hairline
+                      : "rgba(255,69,58,0.5)"
+                }`,
                 borderRadius: 10,
                 display: "flex",
                 alignItems: "center",
@@ -445,44 +451,54 @@ export function PosPageMobile() {
                 marginBottom: 10,
               }}
             >
-              <Icon name="user" size={15} color={HX.accent} />
-              <select
-                value={seller}
-                onChange={(e) => setSeller(e.target.value)}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  background: "transparent",
-                  border: "none",
-                  outline: "none",
-                  color: seller ? HX.text : HX.text3,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  fontFamily: HX.font,
-                }}
-              >
-                <option value="">— Chọn người bán —</option>
-                {activeStaff.map((s) => (
-                  <option key={s.id} value={s.name}>
-                    {s.name}
-                    {s.role ? ` (${s.role})` : ""}
-                  </option>
-                ))}
-              </select>
-              {currentShift?.staffName && seller === currentShift.staffName && (
-                <span
+              <Icon
+                name="user"
+                size={15}
+                color={currentShift?.staffName ? HX.good : HX.accent}
+              />
+              {currentShift?.staffName ? (
+                <>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: HX.text, flex: 1 }}>
+                    {currentShift.staffName}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: HX.good,
+                      padding: "1px 5px",
+                      background: "rgba(48,209,88,0.16)",
+                      borderRadius: 3,
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    CA ĐANG MỞ
+                  </span>
+                </>
+              ) : (
+                <select
+                  value={seller}
+                  onChange={(e) => setSeller(e.target.value)}
                   style={{
-                    fontSize: 9,
-                    fontWeight: 700,
-                    color: HX.good,
-                    padding: "1px 5px",
-                    background: HX.goodSoft,
-                    borderRadius: 3,
-                    letterSpacing: "0.04em",
+                    flex: 1,
+                    minWidth: 0,
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: seller ? HX.text : HX.text3,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    fontFamily: HX.font,
                   }}
                 >
-                  CA
-                </span>
+                  <option value="">— Chưa có ca · chọn người bán —</option>
+                  {activeStaff.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name}
+                      {s.role ? ` (${s.role})` : ""}
+                    </option>
+                  ))}
+                </select>
               )}
             </div>
 
