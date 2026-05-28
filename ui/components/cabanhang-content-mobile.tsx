@@ -15,6 +15,7 @@ import {
   Avatar,
   OpenShiftModal,
   CloseShiftModal,
+  EditOpenCashModal,
   StaffEditModal,
   TemplateEditModal,
   useShiftSummary,
@@ -55,7 +56,8 @@ export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props)
   const liveStaff = useStaffList()
   const { addStaff, updateStaff, removeStaff } = staffState
   const [staffEdit, setStaffEdit] = React.useState<StaffMember | "new" | null>(null)
-  const { shifts, current, openShift, closeShift, hydrated } = store
+  const { shifts, current, openShift, closeShift, updateOpenCash, hydrated } = store
+  const [editCashOpen, setEditCashOpen] = React.useState(false)
   const { summary } = useShiftSummary(current)
   const { templates, saveTemplate, addTemplate, deleteTemplate } = useTemplates()
   const [templateEdit, setTemplateEdit] = React.useState<ShiftTemplate | "new" | null>(null)
@@ -214,12 +216,35 @@ export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props)
                 color={HX.do}
                 hint="lít"
               />
-              <MiniKpi
-                label="Quỹ đầu ca"
-                value={fmtBig(current.openCash)}
-                color={HX.text2}
-                hint="tiền mặt khởi đầu"
-              />
+              <div
+                onClick={() => setEditCashOpen(true)}
+                className="hxw-press"
+                style={{ cursor: "pointer", position: "relative" }}
+                title="Sửa quỹ đầu ca"
+              >
+                <MiniKpi
+                  label="Quỹ đầu ca"
+                  value={fmtBig(current.openCash)}
+                  color={HX.text2}
+                  hint="bấm để sửa"
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: HX.accent,
+                    padding: "1px 6px",
+                    borderRadius: 5,
+                    background: HX.accentSoft,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  SỬA
+                </span>
+              </div>
               <MiniKpi
                 label="Tồn quỹ dự kiến"
                 value={fmtBig(current.openCash + summary.cashRevenue)}
@@ -669,6 +694,14 @@ export function CaBanHangContentMobile({ store, staffState, onNavigate }: Props)
               summary?.liters || 0
             )
           }}
+        />
+      )}
+      {editCashOpen && current && (
+        <EditOpenCashModal
+          initial={current.openCash}
+          shiftCode={(current as any).code || current.id}
+          onClose={() => setEditCashOpen(false)}
+          onConfirm={(amount) => updateOpenCash(current.id, amount)}
         />
       )}
 
