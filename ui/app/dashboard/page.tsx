@@ -26,6 +26,7 @@ import { type DateRange } from "react-day-picker"
 import { X, PanelLeftClose, PanelLeftOpen, RefreshCw, Plus, Search } from "lucide-react"
 import { toast } from "sonner"
 import { DonGiaContent } from "@/components/donggia-content"
+import { NhapKhoContent } from "@/components/nhap-kho-content"
 import { usePriceDialog } from "@/components/global-price-dialog"
 import {
   DndContext,
@@ -300,6 +301,7 @@ export default function Page() {
     chitiet: "Báo cáo",
     kho: "Bán hàng",
     tonkho: "Tồn kho",
+    nhapkho: "Nhập kho",
     gia: "Đơn giá",
     giaoca: "Ca bán hàng",
     khachquen: "Công nợ",
@@ -315,6 +317,7 @@ export default function Page() {
     chitiet: "Báo cáo doanh thu & sản lượng",
     kho: "Bán lẻ sản phẩm tại quầy",
     tonkho: "Cảm biến bồn + kho bán lẻ",
+    nhapkho: "Xăng dầu · Bán lẻ · 3 bước nhập kho",
     giaoca: "Mở / đóng ca làm việc",
     gia: "Cập nhật giá xăng dầu & bán lẻ",
     khachquen: "Theo dõi & thu nợ khách quen",
@@ -485,6 +488,8 @@ export default function Page() {
             <PosPage onNavigate={setActiveView} />
           ) : activeView === "tonkho" ? (
             <StockPage onNavigate={setActiveView} />
+          ) : activeView === "nhapkho" ? (
+            <NhapKhoContent onNavigate={setActiveView} />
           ) : activeView === "tx" ? (
             <TxPage onNavigate={setActiveView} />
           ) : activeView === "giaoca" ? (
