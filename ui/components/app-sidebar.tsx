@@ -33,7 +33,7 @@ const NAV_OPERATIONS: NavEntry[] = [
   { id: "tx", label: "Giao dịch", icon: "receipt" },
   { id: "kho", label: "Bán Hàng", icon: "receipt" },
   { id: "tonkho", label: "Tồn Kho", icon: "fuel" },
-  { id: "nhapkho", label: "Nhập Kho", icon: "plus" },
+  { id: "nhap", label: "Nhập Kho", icon: "plus" },
   { id: "chitiet", label: "Báo Cáo", icon: "chart" },
   { id: "khachquen", label: "Công Nợ", icon: "alert" },
   { id: "giaoca", label: "Ca Bán Hàng", icon: "clock" },
