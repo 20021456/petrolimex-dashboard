@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { HX, Icon, FuelDot, fuelKind, useIsMobile } from "@/components/htx-kit"
 import { useRetailProducts, type PosProduct } from "@/components/pos-page"
 import { RETAIL_CATS } from "@/components/stock-page"
+import { AddProductDialog } from "@/components/add-product-dialog"
 
 interface PumpPrice {
   cot_bom: number
@@ -622,6 +623,7 @@ function DonGiaWeb() {
   const saveRetail = useRetailPriceUpdate(reloadProducts)
   const [search, setSearch] = React.useState("")
   const [cat, setCat] = React.useState("all")
+  const [addOpen, setAddOpen] = React.useState(false)
 
   const filtered = products.filter((p) => {
     if (cat !== "all" && p.cat !== cat) return false
@@ -705,6 +707,30 @@ function DonGiaWeb() {
               {products.length} sản phẩm · Dầu nhớt · Dầu pha xăng · Mỡ · Khác
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="hxw-press"
+            style={{
+              height: 40,
+              padding: "0 16px",
+              borderRadius: 10,
+              background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
+              color: "#fff",
+              border: "none",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow: "0 6px 18px -6px rgba(255,90,31,0.5)",
+              fontFamily: HX.font,
+            }}
+          >
+            <Icon name="plus" size={14} color="#fff" strokeWidth={2.2} />
+            Thêm sản phẩm
+          </button>
         </div>
 
         {/* Filter bar */}
@@ -839,6 +865,13 @@ function DonGiaWeb() {
           )}
         </div>
       </div>
+
+      <AddProductDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        existingSkus={products.map((p) => p.sku)}
+        onCreated={reloadProducts}
+      />
     </div>
   )
 }
@@ -850,6 +883,7 @@ function DonGiaMobile() {
   const saveRetail = useRetailPriceUpdate(reloadProducts)
   const [cat, setCat] = React.useState("all")
   const [search, setSearch] = React.useState("")
+  const [addOpen, setAddOpen] = React.useState(false)
 
   const filtered = products.filter((p) => {
     if (cat !== "all" && p.cat !== cat) return false
@@ -890,8 +924,43 @@ function DonGiaMobile() {
 
       {/* Retail filter chips + search */}
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
-          Giá sản phẩm bán lẻ
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+            gap: 8,
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 700 }}>
+            Giá sản phẩm bán lẻ
+          </div>
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="hxw-press"
+            style={{
+              height: 32,
+              padding: "0 12px",
+              borderRadius: 8,
+              background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
+              color: "#fff",
+              border: "none",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontFamily: HX.font,
+              boxShadow: "0 4px 12px -4px rgba(255,90,31,0.5)",
+              flexShrink: 0,
+            }}
+          >
+            <Icon name="plus" size={12} color="#fff" strokeWidth={2.2} />
+            Thêm sản phẩm
+          </button>
         </div>
         <div
           style={{
@@ -974,6 +1043,13 @@ function DonGiaMobile() {
           </div>
         )}
       </div>
+
+      <AddProductDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        existingSkus={products.map((p) => p.sku)}
+        onCreated={reloadProducts}
+      />
     </div>
   )
 }
