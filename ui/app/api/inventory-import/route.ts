@@ -5,6 +5,21 @@ interface ImportItem {
   fuel_name: string;
   quantity: number;
   note?: string;
+  // Tuỳ chọn: thời gian nhập kho (YYYY-MM-DD HH:MM:SS hoặc ISO).
+  // Nếu không truyền → dùng NOW().
+  import_time?: string;
+}
+
+// "2026-05-28T14:30" / "2026-05-28T14:30:00.000Z" / "2026-05-28 14:30:00"
+// → "YYYY-MM-DD HH:MM:SS" theo local time. Trả null nếu invalid.
+function normalizeImportTime(input: unknown): string | null {
+  if (!input || typeof input !== 'string') return null
+  const s = input.trim()
+  if (!s) return null
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T'))
+  if (isNaN(d.getTime())) return null
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
 // Đảm bảo bảng tồn tại
@@ -105,9 +120,16 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Lấy thời gian hiện tại theo local time
-    const now = new Date();
-    const importTime = now.toISOString().slice(0, 19).replace('T', ' ');
+    // Ưu tiên import_time client gửi; fallback NOW() local.
+    const customTime = normalizeImportTime(data.import_time)
+    let importTime: string
+    if (customTime) {
+      importTime = customTime
+    } else {
+      const now = new Date()
+      const p = (n: number) => String(n).padStart(2, '0')
+      importTime = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`
+    }
 
     // Insert vào database
     const result = await query<any>(`
@@ -133,6 +155,68 @@ export async function POST(request: NextRequest) {
       success: false,
       error: error.message
     }, { status: 500 });
+  }
+}
+
+// PUT - Sửa bản ghi nhập hàng (?id=)
+export async function PUT(request: NextRequest) {
+  try {
+    await ensureTableExists();
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Thiếu ID bản ghi cần sửa' },
+        { status: 400 }
+      );
+    }
+
+    const [cur] = await query<any[]>(
+      `SELECT id, fuel_name, quantity, import_time, note FROM fuel_inventory_import WHERE id = ?`,
+      [id]
+    );
+    if (!cur) {
+      return NextResponse.json(
+        { success: false, error: 'Không tìm thấy bản ghi' },
+        { status: 404 }
+      );
+    }
+
+    const data: ImportItem = await request.json();
+    const fuelName =
+      typeof data.fuel_name === 'string' && data.fuel_name.trim()
+        ? data.fuel_name.trim()
+        : cur.fuel_name;
+    const quantity =
+      data.quantity !== undefined && Number(data.quantity) > 0
+        ? Number(data.quantity)
+        : Number(cur.quantity);
+    const note = data.note !== undefined ? String(data.note) : cur.note;
+    const importTime = normalizeImportTime(data.import_time) ||
+      // giữ nguyên thời gian cũ nếu client không gửi (định dạng lại)
+      normalizeImportTime(
+        cur.import_time instanceof Date
+          ? cur.import_time.toISOString()
+          : String(cur.import_time)
+      ) ||
+      undefined;
+
+    await query(
+      `UPDATE fuel_inventory_import
+         SET fuel_name = ?, quantity = ?, note = ?${importTime ? ', import_time = ?' : ''}
+       WHERE id = ?`,
+      importTime
+        ? [fuelName, quantity, note, importTime, id]
+        : [fuelName, quantity, note, id]
+    );
+
+    return NextResponse.json({ success: true, id: Number(id), import_time: importTime });
+  } catch (error: any) {
+    console.error('Error updating inventory import:', error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
 }
 

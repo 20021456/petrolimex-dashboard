@@ -198,12 +198,15 @@ function MetadataCard(props: {
           />
         </div>
         <div>
-          <div style={labelStyle}>Ngày nhập</div>
+          <div style={labelStyle}>Ngày · giờ nhập</div>
           <input
+            type="datetime-local"
             value={props.intakeDate}
             onChange={(e) => props.setIntakeDate(e.target.value)}
-            placeholder="VD: 14/05/2026 · 09:42"
-            style={fieldStyle}
+            style={{
+              ...fieldStyle,
+              colorScheme: "dark",
+            }}
           />
         </div>
         <div>
@@ -552,7 +555,13 @@ function FuelForm({
   const [supplierTax, setSupplierTax] = React.useState("")
   const [contract, setContract] = React.useState("")
   const [invoice, setInvoice] = React.useState("")
-  const [intakeDate, setIntakeDate] = React.useState("")
+  // Mặc định = thời điểm hiện tại theo local time (định dạng cho input
+  // type="datetime-local": YYYY-MM-DDTHH:MM).
+  const [intakeDate, setIntakeDate] = React.useState(() => {
+    const d = new Date()
+    const p = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+  })
   const [recorder, setRecorder] = React.useState("")
   const [vehicle, setVehicle] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
@@ -607,6 +616,7 @@ function FuelForm({
   const canSubmit = validLines.length > 0 && !submitting
 
   // Metadata chung gộp thành 1 chuỗi để gắn vào note của từng phiếu.
+  // Ngày/giờ nhập đi qua field riêng (import_time), không nhét vào note.
   const metadataParts: string[] = []
   if (supplier.trim())
     metadataParts.push(
@@ -614,7 +624,6 @@ function FuelForm({
     )
   if (contract.trim()) metadataParts.push(`HĐ: ${contract.trim()}`)
   if (invoice.trim()) metadataParts.push(`HD: ${invoice.trim()}`)
-  if (intakeDate.trim()) metadataParts.push(`Ngày: ${intakeDate.trim()}`)
   if (recorder.trim()) metadataParts.push(`Ghi nhận: ${recorder.trim()}`)
   if (vehicle.trim()) metadataParts.push(`Xe/TX: ${vehicle.trim()}`)
   const metadataPrefix = metadataParts.join(" · ")
@@ -640,6 +649,7 @@ function FuelForm({
             fuel_name: l.nhien_lieu,
             quantity: l.qty,
             note: finalNote,
+            import_time: intakeDate || undefined,
           }),
         })
         const r = await res.json()

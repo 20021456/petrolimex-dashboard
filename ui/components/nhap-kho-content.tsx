@@ -12,7 +12,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { HX, Icon, FuelDot, type IconName, useIsMobile } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelKind, type IconName, useIsMobile } from "@/components/htx-kit"
 import { useRetailProducts, type PosProduct } from "@/components/pos-page"
 
 type IntakeKind = "fuel" | "retail"
@@ -56,10 +56,23 @@ interface RetailMeta {
 const fmtVN = (n: number) =>
   new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
 
+// Trả về thời điểm hiện tại theo định dạng `YYYY-MM-DDTHH:MM` để
+// dùng cho input type="datetime-local". Đồng nhất với API
+// /api/inventory-import (chấp nhận ISO + 'YYYY-MM-DD HH:MM:SS').
 function todayStr() {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, "0")
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+// Format datetime-local hoặc bất kỳ input dạng date sang dd/mm/yyyy HH:MM
+// để hiển thị trong review step (review thấy giống human-readable).
+function fmtDateHuman(s: string): string {
+  if (!s) return "—"
+  const d = new Date(s.includes("T") ? s : s.replace(" ", "T"))
+  if (isNaN(d.getTime())) return s
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} · ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 function fuelColor(nhien_lieu: string): string {
@@ -193,6 +206,7 @@ export function NhapKhoContent({ onNavigate }: NhapKhoContentProps) {
               fuel_name: l.nhien_lieu,
               quantity: l.qty,
               note: noteParts.join(" · "),
+              import_time: fuelMeta.date || undefined,
             }),
           }).then((x) => x.json())
           if (res?.success) ok++
@@ -257,7 +271,7 @@ export function NhapKhoContent({ onNavigate }: NhapKhoContentProps) {
       <Stepper step={step} onSetStep={setStep} />
 
       {step === 0 && (
-        <Hub kind={kind} onSetKind={setKind} onNext={() => setStep(1)} />
+        <Hub kind={kind} onSetKind={setKind} onNext={() => setStep(1)} tanks={tanks} />
       )}
       {step === 1 && kind === "fuel" && (
         <FuelForm
@@ -438,10 +452,12 @@ function Hub({
   kind,
   onSetKind,
   onNext,
+  tanks,
 }: {
   kind: IntakeKind
   onSetKind: (k: IntakeKind) => void
   onNext: () => void
+  tanks: TankInfo[]
 }) {
   void kind
   const pick = (k: IntakeKind) => {
@@ -468,11 +484,10 @@ function Hub({
           extra={
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <FuelDot kind="RON95" size={7} />
-              <FuelDot kind="E5" size={7} />
               <FuelDot kind="DO" size={7} />
               <FuelDot kind="DO+" size={7} />
               <span style={{ fontSize: 11, color: HX.text3, marginLeft: 4 }}>
-                4 loại nhiên liệu
+                3 bồn chứa
               </span>
             </div>
           }
@@ -489,7 +504,430 @@ function Hub({
           }
         />
       </div>
+
+      <RecentIntakesWeb tanks={tanks} />
     </>
+  )
+}
+
+// ── Lịch sử nhập gần đây (web) — xem + sửa + xoá phiếu ─────────
+interface IntakeRow {
+  id: number
+  fuel_name: string
+  quantity: number
+  import_time: string
+  note: string
+}
+
+function RecentIntakesWeb({ tanks }: { tanks: TankInfo[] }) {
+  const [rows, setRows] = React.useState<IntakeRow[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [editing, setEditing] = React.useState<IntakeRow | null>(null)
+
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch("/api/inventory-import", { cache: "no-store" }).then(
+        (x) => x.json()
+      )
+      if (r?.success && Array.isArray(r.data)) {
+        setRows(
+          r.data.slice(0, 20).map((x: any) => ({
+            id: Number(x.id),
+            fuel_name: String(x.fuel_name || ""),
+            quantity: Number(x.quantity) || 0,
+            import_time: x.import_time || x.created_at || "",
+            note: x.note || "",
+          }))
+        )
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    reload()
+  }, [reload])
+
+  async function handleDelete(id: number) {
+    if (!confirm("Xoá phiếu nhập này? Tồn kho sẽ tính lại.")) return
+    try {
+      const r = await fetch(`/api/inventory-import?id=${id}`, {
+        method: "DELETE",
+      }).then((x) => x.json())
+      if (r?.success) {
+        toast.success("Đã xoá phiếu nhập")
+        reload()
+      } else {
+        toast.error(r?.error || "Không xoá được")
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Có lỗi xảy ra")
+    }
+  }
+
+  return (
+    <>
+      <SectionHeader title="Nhập gần đây" sub="Bấm để sửa hoặc xoá phiếu nhập" />
+      <div
+        style={{
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 14,
+          overflow: "hidden",
+          marginBottom: 28,
+        }}
+      >
+        {/* Header row */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "44px 1.4fr 1fr 1.4fr 120px",
+            gap: 14,
+            padding: "12px 18px",
+            background: HX.bg,
+            borderBottom: `1px solid ${HX.hairline}`,
+            fontSize: 11,
+            color: HX.text3,
+            fontWeight: 600,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          <span />
+          <span>Nhiên liệu</span>
+          <span style={{ textAlign: "right" }}>Số lượng</span>
+          <span>Thời điểm nhập</span>
+          <span style={{ textAlign: "right" }}>Thao tác</span>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: 30, textAlign: "center", color: HX.text3, fontSize: 13 }}>
+            Đang tải…
+          </div>
+        ) : rows.length === 0 ? (
+          <div style={{ padding: 30, textAlign: "center", color: HX.text3, fontSize: 13 }}>
+            Chưa có phiếu nhập nào.
+          </div>
+        ) : (
+          rows.map((row, i) => {
+            const kind = fuelKind(row.fuel_name)
+            return (
+              <div
+                key={row.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "44px 1.4fr 1fr 1.4fr 120px",
+                  gap: 14,
+                  padding: "14px 18px",
+                  alignItems: "center",
+                  fontSize: 13,
+                  color: HX.text,
+                  borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
+                }}
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 9,
+                    background: fuelColor(row.fuel_name) + "22",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Icon name="fuel" size={16} color={fuelColor(row.fuel_name)} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  {kind && <FuelDot kind={kind} size={8} />}
+                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {row.fuel_name}
+                  </span>
+                </div>
+                <div className="hx-num" style={{ textAlign: "right", fontWeight: 700, color: HX.good }}>
+                  +{fmtVN(row.quantity)}
+                  <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> L</span>
+                </div>
+                <div className="hx-num" style={{ color: HX.text2, fontSize: 12 }}>
+                  {fmtDateHuman(row.import_time)}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(row)}
+                    className="hxw-press"
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 8,
+                      background: "transparent",
+                      border: `1px solid ${HX.hairlineStrong}`,
+                      color: HX.text2,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Sửa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(row.id)}
+                    className="hxw-press"
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 8,
+                      background: HX.badSoft,
+                      border: "1px solid rgba(255,69,58,0.28)",
+                      color: HX.bad,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Xoá
+                  </button>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {editing && (
+        <EditIntakeModal
+          row={editing}
+          tanks={tanks}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null)
+            reload()
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+// ── Modal sửa phiếu nhập ──────────────────────────────────────
+function EditIntakeModal({
+  row,
+  tanks,
+  onClose,
+  onSaved,
+}: {
+  row: IntakeRow
+  tanks: TankInfo[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  // Danh sách loại nhiên liệu từ tanks (fallback giữ giá trị hiện tại).
+  const fuelNames = React.useMemo(() => {
+    const set = new Set<string>()
+    tanks.forEach((t) => t.nhien_lieu && set.add(t.nhien_lieu))
+    if (row.fuel_name) set.add(row.fuel_name)
+    return Array.from(set)
+  }, [tanks, row.fuel_name])
+
+  const [fuelName, setFuelName] = React.useState(row.fuel_name)
+  const [quantity, setQuantity] = React.useState(
+    row.quantity ? Math.round(row.quantity).toLocaleString("vi-VN") : ""
+  )
+  const [dateVal, setDateVal] = React.useState(() => {
+    const d = new Date(
+      row.import_time.includes("T")
+        ? row.import_time
+        : row.import_time.replace(" ", "T")
+    )
+    if (isNaN(d.getTime())) return ""
+    const p = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+  })
+  const [note, setNote] = React.useState(row.note)
+  const [submitting, setSubmitting] = React.useState(false)
+
+  const qtyNum = parseInt(quantity.replace(/\D/g, "")) || 0
+  const valid = !!fuelName && qtyNum > 0
+
+  async function handleSubmit() {
+    if (!valid || submitting) return
+    setSubmitting(true)
+    try {
+      const r = await fetch(`/api/inventory-import?id=${row.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fuel_name: fuelName,
+          quantity: qtyNum,
+          note,
+          import_time: dateVal || undefined,
+        }),
+      }).then((x) => x.json())
+      if (r?.success) {
+        toast.success("Đã cập nhật phiếu nhập")
+        onSaved()
+      } else {
+        toast.error(r?.error || "Không lưu được")
+        setSubmitting(false)
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Có lỗi xảy ra")
+      setSubmitting(false)
+    }
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    width: "100%",
+    height: 44,
+    padding: "0 14px",
+    borderRadius: 11,
+    background: HX.bg,
+    border: `1px solid ${HX.hairlineStrong}`,
+    color: HX.text,
+    fontSize: 14,
+    fontFamily: HX.font,
+    outline: "none",
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10,
+    color: HX.text3,
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        backdropFilter: "blur(8px)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: HX.elevated,
+          border: `1px solid ${HX.hairlineStrong}`,
+          borderRadius: 18,
+          padding: 24,
+          width: "100%",
+          maxWidth: 440,
+          boxShadow: "0 30px 80px -20px rgba(0,0,0,0.7)",
+        }}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: HX.text3, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            Nhập kho
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: HX.text, marginTop: 2 }}>
+            Sửa phiếu nhập
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <div style={labelStyle}>Loại nhiên liệu</div>
+            <select
+              value={fuelName}
+              onChange={(e) => setFuelName(e.target.value)}
+              style={fieldStyle}
+            >
+              {fuelNames.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div style={labelStyle}>Số lượng (lít)</div>
+            <input
+              value={quantity}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/\D/g, "")
+                setQuantity(raw ? parseInt(raw).toLocaleString("vi-VN") : "")
+              }}
+              inputMode="numeric"
+              className="hx-num"
+              style={{ ...fieldStyle, textAlign: "right", fontWeight: 700 }}
+            />
+          </div>
+          <div>
+            <div style={labelStyle}>Ngày · giờ nhập</div>
+            <input
+              type="datetime-local"
+              value={dateVal}
+              onChange={(e) => setDateVal(e.target.value)}
+              style={{ ...fieldStyle, colorScheme: "dark" }}
+            />
+          </div>
+          <div>
+            <div style={labelStyle}>Ghi chú</div>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              style={fieldStyle}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="hxw-press"
+            style={{
+              flex: 1,
+              height: 46,
+              borderRadius: 12,
+              background: "transparent",
+              border: `1px solid ${HX.hairlineStrong}`,
+              color: HX.text2,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!valid || submitting}
+            className={valid && !submitting ? "hxw-press" : ""}
+            style={{
+              flex: 1.4,
+              height: 46,
+              borderRadius: 12,
+              background:
+                valid && !submitting
+                  ? `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`
+                  : HX.surface,
+              border: "1px solid transparent",
+              color: valid && !submitting ? "#fff" : HX.text3,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: valid && !submitting ? "pointer" : "not-allowed",
+            }}
+          >
+            {submitting ? "Đang lưu…" : "Lưu thay đổi"}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -657,10 +1095,10 @@ function FuelForm({
             placeholder="HD-…"
           />
           <FieldInput
-            label="Ngày nhập"
+            label="Ngày · giờ nhập"
             value={meta.date}
             onChange={(v) => setMeta((m) => ({ ...m, date: v }))}
-            placeholder="DD/MM/YYYY"
+            type="datetime-local"
             rightIcon="calendar"
           />
           <FieldInput
@@ -1030,10 +1468,10 @@ function RetailForm({
             placeholder="HD-…"
           />
           <FieldInput
-            label="Ngày nhập"
+            label="Ngày · giờ nhập"
             value={meta.date}
             onChange={(v) => setMeta((m) => ({ ...m, date: v }))}
-            placeholder="DD/MM/YYYY"
+            type="datetime-local"
             rightIcon="calendar"
           />
           <FieldInput
@@ -1365,7 +1803,7 @@ function FuelReview({
         { l: "Nhà cung cấp", r: meta.supplier || "—" },
         { l: "Số hóa đơn", r: meta.invoiceNo || "—" },
         { l: "Mã hợp đồng", r: meta.contractCode || "—" },
-        { l: "Ngày nhập", r: meta.date || "—" },
+        { l: "Ngày nhập", r: fmtDateHuman(meta.date) },
         { l: "Người ghi nhận", r: meta.recordedBy || "—" },
         { l: "Xe bồn / tài xế", r: meta.truck || "—" },
       ]}
@@ -1503,7 +1941,7 @@ function RetailReview({
       meta={[
         { l: "Nhà cung cấp", r: meta.supplier || "—" },
         { l: "Số hóa đơn", r: meta.invoiceNo || "—" },
-        { l: "Ngày nhập", r: meta.date || "—" },
+        { l: "Ngày nhập", r: fmtDateHuman(meta.date) },
         { l: "Người ghi nhận", r: meta.recordedBy || "—" },
       ]}
       bodyRight={`${lines.length} mặt hàng · ${totalQty} SP`}
@@ -1868,12 +2306,14 @@ function FieldInput({
   onChange,
   placeholder,
   rightIcon,
+  type,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
   rightIcon?: IconName
+  type?: string
 }) {
   return (
     <div
@@ -1898,6 +2338,7 @@ function FieldInput({
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input
+          type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
@@ -1912,6 +2353,7 @@ function FieldInput({
             fontWeight: 500,
             fontFamily: HX.font,
             padding: 0,
+            colorScheme: type?.startsWith("date") ? "dark" : undefined,
           }}
         />
         {rightIcon && <Icon name={rightIcon} size={15} color={HX.text2} />}
