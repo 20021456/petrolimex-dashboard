@@ -116,7 +116,7 @@ export function StockPageMobile({
         }}
       >
         {[
-          { k: "fuel" as const, t: "Xăng dầu", c: tankCards.length || 4 },
+          { k: "fuel" as const, t: "Xăng dầu", c: tankCards.length || 3 },
           { k: "retail" as const, t: "Bán lẻ", c: retailProducts.length },
         ].map((o) => (
           <div
@@ -168,7 +168,7 @@ export function StockPageMobile({
           <MCard padding={16}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <div style={{ fontSize: 13, color: HX.text2 }}>Tổng tồn {tankCards.length || 4} bồn</div>
+                <div style={{ fontSize: 13, color: HX.text2 }}>Tổng tồn {tankCards.length || 3} bồn</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
                   <span className="hx-num" style={{ fontSize: 28, fontWeight: 700 }}>
                     {fmtVN(tankTotal)}

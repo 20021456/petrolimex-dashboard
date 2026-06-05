@@ -358,7 +358,7 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   textTransform: "uppercase",
                 }}
               >
-                Tổng tồn {tankCards.length || 4} bồn
+                Tổng tồn {tankCards.length || 3} bồn
               </div>
               <div
                 className="hx-num"

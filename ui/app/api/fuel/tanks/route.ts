@@ -115,7 +115,7 @@ export async function GET() {
       // Trong Docker/Production: Lấy dữ liệu từ MySQL database
       try {
         const rows = await query<any[]>(`
-          SELECT 
+          SELECT
             ten_bon,
             nhien_lieu,
             ton_kho,
@@ -126,17 +126,28 @@ export async function GET() {
           FROM fuel_tanks
           ORDER BY ten_bon ASC
         `)
-        
+
+        // Chỉ giữ những bồn còn trong cấu hình thực tế (TANK_CAPACITY).
+        // Bồn đã bị bỏ khỏi config (vd BỒN 4 sau khi gộp) sẽ bị ẩn khỏi UI
+        // dù bảng fuel_tanks upstream còn dòng cũ.
+        const validRows = rows.filter((row: any) => {
+          const key = String(row.ten_bon || '').trim().toUpperCase()
+          return key in TANK_CAPACITY
+        })
+
         // Map dữ liệu sang format chuẩn + tính lại ton_kho/dung_tich/ty_le
         const overrides = await Promise.all(
-          rows.map((row: any) => computeInventoryOverride(row.ten_bon || ''))
+          validRows.map((row: any) => computeInventoryOverride(row.ten_bon || ''))
         )
-        const tankData: TankData[] = rows.map((row: any, i: number) => {
+        const tankData: TankData[] = validRows.map((row: any, i: number) => {
           const tenBon = row.ten_bon || ''
+          const key = tenBon.trim().toUpperCase()
           const inv = overrides[i]
+          // Ghi đè nhien_lieu theo config — upstream DB có thể còn legacy.
+          const configFuel = TANK_FUEL_NAMES[key]?.[0] || row.nhien_lieu || ''
           return {
             ten_bon: tenBon,
-            nhien_lieu: row.nhien_lieu || '',
+            nhien_lieu: configFuel,
             ton_kho: inv ? inv.ton_kho : (parseFloat(row.ton_kho) || 0),
             dung_tich: inv ? inv.dung_tich : (parseFloat(row.dung_tich) || 0),
             ty_le: inv ? inv.ty_le : (row.ty_le || 'N/A'),
@@ -209,17 +220,26 @@ export async function GET() {
     try {
       const data = JSON.parse(jsonLine)
       if (data && Array.isArray(data.data)) {
+        // Lọc bỏ bồn không còn trong config (đồng nhất với nhánh Docker).
+        const validTanks = data.data.filter((tank: any) => {
+          const key = String(tank.ten_bon || '').trim().toUpperCase()
+          return key in TANK_CAPACITY
+        })
         const overrides = await Promise.all(
-          data.data.map((tank: any) => computeInventoryOverride(tank.ten_bon || ''))
+          validTanks.map((tank: any) => computeInventoryOverride(tank.ten_bon || ''))
         )
-        data.data = data.data.map((tank: any, i: number) => {
+        data.data = validTanks.map((tank: any, i: number) => {
           const inv = overrides[i]
+          const key = String(tank.ten_bon || '').trim().toUpperCase()
+          const configFuel = TANK_FUEL_NAMES[key]?.[0] || tank.nhien_lieu || ''
           return {
             ...tank,
+            nhien_lieu: configFuel,
             cot_bom: applyCotBomOverride(tank.ten_bon || '', tank.cot_bom || ''),
             ...(inv ? { ton_kho: inv.ton_kho, dung_tich: inv.dung_tich, ty_le: inv.ty_le } : {}),
           }
         })
+        data.count = validTanks.length
       }
       return NextResponse.json(data)
     } catch (parseError) {

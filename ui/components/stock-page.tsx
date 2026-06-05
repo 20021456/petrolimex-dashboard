@@ -187,7 +187,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
         }}
       >
         {[
-          { k: "fuel" as const, t: "Xăng dầu", c: `${tankCards.length || 4} bồn` },
+          { k: "fuel" as const, t: "Xăng dầu", c: `${tankCards.length || 3} bồn` },
           { k: "retail" as const, t: "Bán lẻ", c: `${retailProducts.length} SP` },
         ].map((o) => (
           <div
@@ -266,7 +266,7 @@ export function StockPage({ onNavigate }: StockPageProps) {
                     textTransform: "uppercase",
                   }}
                 >
-                  Tổng tồn {tankCards.length || 4} bồn
+                  Tổng tồn {tankCards.length || 3} bồn
                 </div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
                   <div className="hx-num" style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-0.03em" }}>
@@ -363,7 +363,13 @@ export function StockPage({ onNavigate }: StockPageProps) {
           )}
 
           {/* Tank cards 2×2 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${Math.min(Math.max(tankCards.length, 1), 3)}, 1fr)`,
+              gap: 16,
+            }}
+          >
             {tankCards.length === 0 && (
               <div
                 style={{
