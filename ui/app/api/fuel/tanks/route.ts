@@ -57,35 +57,60 @@ function round2(n: number) {
 
 // Tính tồn kho:
 //   - Mặc định 0 — không còn baseline cứng.
-//   - Bồn có phiếu nhập thì ton_kho = SUM(quantity) của các phiếu nhập
-//     khớp fuel_name của bồn (capped tại capacity).
-//   - Chưa trừ giao dịch bán — chỉ phản ánh lượng đã nhập.
+//   - intake = SUM(quantity) các phiếu nhập (fuel_inventory_import) khớp
+//     fuel_name của bồn.
+//   - sold = SUM(lit) các giao dịch bán (fuel_pump) trên các cột bơm
+//     thuộc bồn, kể từ thời điểm phiếu nhập ĐẦU TIÊN (MIN import_time).
+//     Bán trước khi nhập không tính (lúc đó coi như bồn rỗng).
+//   - ton_kho = round(max(0, min(capacity, intake − sold))).
 async function computeInventoryOverride(
   tenBon: string
 ): Promise<{ ton_kho: number; dung_tich: number; ty_le: string } | null> {
   const key = (tenBon || '').trim().toUpperCase()
   const capacity = TANK_CAPACITY[key]
   const fuelNames = TANK_FUEL_NAMES[key] || []
+  const cotBomList = TANK_COT_BOM_NUMS[key] || []
   if (!capacity) return null
 
   let intake = 0
+  let firstImport: string | null = null
   if (fuelNames.length > 0) {
     try {
       const placeholders = fuelNames.map(() => '?').join(',')
       const rows = await query<any[]>(
-        `SELECT COALESCE(SUM(quantity), 0) AS intake
+        `SELECT COALESCE(SUM(quantity), 0) AS intake,
+                MIN(import_time) AS first_import
          FROM fuel_inventory_import
          WHERE fuel_name IN (${placeholders})`,
         fuelNames
       )
       intake = round2(rows?.[0]?.intake)
+      firstImport = rows?.[0]?.first_import || null
     } catch {
       // Bảng có thể chưa tồn tại — coi như 0
       intake = 0
     }
   }
 
-  const tonKho = Math.round(Math.max(0, Math.min(capacity, intake)))
+  // Trừ lượng bán kể từ phiếu nhập đầu tiên (nếu có nhập).
+  let sold = 0
+  if (firstImport && cotBomList.length > 0) {
+    try {
+      const cotCsv = cotBomList.join(',')
+      const rows = await query<any[]>(
+        `SELECT COALESCE(SUM(lit), 0) AS sold
+         FROM fuel_pump
+         WHERE cot_bom IN (${cotCsv})
+           AND ket_thuc_bom >= ?`,
+        [firstImport]
+      )
+      sold = round2(rows?.[0]?.sold)
+    } catch {
+      sold = 0
+    }
+  }
+
+  const tonKho = Math.round(Math.max(0, Math.min(capacity, intake - sold)))
   const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
   return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
 }
