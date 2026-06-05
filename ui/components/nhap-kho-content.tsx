@@ -3,10 +3,15 @@
 // ════════════════════════════════════════════════════════════════
 // Nhập kho — port từ design web-intake.jsx.
 // 3 bước: Chọn loại → Hàng nhập → Xác nhận. Bán lẻ + Xăng dầu.
-// Không có nút "Thêm sản phẩm" — chuyển sang trang Đơn giá theo yêu cầu.
+// Cùng API như bản mobile:
+//   - /api/fuel/tanks (nguồn nhiên liệu cho FuelForm)
+//   - /api/inventory-import POST (mỗi line 1 phiếu xăng dầu)
+//   - /api/retail-products PATCH ?sku=&delta= (mỗi mặt hàng bán lẻ)
+// Nút "Thêm sản phẩm" KHÔNG có ở đây — sang trang Đơn giá theo yêu cầu.
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
+import { toast } from "sonner"
 import { HX, Icon, FuelDot, type IconName, useIsMobile } from "@/components/htx-kit"
 import { useRetailProducts, type PosProduct } from "@/components/pos-page"
 
@@ -16,35 +21,65 @@ interface NhapKhoContentProps {
   onNavigate?: (view: string) => void
 }
 
-const fmtVN = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
+interface TankInfo {
+  ten_bon: string
+  nhien_lieu: string
+  ton_kho: number
+  dung_tich: number
+}
 
-// ── Sample fuel lines (UI-only — DB tồn kho dùng /api/fuel/tanks) ──
-const FUEL_LINES = [
-  {
-    fuel: "RON95",
-    qty: 6000,
-    price: 21890,
-    color: HX.ron95,
-    tank: "Bồn 01 · 10.000 L cap",
-  },
-  {
-    fuel: "E5",
-    qty: 2000,
-    price: 20650,
-    color: HX.e5,
-    tank: "Bồn 03 · 10.000 L cap",
-  },
-] as const
+interface FuelLineDraft {
+  id: string
+  tenBon: string
+  nhien_lieu: string
+  quantity: string
+  unit_price: string
+}
 
-// ── Lịch sử nhập (mock) ───────────────────────────────────────
-const HISTORY = [
-  { code: "NK-26-0512", d: "08/05", type: "Xăng dầu", det: "RON95 · 8.000 L", amt: 184_000_000, src: "Petrolimex KV5", icon: "fuel" as IconName, c: HX.accent },
-  { code: "NK-26-0509", d: "05/05", type: "Bán lẻ", det: "12 mặt hàng", amt: 3_420_000, src: "Castrol VN", icon: "receipt" as IconName, c: HX.do },
-  { code: "NK-26-0506", d: "02/05", type: "Xăng dầu", det: "E5 · 5.000 L", amt: 109_500_000, src: "Petrolimex KV5", icon: "fuel" as IconName, c: HX.accent },
-  { code: "NK-26-0428", d: "28/04", type: "Bán lẻ", det: "8 mặt hàng", amt: 1_860_000, src: "Tạp hóa Tâm An", icon: "receipt" as IconName, c: HX.do },
-  { code: "NK-26-0422", d: "22/04", type: "Xăng dầu", det: "DO · 6.000 L", amt: 122_700_000, src: "PV OIL Bình Định", icon: "fuel" as IconName, c: HX.accent },
-  { code: "NK-26-0418", d: "18/04", type: "Bán lẻ", det: "5 mặt hàng", amt: 895_000, src: "Castrol VN", icon: "receipt" as IconName, c: HX.do },
-]
+interface FuelMeta {
+  supplier: string
+  contractCode: string
+  invoiceNo: string
+  date: string
+  recordedBy: string
+  truck: string
+  note: string
+}
+interface RetailMeta {
+  supplier: string
+  invoiceNo: string
+  date: string
+  recordedBy: string
+  note: string
+}
+
+const fmtVN = (n: number) =>
+  new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
+
+function todayStr() {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+function fuelColor(nhien_lieu: string): string {
+  const f = (nhien_lieu || "").toUpperCase()
+  if (f.startsWith("RON95")) return HX.ron95
+  if (f.startsWith("E5")) return HX.e5
+  if (f.includes("0,001") || f.includes("0.001")) return HX.doPlus
+  if (f.startsWith("DO")) return HX.do
+  return HX.text2
+}
+
+function emptyFuelLine(t?: TankInfo): FuelLineDraft {
+  return {
+    id: `l${Date.now()}${Math.floor(Math.random() * 1000)}`,
+    tenBon: t?.ten_bon || "",
+    nhien_lieu: t?.nhien_lieu || "",
+    quantity: "",
+    unit_price: "",
+  }
+}
 
 // ──────────────────────────────────────────────────────────────
 // Main page
@@ -53,15 +88,165 @@ export function NhapKhoContent({ onNavigate }: NhapKhoContentProps) {
   const isMobile = useIsMobile()
   const [step, setStep] = React.useState(0)
   const [kind, setKind] = React.useState<IntakeKind>("fuel")
+  const [tanks, setTanks] = React.useState<TankInfo[]>([])
   const { products } = useRetailProducts()
+
+  const [fuelLines, setFuelLines] = React.useState<FuelLineDraft[]>([
+    emptyFuelLine(),
+  ])
+  const [retailPicks, setRetailPicks] = React.useState<Record<string, number>>(
+    {}
+  )
+
+  const [fuelMeta, setFuelMeta] = React.useState<FuelMeta>({
+    supplier: "Petrolimex KV5",
+    contractCode: "",
+    invoiceNo: "",
+    date: todayStr(),
+    recordedBy: "Anh Sơn (Chủ nhiệm)",
+    truck: "",
+    note: "",
+  })
+  const [retailMeta, setRetailMeta] = React.useState<RetailMeta>({
+    supplier: "",
+    invoiceNo: "",
+    date: todayStr(),
+    recordedBy: "Anh Sơn (Chủ nhiệm)",
+    note: "",
+  })
+
+  const [submitting, setSubmitting] = React.useState(false)
+
+  // Fetch tanks
+  React.useEffect(() => {
+    let alive = true
+    fetch("/api/fuel/tanks", { cache: "no-store" })
+      .then((x) => x.json())
+      .then((r) => {
+        if (!alive || !r?.success || !Array.isArray(r.data)) return
+        setTanks(r.data)
+        setFuelLines((cur) =>
+          cur.map((l, i) =>
+            i === 0 && !l.tenBon
+              ? {
+                  ...l,
+                  tenBon: r.data[0].ten_bon,
+                  nhien_lieu: r.data[0].nhien_lieu,
+                }
+              : l
+          )
+        )
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const onCancel = () => {
     setStep(0)
     onNavigate?.("dashboard")
   }
-  const onFinish = () => {
-    setStep(0)
-    onNavigate?.("tonkho")
+
+  // ── Submit handlers ─────────────────────────────────────────
+  const fuelLinesParsed = fuelLines.map((l) => {
+    const qty = parseFloat(l.quantity.replace(/\D/g, "")) || 0
+    const price = parseFloat(l.unit_price.replace(/\D/g, "")) || 0
+    return { ...l, qty, price, total: qty * price }
+  })
+  const fuelValidLines = fuelLinesParsed.filter(
+    (l) => l.nhien_lieu && l.qty > 0
+  )
+
+  const retailLines = (Object.entries(retailPicks) as [string, number][])
+    .map(([sku, qty]) => {
+      const p = products.find((x) => x.sku === sku)
+      if (!p) return null
+      return { sku, qty, p, total: p.price * qty }
+    })
+    .filter(Boolean) as { sku: string; qty: number; p: PosProduct; total: number }[]
+
+  const handleFinish = async () => {
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      if (kind === "fuel") {
+        if (fuelValidLines.length === 0) {
+          toast.error("Chưa có dòng nào hợp lệ")
+          setSubmitting(false)
+          return
+        }
+        let ok = 0
+        for (const l of fuelValidLines) {
+          const noteParts = [
+            fuelMeta.note.trim(),
+            `Vào ${l.tenBon}`,
+            fuelMeta.supplier && `NCC: ${fuelMeta.supplier}`,
+            fuelMeta.invoiceNo && `HĐ: ${fuelMeta.invoiceNo}`,
+            fuelMeta.truck && `Xe: ${fuelMeta.truck}`,
+            l.price > 0 && `@${fmtVN(l.price)} ₫/L`,
+          ].filter(Boolean)
+          const res = await fetch("/api/inventory-import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fuel_name: l.nhien_lieu,
+              quantity: l.qty,
+              note: noteParts.join(" · "),
+            }),
+          }).then((x) => x.json())
+          if (res?.success) ok++
+        }
+        if (ok > 0) {
+          toast.success(
+            `Đã ghi nhận ${ok} phiếu nhập xăng dầu · ${fmtVN(
+              fuelValidLines.reduce((s, l) => s + l.qty, 0)
+            )} L`
+          )
+          // Reset + back to step 0
+          setFuelLines([emptyFuelLine(tanks[0])])
+          setStep(0)
+          onNavigate?.("tonkho")
+        } else {
+          toast.error("Không lưu được phiếu nhập")
+        }
+      } else {
+        if (retailLines.length === 0) {
+          toast.error("Chưa chọn mặt hàng nào")
+          setSubmitting(false)
+          return
+        }
+        let ok = 0
+        for (const l of retailLines) {
+          const res = await fetch(
+            `/api/retail-products?sku=${encodeURIComponent(l.sku)}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ delta: l.qty }),
+            }
+          ).then((x) => x.json())
+          if (res?.success) ok++
+        }
+        if (ok > 0) {
+          toast.success(
+            `Đã nhập ${ok} mặt hàng · ${retailLines.reduce(
+              (s, l) => s + l.qty,
+              0
+            )} sản phẩm`
+          )
+          setRetailPicks({})
+          setStep(0)
+          onNavigate?.("tonkho")
+        } else {
+          toast.error("Không nhập được sản phẩm nào")
+        }
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Có lỗi xảy ra")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -71,29 +256,57 @@ export function NhapKhoContent({ onNavigate }: NhapKhoContentProps) {
     >
       <Stepper step={step} onSetStep={setStep} />
 
-      {step === 0 && <Hub kind={kind} onSetKind={setKind} onNext={() => setStep(1)} />}
+      {step === 0 && (
+        <Hub kind={kind} onSetKind={setKind} onNext={() => setStep(1)} />
+      )}
       {step === 1 && kind === "fuel" && (
-        <FuelForm onBack={() => setStep(0)} onNext={() => setStep(2)} isMobile={isMobile} />
+        <FuelForm
+          isMobile={isMobile}
+          tanks={tanks}
+          lines={fuelLines}
+          setLines={setFuelLines}
+          meta={fuelMeta}
+          setMeta={setFuelMeta}
+          onBack={() => setStep(0)}
+          onNext={() => setStep(2)}
+        />
       )}
       {step === 1 && kind === "retail" && (
         <RetailForm
+          isMobile={isMobile}
           products={products}
+          picks={retailPicks}
+          setPicks={setRetailPicks}
+          meta={retailMeta}
+          setMeta={setRetailMeta}
           onBack={() => setStep(0)}
           onNext={() => setStep(2)}
-          isMobile={isMobile}
         />
       )}
-      {step === 2 && (
-        <Review kind={kind} onBack={() => setStep(1)} onFinish={onFinish} isMobile={isMobile} />
+      {step === 2 && kind === "fuel" && (
+        <FuelReview
+          isMobile={isMobile}
+          lines={fuelValidLines}
+          meta={fuelMeta}
+          submitting={submitting}
+          onBack={() => setStep(1)}
+          onFinish={handleFinish}
+        />
+      )}
+      {step === 2 && kind === "retail" && (
+        <RetailReview
+          isMobile={isMobile}
+          lines={retailLines}
+          meta={retailMeta}
+          submitting={submitting}
+          onBack={() => setStep(1)}
+          onFinish={handleFinish}
+        />
       )}
 
       {step === 0 && (
         <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
+          style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}
         >
           <button
             type="button"
@@ -150,71 +363,70 @@ function Stepper({
         const done = i < step
         const cur = i === step
         return (
-          <React.Fragment key={i}>
+          <div
+            key={i}
+            onClick={() => done && onSetStep(i)}
+            className={done ? "hxw-press" : ""}
+            style={{
+              flex: "1 1 220px",
+              minWidth: 0,
+              padding: "12px 16px",
+              borderRadius: 10,
+              background: cur ? HX.accentSoft : "transparent",
+              cursor: done ? "pointer" : "default",
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              border: cur ? `1px solid ${HX.accent}55` : "1px solid transparent",
+            }}
+          >
             <div
-              onClick={() => done && onSetStep(i)}
-              className={done ? "hxw-press" : ""}
               style={{
-                flex: "1 1 220px",
-                minWidth: 0,
-                padding: "12px 16px",
-                borderRadius: 10,
-                background: cur ? HX.accentSoft : "transparent",
-                cursor: done ? "pointer" : "default",
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                background: done ? HX.accent : cur ? "#fff" : HX.elevated,
+                border: `1px solid ${
+                  done ? HX.accent : cur ? HX.accent : HX.hairlineStrong
+                }`,
                 display: "flex",
                 alignItems: "center",
-                gap: 14,
-                border: cur
-                  ? `1px solid ${HX.accent}55`
-                  : "1px solid transparent",
+                justifyContent: "center",
+                color: done ? "#fff" : cur ? HX.accent : HX.text3,
+                fontSize: 13,
+                fontWeight: 700,
+                flexShrink: 0,
               }}
             >
+              {done ? (
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                  <path
+                    d="m3 7 3 3 5-6"
+                    stroke="#fff"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                i + 1
+              )}
+            </div>
+            <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 15,
-                  background: done ? HX.accent : cur ? "#fff" : HX.elevated,
-                  border: `1px solid ${done ? HX.accent : cur ? HX.accent : HX.hairlineStrong}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: done ? "#fff" : cur ? HX.accent : HX.text3,
                   fontSize: 13,
-                  fontWeight: 700,
-                  flexShrink: 0,
+                  fontWeight: 600,
+                  color: cur ? HX.text : done ? HX.text2 : HX.text3,
                 }}
               >
-                {done ? (
-                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-                    <path
-                      d="m3 7 3 3 5-6"
-                      stroke="#fff"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                ) : (
-                  i + 1
-                )}
+                {s.l}
               </div>
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: cur ? HX.text : done ? HX.text2 : HX.text3,
-                  }}
-                >
-                  {s.l}
-                </div>
-                <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
-                  {s.d}
-                </div>
+              <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
+                {s.d}
               </div>
             </div>
-          </React.Fragment>
+          </div>
         )
       })}
     </div>
@@ -250,7 +462,7 @@ function Hub({
         <KindCard
           onPick={() => pick("fuel")}
           title="Xăng dầu"
-          sub="Nhập vào 4 bồn chứa · tính theo lít · nhà cung cấp duyệt sẵn (Petrolimex KV5, PV OIL)"
+          sub="Nhập vào các bồn chứa · tính theo lít · nhà cung cấp duyệt sẵn (Petrolimex KV5, PV OIL)"
           icon="fuel"
           accent
           extra={
@@ -272,28 +484,10 @@ function Hub({
           icon="receipt"
           extra={
             <div style={{ fontSize: 11, color: HX.text3 }}>
-              28+ SKU đang quản lý · 4 nhóm hàng
+              Cộng dồn tồn kho theo SKU đã có
             </div>
           }
         />
-      </div>
-
-      <SectionHeader
-        title="Lịch sử nhập gần đây"
-        sub="6 đợt nhập kho gần nhất"
-      />
-      <div
-        style={{
-          background: HX.surface,
-          border: `1px solid ${HX.hairline}`,
-          borderRadius: 14,
-          overflow: "hidden",
-        }}
-      >
-        <HistoryHeader />
-        {HISTORY.map((it, i) => (
-          <HistoryRow key={i} row={it} />
-        ))}
       </div>
     </>
   )
@@ -327,7 +521,6 @@ function KindCard({
         display: "flex",
         gap: 18,
         alignItems: "flex-start",
-        position: "relative",
       }}
     >
       <div
@@ -350,9 +543,7 @@ function KindCard({
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 17, fontWeight: 600 }}>{title}</div>
-        <div
-          style={{ fontSize: 13, color: HX.text2, marginTop: 4, lineHeight: 1.5 }}
-        >
+        <div style={{ fontSize: 13, color: HX.text2, marginTop: 4, lineHeight: 1.5 }}>
           {sub}
         </div>
         <div style={{ marginTop: 14 }}>{extra}</div>
@@ -377,98 +568,50 @@ function KindCard({
   )
 }
 
-function HistoryHeader() {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "120px 100px 1fr 1.4fr 1fr 130px",
-        gap: 12,
-        padding: "12px 20px",
-        background: HX.bg,
-        borderBottom: `1px solid ${HX.hairline}`,
-        fontSize: 11,
-        color: HX.text3,
-        fontWeight: 600,
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-      }}
-    >
-      <span>Mã đợt</span>
-      <span>Ngày</span>
-      <span>Loại</span>
-      <span>Nhà cung cấp</span>
-      <span>Chi tiết</span>
-      <span style={{ textAlign: "right" }}>Giá trị</span>
-    </div>
-  )
-}
-
-function HistoryRow({ row }: { row: (typeof HISTORY)[number] }) {
-  return (
-    <div
-      className="hxw-row"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "120px 100px 1fr 1.4fr 1fr 130px",
-        gap: 12,
-        padding: "14px 20px",
-        fontSize: 13,
-        color: HX.text,
-        alignItems: "center",
-        borderTop: `1px solid ${HX.hairline}`,
-      }}
-    >
-      <span className="hx-num" style={{ color: HX.text3, fontSize: 12 }}>
-        {row.code}
-      </span>
-      <span className="hx-num" style={{ color: HX.text2 }}>
-        {row.d}/2026
-      </span>
-      <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 8,
-            background: row.c + "22",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Icon name={row.icon} size={15} color={row.c} />
-        </div>
-        <span style={{ fontWeight: 500 }}>{row.type}</span>
-      </span>
-      <span style={{ color: HX.text2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.src}</span>
-      <span className="hx-num" style={{ color: HX.text2, fontSize: 12 }}>
-        {row.det}
-      </span>
-      <span
-        className="hx-num"
-        style={{ textAlign: "right", fontWeight: 600 }}
-      >
-        {fmtVN(row.amt)}
-        <span style={{ color: HX.text3, fontWeight: 400, fontSize: 11 }}> ₫</span>
-      </span>
-    </div>
-  )
-}
-
-// ── Fuel form ────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
+// Step 2 — Fuel form
+// ──────────────────────────────────────────────────────────────
 function FuelForm({
+  isMobile,
+  tanks,
+  lines,
+  setLines,
+  meta,
+  setMeta,
   onBack,
   onNext,
-  isMobile,
 }: {
+  isMobile: boolean
+  tanks: TankInfo[]
+  lines: FuelLineDraft[]
+  setLines: React.Dispatch<React.SetStateAction<FuelLineDraft[]>>
+  meta: FuelMeta
+  setMeta: React.Dispatch<React.SetStateAction<FuelMeta>>
   onBack: () => void
   onNext: () => void
-  isMobile: boolean
 }) {
-  const total = FUEL_LINES.reduce((s, l) => s + l.qty * l.price, 0)
-  const totalL = FUEL_LINES.reduce((s, l) => s + l.qty, 0)
+  function updateLine(id: string, patch: Partial<FuelLineDraft>) {
+    setLines((cur) => cur.map((l) => (l.id === id ? { ...l, ...patch } : l)))
+  }
+  function pickTank(id: string, tenBon: string) {
+    const t = tanks.find((x) => x.ten_bon === tenBon)
+    updateLine(id, { tenBon, nhien_lieu: t?.nhien_lieu || "" })
+  }
+  function addLine() {
+    setLines((cur) => [...cur, emptyFuelLine(tanks[0])])
+  }
+  function removeLine(id: string) {
+    setLines((cur) => (cur.length > 1 ? cur.filter((l) => l.id !== id) : cur))
+  }
+
+  const linesParsed = lines.map((l) => {
+    const qty = parseFloat(l.quantity.replace(/\D/g, "")) || 0
+    const price = parseFloat(l.unit_price.replace(/\D/g, "")) || 0
+    return { ...l, qty, price, total: qty * price }
+  })
+  const grandTotal = linesParsed.reduce((s, l) => s + l.total, 0)
+  const totalL = linesParsed.reduce((s, l) => s + l.qty, 0)
+  const validCount = linesParsed.filter((l) => l.nhien_lieu && l.qty > 0).length
 
   return (
     <div
@@ -479,98 +622,88 @@ function FuelForm({
       }}
     >
       <div>
-        <SectionHeader title="Thông tin chung" sub="Nhà cung cấp · hóa đơn · thời điểm nhập" />
+        <SectionHeader
+          title="Thông tin chung"
+          sub="Nhà cung cấp · hóa đơn · thời điểm nhập"
+        />
         <div
           style={{
             background: HX.surface,
             border: `1px solid ${HX.hairline}`,
             borderRadius: 14,
-            padding: 22,
+            padding: 18,
             display: "grid",
             gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-            gap: 14,
+            gap: 12,
             marginBottom: 24,
           }}
         >
-          <Field label="Nhà cung cấp" value="Petrolimex KV5" hint="MST: 0100107564" />
-          <Field label="Mã hợp đồng" value="HD-PTX-2026-04" />
-          <Field label="Số hóa đơn" value="HD-2026-0512" />
-          <Field label="Ngày nhập" value="14/05/2026 · 09:42" rightIcon="calendar" />
-          <Field label="Người ghi nhận" value="Anh Sơn (Chủ nhiệm)" />
-          <Field label="Xe bồn / tài xế" value="77C-12345 · Anh Bình" />
+          <FieldInput
+            label="Nhà cung cấp"
+            value={meta.supplier}
+            onChange={(v) => setMeta((m) => ({ ...m, supplier: v }))}
+            placeholder="VD: Petrolimex KV5"
+          />
+          <FieldInput
+            label="Mã hợp đồng"
+            value={meta.contractCode}
+            onChange={(v) => setMeta((m) => ({ ...m, contractCode: v }))}
+            placeholder="HD-PTX-…"
+          />
+          <FieldInput
+            label="Số hóa đơn"
+            value={meta.invoiceNo}
+            onChange={(v) => setMeta((m) => ({ ...m, invoiceNo: v }))}
+            placeholder="HD-…"
+          />
+          <FieldInput
+            label="Ngày nhập"
+            value={meta.date}
+            onChange={(v) => setMeta((m) => ({ ...m, date: v }))}
+            placeholder="DD/MM/YYYY"
+            rightIcon="calendar"
+          />
+          <FieldInput
+            label="Người ghi nhận"
+            value={meta.recordedBy}
+            onChange={(v) => setMeta((m) => ({ ...m, recordedBy: v }))}
+            placeholder="Họ tên"
+          />
+          <FieldInput
+            label="Xe bồn / tài xế"
+            value={meta.truck}
+            onChange={(v) => setMeta((m) => ({ ...m, truck: v }))}
+            placeholder="VD: 77C-12345 · Anh Bình"
+          />
         </div>
 
         <SectionHeader
           title="Hàng nhập"
-          sub={`${FUEL_LINES.length} bồn · ${fmtVN(totalL)} L`}
+          sub={`${lines.length} dòng · ${fmtVN(totalL)} L${
+            validCount < lines.length ? ` · ${validCount} hợp lệ` : ""
+          }`}
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {FUEL_LINES.map((l, i) => (
-            <div
-              key={i}
-              style={{
-                background: HX.surface,
-                border: `1px solid ${HX.hairline}`,
-                borderRadius: 14,
-                padding: 16,
-                display: "grid",
-                gridTemplateColumns: isMobile
-                  ? "auto 1fr auto"
-                  : "auto 1.4fr 1fr 1fr auto",
-                gap: 16,
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 11,
-                  background: l.color + "22",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: l.color,
-                  fontWeight: 700,
-                  fontSize: 13,
-                }}
-              >
-                {l.fuel === "RON95" ? "95" : l.fuel}
-              </div>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{l.fuel}</div>
-                <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
-                  {l.tank}
-                </div>
-              </div>
-              {!isMobile && (
-                <>
-                  <Stat
-                    label="Số lượng"
-                    value={fmtVN(l.qty)}
-                    suffix="L"
-                  />
-                  <Stat
-                    label="Đơn giá nhập"
-                    value={fmtVN(l.price)}
-                    suffix="₫/L"
-                  />
-                </>
-              )}
-              <Stat
-                align="right"
-                label="Thành tiền"
-                value={fmtVN(l.qty * l.price)}
-                color={l.color}
-                bold
-              />
-            </div>
+          {linesParsed.map((l) => (
+            <FuelLineRow
+              key={l.id}
+              line={l}
+              tanks={tanks}
+              isMobile={isMobile}
+              canRemove={lines.length > 1}
+              onPickTank={(tenBon) => pickTank(l.id, tenBon)}
+              onChangeQty={(v) => updateLine(l.id, { quantity: v })}
+              onChangePrice={(v) => updateLine(l.id, { unit_price: v })}
+              onRemove={() => removeLine(l.id)}
+            />
           ))}
 
-          <div
+          <button
+            type="button"
+            onClick={addLine}
             className="hxw-press"
             style={{
-              padding: 16,
+              padding: 14,
               borderRadius: 14,
               background: HX.surface,
               border: `1.5px dashed ${HX.hairlineStrong}`,
@@ -582,42 +715,249 @@ function FuelForm({
               fontSize: 14,
               fontWeight: 500,
               cursor: "pointer",
+              fontFamily: HX.font,
             }}
           >
             <Icon name="plus" size={18} color={HX.text2} strokeWidth={2} />
             Thêm bồn khác
-          </div>
+          </button>
         </div>
 
-        <NavButtons onBack={onBack} onNext={onNext} />
+        <div style={{ marginTop: 18 }}>
+          <SubLbl>Ghi chú thêm cho cả đợt</SubLbl>
+          <textarea
+            value={meta.note}
+            onChange={(e) => setMeta((m) => ({ ...m, note: e.target.value }))}
+            placeholder="VD: đợt nhập đầu tháng…"
+            rows={2}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              fontSize: 13,
+              background: HX.bg,
+              border: `1px solid ${HX.hairline}`,
+              color: HX.text,
+              borderRadius: 10,
+              outline: "none",
+              fontFamily: HX.font,
+              resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <NavButtons
+          onBack={onBack}
+          onNext={onNext}
+          canNext={validCount > 0}
+        />
       </div>
 
       <Summary
         title="Tóm tắt đợt nhập"
         items={[
-          { l: "Số bồn nhập", r: `${FUEL_LINES.length} bồn` },
+          { l: "Số dòng", r: `${lines.length} bồn` },
           { l: "Tổng số lượng", r: `${fmtVN(totalL)} L` },
-          { l: "Nhà cung cấp", r: "Petrolimex KV5" },
+          { l: "Nhà cung cấp", r: meta.supplier || "—" },
         ]}
-        total={total}
+        total={grandTotal}
       />
     </div>
   )
 }
 
-// ── Retail form ──────────────────────────────────────────────
+function FuelLineRow({
+  line,
+  tanks,
+  isMobile,
+  canRemove,
+  onPickTank,
+  onChangeQty,
+  onChangePrice,
+  onRemove,
+}: {
+  line: FuelLineDraft & { qty: number; price: number; total: number }
+  tanks: TankInfo[]
+  isMobile: boolean
+  canRemove: boolean
+  onPickTank: (tenBon: string) => void
+  onChangeQty: (v: string) => void
+  onChangePrice: (v: string) => void
+  onRemove: () => void
+}) {
+  const color = fuelColor(line.nhien_lieu)
+  return (
+    <div
+      style={{
+        background: HX.surface,
+        border: `1px solid ${HX.hairline}`,
+        borderRadius: 14,
+        padding: 14,
+        display: "grid",
+        gridTemplateColumns: isMobile
+          ? "auto 1fr auto"
+          : "auto 1.4fr 1.1fr 1.1fr 1.1fr auto",
+        gap: 14,
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 10,
+          background: color + "22",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color,
+          fontWeight: 700,
+          fontSize: 12,
+          flexShrink: 0,
+        }}
+      >
+        {line.nhien_lieu?.slice(0, 3) || "—"}
+      </div>
+
+      <select
+        value={line.tenBon}
+        onChange={(e) => onPickTank(e.target.value)}
+        style={selectStyle}
+      >
+        {tanks.length === 0 && <option value="">Đang tải bồn…</option>}
+        {tanks.map((t) => (
+          <option key={t.ten_bon} value={t.ten_bon}>
+            {t.ten_bon} — {t.nhien_lieu || "—"} ({fmtVN(t.ton_kho)}/
+            {fmtVN(t.dung_tich)} L)
+          </option>
+        ))}
+      </select>
+
+      {!isMobile && (
+        <>
+          <NumInput
+            label="Số lượng (L)"
+            value={line.quantity}
+            onChange={onChangeQty}
+            suffix="L"
+            color={HX.text}
+          />
+          <NumInput
+            label="Đơn giá nhập"
+            value={line.unit_price}
+            onChange={onChangePrice}
+            suffix="₫/L"
+            color={HX.text2}
+          />
+          <div style={{ textAlign: "right", minWidth: 110 }}>
+            <SubLbl>Thành tiền</SubLbl>
+            <div
+              className="hx-num"
+              style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color,
+                marginTop: 2,
+              }}
+            >
+              {fmtVN(line.total)}
+            </div>
+          </div>
+        </>
+      )}
+
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={!canRemove}
+        title="Xóa dòng"
+        className={canRemove ? "hxw-press" : ""}
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 8,
+          background: HX.bg,
+          border: `1px solid ${HX.hairlineStrong}`,
+          color: canRemove ? HX.text2 : HX.text3,
+          cursor: canRemove ? "pointer" : "not-allowed",
+          opacity: canRemove ? 1 : 0.4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          fontFamily: HX.font,
+          fontSize: 16,
+        }}
+      >
+        ×
+      </button>
+
+      {isMobile && (
+        <div
+          style={{
+            gridColumn: "1 / -1",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+          }}
+        >
+          <NumInput
+            label="Số lượng (L)"
+            value={line.quantity}
+            onChange={onChangeQty}
+            suffix="L"
+            color={HX.text}
+          />
+          <NumInput
+            label="Đơn giá nhập"
+            value={line.unit_price}
+            onChange={onChangePrice}
+            suffix="₫/L"
+            color={HX.text2}
+          />
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              textAlign: "right",
+              marginTop: 4,
+            }}
+          >
+            <span style={{ fontSize: 11, color: HX.text3 }}>Thành tiền: </span>
+            <span
+              className="hx-num"
+              style={{ fontSize: 15, fontWeight: 700, color }}
+            >
+              {fmtVN(line.total)} ₫
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────
+// Step 2 — Retail form
+// ──────────────────────────────────────────────────────────────
 function RetailForm({
+  isMobile,
   products,
+  picks,
+  setPicks,
+  meta,
+  setMeta,
   onBack,
   onNext,
-  isMobile,
 }: {
+  isMobile: boolean
   products: PosProduct[]
+  picks: Record<string, number>
+  setPicks: React.Dispatch<React.SetStateAction<Record<string, number>>>
+  meta: RetailMeta
+  setMeta: React.Dispatch<React.SetStateAction<RetailMeta>>
   onBack: () => void
   onNext: () => void
-  isMobile: boolean
 }) {
-  const [picks, setPicks] = React.useState<Record<string, number>>({})
   const [search, setSearch] = React.useState("")
 
   const bump = (sku: string, delta: number) =>
@@ -628,6 +968,15 @@ function RetailForm({
       else next[sku] = cur
       return next
     })
+  const setQty = (sku: string, raw: string) => {
+    const v = parseInt(raw.replace(/\D/g, "")) || 0
+    setPicks((p) => {
+      const next = { ...p }
+      if (v <= 0) delete next[sku]
+      else next[sku] = v
+      return next
+    })
+  }
 
   const filtered = products.filter((p) => {
     if (!search) return true
@@ -661,21 +1010,38 @@ function RetailForm({
             background: HX.surface,
             border: `1px solid ${HX.hairline}`,
             borderRadius: 14,
-            padding: 22,
+            padding: 18,
             display: "grid",
             gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-            gap: 14,
+            gap: 12,
             marginBottom: 24,
           }}
         >
-          <Field
+          <FieldInput
             label="Nhà cung cấp"
-            value="Castrol VN — Đại lý KV"
-            hint="0903.123.456"
+            value={meta.supplier}
+            onChange={(v) => setMeta((m) => ({ ...m, supplier: v }))}
+            placeholder="VD: Castrol VN"
           />
-          <Field label="Số hóa đơn" value="HD-CAS-0413" />
-          <Field label="Ngày nhập" value="14/05/2026" rightIcon="calendar" />
-          <Field label="Người ghi nhận" value="Anh Sơn (Chủ nhiệm)" />
+          <FieldInput
+            label="Số hóa đơn"
+            value={meta.invoiceNo}
+            onChange={(v) => setMeta((m) => ({ ...m, invoiceNo: v }))}
+            placeholder="HD-…"
+          />
+          <FieldInput
+            label="Ngày nhập"
+            value={meta.date}
+            onChange={(v) => setMeta((m) => ({ ...m, date: v }))}
+            placeholder="DD/MM/YYYY"
+            rightIcon="calendar"
+          />
+          <FieldInput
+            label="Người ghi nhận"
+            value={meta.recordedBy}
+            onChange={(v) => setMeta((m) => ({ ...m, recordedBy: v }))}
+            placeholder="Họ tên"
+          />
         </div>
 
         <SectionHeader
@@ -686,38 +1052,6 @@ function RetailForm({
               : "Tìm SKU rồi tăng số lượng để thêm vào đợt nhập"
           }
         />
-
-        {/* Search */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            height: 38,
-            padding: "0 12px",
-            background: HX.surface,
-            border: `1px solid ${HX.hairline}`,
-            borderRadius: 10,
-            marginBottom: 10,
-          }}
-        >
-          <Icon name="search" size={14} color={HX.text3} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm tên / SKU…"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: HX.text,
-              fontSize: 13,
-              fontFamily: HX.font,
-            }}
-          />
-        </div>
 
         {/* Picked lines */}
         {lines.length > 0 && (
@@ -737,7 +1071,7 @@ function RetailForm({
                   display: "grid",
                   gridTemplateColumns: isMobile
                     ? "auto 1fr auto"
-                    : "auto 1.4fr 130px 100px 130px",
+                    : "auto 1.4fr 150px 110px 130px",
                   gap: 14,
                   padding: "12px 16px",
                   alignItems: "center",
@@ -774,10 +1108,11 @@ function RetailForm({
                   </div>
                 </div>
                 {!isMobile && (
-                  <QtyStepper
+                  <QtyStepperInput
                     qty={l.qty}
                     onMinus={() => bump(l.p.sku, -1)}
                     onPlus={() => bump(l.p.sku, +1)}
+                    onSet={(v) => setQty(l.p.sku, v)}
                   />
                 )}
                 {!isMobile && (
@@ -801,10 +1136,11 @@ function RetailForm({
                 </span>
                 {isMobile && (
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <QtyStepper
+                    <QtyStepperInput
                       qty={l.qty}
                       onMinus={() => bump(l.p.sku, -1)}
                       onPlus={() => bump(l.p.sku, +1)}
+                      onSet={(v) => setQty(l.p.sku, v)}
                     />
                   </div>
                 )}
@@ -812,6 +1148,38 @@ function RetailForm({
             ))}
           </div>
         )}
+
+        {/* Search */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            height: 38,
+            padding: "0 12px",
+            background: HX.surface,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 10,
+            marginBottom: 10,
+          }}
+        >
+          <Icon name="search" size={14} color={HX.text3} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm tên / SKU…"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: HX.text,
+              fontSize: 13,
+              fontFamily: HX.font,
+            }}
+          />
+        </div>
 
         {/* Catalog */}
         <div
@@ -825,7 +1193,7 @@ function RetailForm({
           }}
           className="hxw-scroll"
         >
-          {filtered.slice(0, 50).map((p) => {
+          {filtered.slice(0, 60).map((p) => {
             const inCart = (picks[p.sku] || 0) > 0
             return (
               <div
@@ -915,6 +1283,29 @@ function RetailForm({
           )}
         </div>
 
+        <div style={{ marginTop: 16 }}>
+          <SubLbl>Ghi chú thêm cho cả đợt</SubLbl>
+          <textarea
+            value={meta.note}
+            onChange={(e) => setMeta((m) => ({ ...m, note: e.target.value }))}
+            placeholder="VD: nhập bù sau khi bán cuối tháng…"
+            rows={2}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              fontSize: 13,
+              background: HX.bg,
+              border: `1px solid ${HX.hairline}`,
+              color: HX.text,
+              borderRadius: 10,
+              outline: "none",
+              fontFamily: HX.font,
+              resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
         <div
           style={{
             fontSize: 11,
@@ -936,7 +1327,7 @@ function RetailForm({
         items={[
           { l: "Mặt hàng", r: String(lines.length) },
           { l: "Tổng số lượng", r: `${totalQty} SP` },
-          { l: "Nhà cung cấp", r: "Castrol VN" },
+          { l: "Nhà cung cấp", r: meta.supplier || "—" },
         ]}
         total={total}
       />
@@ -944,20 +1335,309 @@ function RetailForm({
   )
 }
 
-// ── Review ────────────────────────────────────────────────────
-function Review({
-  kind,
+// ──────────────────────────────────────────────────────────────
+// Step 3 — Reviews
+// ──────────────────────────────────────────────────────────────
+function FuelReview({
+  isMobile,
+  lines,
+  meta,
+  submitting,
   onBack,
   onFinish,
-  isMobile,
 }: {
-  kind: IntakeKind
+  isMobile: boolean
+  lines: { tenBon: string; nhien_lieu: string; qty: number; price: number; total: number }[]
+  meta: FuelMeta
+  submitting: boolean
   onBack: () => void
   onFinish: () => void
-  isMobile: boolean
 }) {
-  const isFuel = kind === "fuel"
-  const total = isFuel ? 172_640_000 : 4_524_000
+  const total = lines.reduce((s, l) => s + l.total, 0)
+  const totalL = lines.reduce((s, l) => s + l.qty, 0)
+  return (
+    <ReviewShell
+      isMobile={isMobile}
+      icon="fuel"
+      label="Nhập xăng dầu"
+      total={total}
+      meta={[
+        { l: "Nhà cung cấp", r: meta.supplier || "—" },
+        { l: "Số hóa đơn", r: meta.invoiceNo || "—" },
+        { l: "Mã hợp đồng", r: meta.contractCode || "—" },
+        { l: "Ngày nhập", r: meta.date || "—" },
+        { l: "Người ghi nhận", r: meta.recordedBy || "—" },
+        { l: "Xe bồn / tài xế", r: meta.truck || "—" },
+      ]}
+      bodyRight={`${lines.length} dòng · ${fmtVN(totalL)} L`}
+      submitting={submitting}
+      onBack={onBack}
+      onFinish={onFinish}
+      note={meta.note}
+    >
+      <div
+        style={{
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 14,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.6fr 1fr 1fr 1fr",
+            gap: 12,
+            padding: "12px 16px",
+            background: HX.bg,
+            borderBottom: `1px solid ${HX.hairline}`,
+            fontSize: 11,
+            color: HX.text3,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          <span>Bồn / Nhiên liệu</span>
+          <span style={{ textAlign: "right" }}>Số lượng</span>
+          <span style={{ textAlign: "right" }}>Đơn giá</span>
+          <span style={{ textAlign: "right" }}>Thành tiền</span>
+        </div>
+        {lines.map((l, i) => {
+          const color = fuelColor(l.nhien_lieu)
+          return (
+            <div
+              key={i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.6fr 1fr 1fr 1fr",
+                gap: 12,
+                padding: "12px 16px",
+                fontSize: 13,
+                alignItems: "center",
+                borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    background: color + "22",
+                    color,
+                    fontWeight: 700,
+                    fontSize: 11,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {l.nhien_lieu.slice(0, 3) || "—"}
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{l.tenBon}</div>
+                  <div style={{ fontSize: 11, color: HX.text3 }}>
+                    {l.nhien_lieu}
+                  </div>
+                </span>
+              </span>
+              <span
+                className="hx-num"
+                style={{ textAlign: "right", fontWeight: 600 }}
+              >
+                {fmtVN(l.qty)}
+                <span
+                  style={{ fontSize: 11, color: HX.text3, fontWeight: 400 }}
+                >
+                  {" "}
+                  L
+                </span>
+              </span>
+              <span
+                className="hx-num"
+                style={{ textAlign: "right", color: HX.text2 }}
+              >
+                {l.price > 0 ? fmtVN(l.price) : "—"}
+                {l.price > 0 && (
+                  <span style={{ fontSize: 11, color: HX.text3 }}> ₫/L</span>
+                )}
+              </span>
+              <span
+                className="hx-num"
+                style={{ textAlign: "right", fontWeight: 700, color }}
+              >
+                {fmtVN(l.total)}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </ReviewShell>
+  )
+}
+
+function RetailReview({
+  isMobile,
+  lines,
+  meta,
+  submitting,
+  onBack,
+  onFinish,
+}: {
+  isMobile: boolean
+  lines: { p: PosProduct; qty: number; total: number }[]
+  meta: RetailMeta
+  submitting: boolean
+  onBack: () => void
+  onFinish: () => void
+}) {
+  const total = lines.reduce((s, l) => s + l.total, 0)
+  const totalQty = lines.reduce((s, l) => s + l.qty, 0)
+  return (
+    <ReviewShell
+      isMobile={isMobile}
+      icon="receipt"
+      label="Nhập sản phẩm bán lẻ"
+      total={total}
+      meta={[
+        { l: "Nhà cung cấp", r: meta.supplier || "—" },
+        { l: "Số hóa đơn", r: meta.invoiceNo || "—" },
+        { l: "Ngày nhập", r: meta.date || "—" },
+        { l: "Người ghi nhận", r: meta.recordedBy || "—" },
+      ]}
+      bodyRight={`${lines.length} mặt hàng · ${totalQty} SP`}
+      submitting={submitting}
+      onBack={onBack}
+      onFinish={onFinish}
+      note={meta.note}
+    >
+      <div
+        style={{
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 14,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "auto 1.4fr 100px 110px 130px",
+            gap: 12,
+            padding: "12px 16px",
+            background: HX.bg,
+            borderBottom: `1px solid ${HX.hairline}`,
+            fontSize: 11,
+            color: HX.text3,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          <span></span>
+          <span>Sản phẩm</span>
+          <span style={{ textAlign: "right" }}>Số lượng</span>
+          <span style={{ textAlign: "right" }}>Đơn giá</span>
+          <span style={{ textAlign: "right" }}>Thành tiền</span>
+        </div>
+        {lines.map((l, i) => (
+          <div
+            key={l.p.sku}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "auto 1.4fr 100px 110px 130px",
+              gap: 12,
+              padding: "12px 16px",
+              fontSize: 13,
+              alignItems: "center",
+              borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
+            }}
+          >
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                background: l.p.color + "22",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name={l.p.icon} size={14} color={l.p.color} />
+            </div>
+            <span style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: 600,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {l.p.name}
+              </div>
+              <div style={{ fontSize: 11, color: HX.text3 }}>
+                {l.p.cat} · <span className="hx-num">{l.p.sku}</span>
+              </div>
+            </span>
+            <span
+              className="hx-num"
+              style={{ textAlign: "right", fontWeight: 600 }}
+            >
+              {l.qty}
+              <span
+                style={{ fontSize: 11, color: HX.text3, fontWeight: 400 }}
+              >
+                {" "}
+                SP
+              </span>
+            </span>
+            <span
+              className="hx-num"
+              style={{ textAlign: "right", color: HX.text2 }}
+            >
+              {fmtVN(l.p.price)}
+            </span>
+            <span
+              className="hx-num"
+              style={{ textAlign: "right", fontWeight: 700, color: HX.text }}
+            >
+              {fmtVN(l.total)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </ReviewShell>
+  )
+}
+
+function ReviewShell({
+  isMobile,
+  icon,
+  label,
+  total,
+  meta,
+  bodyRight,
+  submitting,
+  onBack,
+  onFinish,
+  note,
+  children,
+}: {
+  isMobile: boolean
+  icon: IconName
+  label: string
+  total: number
+  meta: { l: string; r: string }[]
+  bodyRight: string
+  submitting: boolean
+  onBack: () => void
+  onFinish: () => void
+  note?: string
+  children: React.ReactNode
+}) {
   return (
     <div
       style={{
@@ -972,19 +1652,19 @@ function Review({
             background: HX.accentSoft,
             border: `1px solid ${HX.accent}55`,
             borderRadius: 16,
-            padding: 22,
+            padding: 20,
             display: "flex",
             alignItems: "center",
-            gap: 18,
-            marginBottom: 24,
+            gap: 16,
+            marginBottom: 22,
             flexWrap: "wrap",
           }}
         >
           <div
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 14,
+              width: 52,
+              height: 52,
+              borderRadius: 13,
               background: `linear-gradient(135deg, ${HX.accent} 0%, ${HX.accentDark} 100%)`,
               display: "flex",
               alignItems: "center",
@@ -992,7 +1672,7 @@ function Review({
               flexShrink: 0,
             }}
           >
-            <Icon name={isFuel ? "fuel" : "receipt"} size={26} color="#fff" strokeWidth={1.8} />
+            <Icon name={icon} size={24} color="#fff" strokeWidth={1.8} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
@@ -1004,12 +1684,12 @@ function Review({
                 textTransform: "uppercase",
               }}
             >
-              Nhập {isFuel ? "xăng dầu" : "sản phẩm bán lẻ"}
+              {label} · {bodyRight}
             </div>
             <div
               className="hx-num"
               style={{
-                fontSize: 30,
+                fontSize: 28,
                 fontWeight: 800,
                 color: HX.text,
                 marginTop: 4,
@@ -1017,83 +1697,80 @@ function Review({
               }}
             >
               {fmtVN(total)}
-              <span
-                style={{ fontSize: 14, fontWeight: 500, color: HX.text2 }}
-              >
+              <span style={{ fontSize: 13, fontWeight: 500, color: HX.text2 }}>
                 {" "}
                 ₫
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onBack}
-            className="hxw-press"
-            style={{
-              height: 36,
-              padding: "0 14px",
-              borderRadius: 9,
-              background: "transparent",
-              border: `1px solid ${HX.hairlineStrong}`,
-              color: HX.text2,
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: HX.font,
-            }}
-          >
-            Sửa
-          </button>
         </div>
 
+        <SectionHeader title="Thông tin chung" />
         <div
           style={{
             background: HX.surface,
             border: `1px solid ${HX.hairline}`,
             borderRadius: 14,
-            padding: 18,
-            marginBottom: 24,
+            padding: 16,
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+            gap: 10,
+            marginBottom: 22,
           }}
         >
-          <div
-            style={{
-              fontSize: 13,
-              color: HX.text2,
-              lineHeight: 1.6,
-            }}
-          >
-            Sau khi xác nhận:
-            <ul
+          {meta.map((m, i) => (
+            <div
+              key={i}
               style={{
-                margin: "8px 0 0",
-                padding: 0,
-                listStyle: "none",
                 display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                fontSize: 12,
+                justifyContent: "space-between",
+                padding: "6px 0",
+                fontSize: 13,
+                gap: 12,
               }}
             >
-              <li style={{ display: "flex", gap: 8 }}>
-                <span style={{ color: HX.good, fontWeight: 700 }}>✓</span>
-                <span>Hệ thống tự cập nhật tồn kho ngay lập tức</span>
-              </li>
-              <li style={{ display: "flex", gap: 8 }}>
-                <span style={{ color: HX.good, fontWeight: 700 }}>✓</span>
-                <span>Lưu vào lịch sử nhập kho với mã đợt</span>
-              </li>
-              <li style={{ display: "flex", gap: 8 }}>
-                <span style={{ color: HX.good, fontWeight: 700 }}>✓</span>
-                <span>Có thể chỉnh sửa trong vòng 24 giờ</span>
-              </li>
-            </ul>
-          </div>
+              <span style={{ color: HX.text3 }}>{m.l}</span>
+              <span
+                style={{
+                  color: HX.text,
+                  fontWeight: 500,
+                  textAlign: "right",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {m.r}
+              </span>
+            </div>
+          ))}
         </div>
+
+        <SectionHeader title="Hàng nhập" />
+        {children}
+
+        {note && note.trim() && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: 14,
+              background: HX.surface,
+              border: `1px dashed ${HX.hairlineStrong}`,
+              borderRadius: 12,
+              fontSize: 12,
+              color: HX.text2,
+            }}
+          >
+            <SubLbl>Ghi chú</SubLbl>
+            {note}
+          </div>
+        )}
 
         <NavButtons
           onBack={onBack}
           onNext={onFinish}
-          nextLabel="Xác nhận nhập kho"
+          canNext={!submitting}
+          nextLabel={submitting ? "Đang lưu…" : "Xác nhận nhập kho"}
           backLabel="Quay lại sửa"
           finish
         />
@@ -1155,15 +1832,15 @@ function Review({
         >
           <li style={{ display: "flex", gap: 8 }}>
             <span style={{ color: HX.good }}>✓</span>
-            <span>Thông tin nhà cung cấp đầy đủ</span>
+            <span>Thông tin nhập đã được điền</span>
           </li>
           <li style={{ display: "flex", gap: 8 }}>
             <span style={{ color: HX.good }}>✓</span>
-            <span>Tất cả mặt hàng có giá nhập</span>
+            <span>Mỗi dòng sẽ tạo 1 phiếu trong lịch sử nhập</span>
           </li>
           <li style={{ display: "flex", gap: 8 }}>
             <span style={{ color: HX.good }}>✓</span>
-            <span>Hóa đơn ghi nhận hợp lệ</span>
+            <span>Tồn kho cập nhật ngay sau khi xác nhận</span>
           </li>
         </ul>
       </div>
@@ -1172,13 +1849,7 @@ function Review({
 }
 
 // ── Reusable atoms ────────────────────────────────────────────
-function SectionHeader({
-  title,
-  sub,
-}: {
-  title: string
-  sub?: string
-}) {
+function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>
@@ -1191,21 +1862,23 @@ function SectionHeader({
   )
 }
 
-function Field({
+function FieldInput({
   label,
   value,
-  hint,
+  onChange,
+  placeholder,
   rightIcon,
 }: {
   label: string
   value: string
-  hint?: string
+  onChange: (v: string) => void
+  placeholder?: string
   rightIcon?: IconName
 }) {
   return (
     <div
       style={{
-        padding: "12px 14px",
+        padding: "10px 14px",
         background: HX.bg,
         border: `1px solid ${HX.hairline}`,
         borderRadius: 10,
@@ -1218,100 +1891,109 @@ function Field({
           fontWeight: 500,
           textTransform: "uppercase",
           letterSpacing: "0.06em",
-          marginBottom: 6,
+          marginBottom: 4,
         }}
       >
         {label}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 13,
-              color: HX.text,
-              fontWeight: 500,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {value}
-          </div>
-          {hint && (
-            <div style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
-              {hint}
-            </div>
-          )}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            color: HX.text,
+            fontSize: 14,
+            fontWeight: 500,
+            fontFamily: HX.font,
+            padding: 0,
+          }}
+        />
         {rightIcon && <Icon name={rightIcon} size={15} color={HX.text2} />}
       </div>
     </div>
   )
 }
 
-function Stat({
+function NumInput({
   label,
   value,
+  onChange,
   suffix,
-  align = "left",
   color,
-  bold,
 }: {
   label: string
   value: string
-  suffix?: string
-  align?: "left" | "right"
+  onChange: (v: string) => void
+  suffix: string
   color?: string
-  bold?: boolean
 }) {
   return (
-    <div style={{ textAlign: align }}>
+    <div>
+      <SubLbl>{label}</SubLbl>
       <div
         style={{
-          fontSize: 10,
-          color: HX.text3,
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          fontWeight: 500,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
+          position: "relative",
           display: "flex",
-          alignItems: "baseline",
-          gap: 4,
-          marginTop: 4,
-          justifyContent: align === "right" ? "flex-end" : "flex-start",
+          alignItems: "center",
         }}
       >
-        <span
+        <input
+          value={value}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/\D/g, "")
+            onChange(raw ? parseInt(raw).toLocaleString("vi-VN") : "")
+          }}
+          placeholder="0"
+          inputMode="numeric"
           className="hx-num"
           style={{
-            fontSize: bold ? 17 : 16,
-            fontWeight: bold ? 700 : 600,
+            width: "100%",
+            height: 40,
+            padding: "0 38px 0 10px",
+            fontSize: 15,
+            fontWeight: 700,
+            textAlign: "right",
+            background: HX.bg,
+            border: `1px solid ${HX.hairline}`,
             color: color || HX.text,
+            borderRadius: 9,
+            outline: "none",
+            fontFamily: HX.font,
+            boxSizing: "border-box",
+          }}
+        />
+        <span
+          style={{
+            position: "absolute",
+            right: 10,
+            fontSize: 11,
+            color: HX.text3,
+            pointerEvents: "none",
           }}
         >
-          {value}
+          {suffix}
         </span>
-        {suffix && (
-          <span style={{ fontSize: 11, color: HX.text3 }}>{suffix}</span>
-        )}
       </div>
     </div>
   )
 }
 
-function QtyStepper({
+function QtyStepperInput({
   qty,
   onMinus,
   onPlus,
+  onSet,
 }: {
   qty: number
   onMinus: () => void
   onPlus: () => void
+  onSet: (v: string) => void
 }) {
   return (
     <div
@@ -1321,7 +2003,7 @@ function QtyStepper({
         border: `1px solid ${HX.hairlineStrong}`,
         borderRadius: 8,
         overflow: "hidden",
-        height: 30,
+        height: 32,
       }}
     >
       <button
@@ -1329,8 +2011,8 @@ function QtyStepper({
         onClick={onMinus}
         className="hxw-press"
         style={{
-          width: 30,
-          height: 30,
+          width: 32,
+          height: 32,
           background: HX.bg,
           border: "none",
           color: HX.text2,
@@ -1341,24 +2023,31 @@ function QtyStepper({
       >
         −
       </button>
-      <div
+      <input
+        value={qty}
+        onChange={(e) => onSet(e.target.value)}
+        inputMode="numeric"
         className="hx-num"
         style={{
-          width: 44,
+          width: 56,
+          height: 32,
+          background: HX.bg,
+          border: "none",
           textAlign: "center",
           fontSize: 13,
           fontWeight: 600,
+          color: HX.text,
+          outline: "none",
+          fontFamily: HX.font,
         }}
-      >
-        {qty}
-      </div>
+      />
       <button
         type="button"
         onClick={onPlus}
         className="hxw-press"
         style={{
-          width: 30,
-          height: 30,
+          width: 32,
+          height: 32,
           background: HX.bg,
           border: "none",
           color: HX.accent,
@@ -1369,6 +2058,27 @@ function QtyStepper({
       >
         +
       </button>
+    </div>
+  )
+}
+
+function SubLbl({
+  children,
+  color,
+}: {
+  children: React.ReactNode
+  color?: string
+}) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        color: color || HX.text3,
+        marginBottom: 4,
+        fontWeight: color ? 600 : 500,
+      }}
+    >
+      {children}
     </div>
   )
 }
@@ -1390,7 +2100,7 @@ function Summary({
         background: HX.surface,
         border: `1px solid ${HX.hairline}`,
         borderRadius: 16,
-        padding: 22,
+        padding: 20,
         alignSelf: "start",
       }}
     >
@@ -1425,7 +2135,15 @@ function Summary({
             }}
           >
             <span>{it.l}</span>
-            <span className="hx-num" style={{ color: HX.text }}>
+            <span
+              className="hx-num"
+              style={{
+                color: HX.text,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {it.r}
             </span>
           </div>
@@ -1433,7 +2151,7 @@ function Summary({
       </div>
       <div
         style={{
-          marginTop: 18,
+          marginTop: 16,
           padding: 14,
           borderRadius: 12,
           background: HX.accentSoft,
@@ -1454,18 +2172,15 @@ function Summary({
         <div
           className="hx-num"
           style={{
-            fontSize: 28,
+            fontSize: 26,
             fontWeight: 800,
             color: HX.accent,
-            marginTop: 6,
+            marginTop: 4,
             letterSpacing: "-0.02em",
           }}
         >
           {fmtVN(total)}
           <span style={{ fontSize: 13, fontWeight: 500 }}> ₫</span>
-        </div>
-        <div style={{ fontSize: 11, color: HX.text2, marginTop: 4 }}>
-          VAT đã bao gồm
         </div>
       </div>
     </div>
@@ -1550,7 +2265,7 @@ function NavButtons({
           fontFamily: HX.font,
         }}
       >
-        {finish ? (
+        {finish && (
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path
               d="m3 8 3.5 3.5 6.5-8"
@@ -1560,10 +2275,27 @@ function NavButtons({
               strokeLinejoin="round"
             />
           </svg>
-        ) : null}
+        )}
         {nextLabel}
         {!finish && <Icon name="chevron" size={14} color="#fff" strokeWidth={2.2} />}
       </button>
     </div>
   )
+}
+
+const selectStyle: React.CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+  height: 40,
+  padding: "0 10px",
+  fontSize: 13,
+  background: HX.bg,
+  border: `1px solid ${HX.hairline}`,
+  color: HX.text,
+  borderRadius: 9,
+  outline: "none",
+  fontFamily: HX.font,
+  appearance: "none",
+  cursor: "pointer",
+  boxSizing: "border-box",
 }
