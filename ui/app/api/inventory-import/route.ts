@@ -158,6 +158,68 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT - Sửa bản ghi nhập hàng (?id=)
+export async function PUT(request: NextRequest) {
+  try {
+    await ensureTableExists();
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Thiếu ID bản ghi cần sửa' },
+        { status: 400 }
+      );
+    }
+
+    const [cur] = await query<any[]>(
+      `SELECT id, fuel_name, quantity, import_time, note FROM fuel_inventory_import WHERE id = ?`,
+      [id]
+    );
+    if (!cur) {
+      return NextResponse.json(
+        { success: false, error: 'Không tìm thấy bản ghi' },
+        { status: 404 }
+      );
+    }
+
+    const data: ImportItem = await request.json();
+    const fuelName =
+      typeof data.fuel_name === 'string' && data.fuel_name.trim()
+        ? data.fuel_name.trim()
+        : cur.fuel_name;
+    const quantity =
+      data.quantity !== undefined && Number(data.quantity) > 0
+        ? Number(data.quantity)
+        : Number(cur.quantity);
+    const note = data.note !== undefined ? String(data.note) : cur.note;
+    const importTime = normalizeImportTime(data.import_time) ||
+      // giữ nguyên thời gian cũ nếu client không gửi (định dạng lại)
+      normalizeImportTime(
+        cur.import_time instanceof Date
+          ? cur.import_time.toISOString()
+          : String(cur.import_time)
+      ) ||
+      undefined;
+
+    await query(
+      `UPDATE fuel_inventory_import
+         SET fuel_name = ?, quantity = ?, note = ?${importTime ? ', import_time = ?' : ''}
+       WHERE id = ?`,
+      importTime
+        ? [fuelName, quantity, note, importTime, id]
+        : [fuelName, quantity, note, id]
+    );
+
+    return NextResponse.json({ success: true, id: Number(id), import_time: importTime });
+  } catch (error: any) {
+    console.error('Error updating inventory import:', error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE - Xóa bản ghi nhập hàng
 export async function DELETE(request: NextRequest) {
   try {
