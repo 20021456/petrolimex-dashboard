@@ -145,8 +145,7 @@ export function fuelKind(fuelType: string): "RON95" | "E5" | "DO" | "DO+" | "" {
 const BON_TO_KIND: Record<string, "RON95" | "E5" | "DO" | "DO+"> = {
   "BỒN 1": "RON95",
   "BỒN 2": "DO",
-  "BỒN 3": "E5",
-  "BỒN 4": "DO+",
+  "BỒN 3": "DO+",
 }
 
 // "BỒN 1" → "Bồn 1"; nếu rỗng trả "Bồn".
