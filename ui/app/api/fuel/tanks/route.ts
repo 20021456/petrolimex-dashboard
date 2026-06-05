@@ -45,15 +45,6 @@ const TANK_FUEL_NAMES: Record<string, string[]> = {
   'BỒN 3': ['DO 0,001S-V'],
 }
 
-// Lượng tồn kho cố định tại ngày BASELINE_DATE (mốc 20/05/2026).
-// Từ mốc này trở đi, tồn kho = baseline − SUM(lit đã bán).
-const TANK_BASELINE: Record<string, number> = {
-  'BỒN 1': 9000,     // RON95-III   (cap 10000, cot 2+3)
-  'BỒN 2': 28000,    // DO 0,05S-II (cap 30000, cot 1+4)
-  'BỒN 3': 9500,     // DO 0,001S-V (cap 10000, cot 5)
-}
-const BASELINE_DATE = '2026-05-20 00:00:00'
-
 function applyCotBomOverride(tenBon: string, cotBom: string): string {
   const key = (tenBon || '').trim().toUpperCase()
   return TANK_COT_BOM_OVERRIDES[key] ?? cotBom
@@ -64,46 +55,19 @@ function round2(n: number) {
   return Math.round((Number(n) || 0) * 100) / 100
 }
 
-// Tính tồn kho thực tế theo mô hình baseline cố định:
-//   - Tại mốc BASELINE_DATE, tồn kho = TANK_BASELINE[bồn] (hardcoded).
-//   - Cộng SUM(quantity) các phiếu nhập kho (fuel_inventory_import) có
-//     import_time >= BASELINE_DATE cho loại nhiên liệu khớp bồn.
-//   - Trừ SUM(lit) các giao dịch bán (fuel_pump) có ket_thuc_bom >=
-//     BASELINE_DATE cho các cột bơm thuộc bồn (làm tròn 2 chữ số).
-//   - ton_kho cuối cùng = round(max(0, min(capacity, baseline + intake − sold))).
-//   - Nếu user nhập phiếu với import_time trong quá khứ, các giao dịch
-//     bán xảy ra sau thời điểm đó vẫn được trừ qua SUM(lit) toàn bộ →
-//     tự động phản ánh "imported − sold sau intake" mà không cần
-//     timestamp matching đặc biệt.
+// Tính tồn kho:
+//   - Mặc định 0 — không còn baseline cứng.
+//   - Bồn có phiếu nhập thì ton_kho = SUM(quantity) của các phiếu nhập
+//     khớp fuel_name của bồn (capped tại capacity).
+//   - Chưa trừ giao dịch bán — chỉ phản ánh lượng đã nhập.
 async function computeInventoryOverride(
   tenBon: string
 ): Promise<{ ton_kho: number; dung_tich: number; ty_le: string } | null> {
   const key = (tenBon || '').trim().toUpperCase()
   const capacity = TANK_CAPACITY[key]
-  const cotBomList = TANK_COT_BOM_NUMS[key]
-  const baseline = TANK_BASELINE[key]
   const fuelNames = TANK_FUEL_NAMES[key] || []
-  if (!capacity || !cotBomList || cotBomList.length === 0 || baseline == null) {
-    return null
-  }
+  if (!capacity) return null
 
-  // Sold kể từ mốc baseline (đơn vị: lít, làm tròn 2 chữ số).
-  let sold = 0
-  try {
-    const cotCsv = cotBomList.join(',')
-    const rows = await query<any[]>(
-      `SELECT COALESCE(SUM(lit), 0) AS sold
-       FROM fuel_pump
-       WHERE cot_bom IN (${cotCsv})
-         AND ket_thuc_bom >= ?`,
-      [BASELINE_DATE]
-    )
-    sold = round2(rows?.[0]?.sold)
-  } catch {
-    sold = 0
-  }
-
-  // Tổng nhập kể từ mốc baseline (đơn vị: lít, làm tròn 2 chữ số).
   let intake = 0
   if (fuelNames.length > 0) {
     try {
@@ -111,9 +75,8 @@ async function computeInventoryOverride(
       const rows = await query<any[]>(
         `SELECT COALESCE(SUM(quantity), 0) AS intake
          FROM fuel_inventory_import
-         WHERE fuel_name IN (${placeholders})
-           AND import_time >= ?`,
-        [...fuelNames, BASELINE_DATE]
+         WHERE fuel_name IN (${placeholders})`,
+        fuelNames
       )
       intake = round2(rows?.[0]?.intake)
     } catch {
@@ -122,24 +85,9 @@ async function computeInventoryOverride(
     }
   }
 
-  const raw = baseline + intake - sold
-  const tonKho = Math.round(Math.max(0, Math.min(capacity, raw)))
+  const tonKho = Math.round(Math.max(0, Math.min(capacity, intake)))
   const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
-  return {
-    ton_kho: tonKho,
-    dung_tich: capacity,
-    ty_le: tyLe,
-    // Debug — để dễ thấy tại sao ra số đó. Bỏ sau khi xác minh.
-    _debug: {
-      baseline,
-      intake,
-      sold,
-      raw,
-      baseline_date: BASELINE_DATE,
-      fuel_names: fuelNames,
-      cot_bom: cotBomList,
-    },
-  } as any
+  return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
 }
 
 export async function GET() {
@@ -181,18 +129,17 @@ export async function GET() {
         const tankData: TankData[] = validRows.map((row: any, i: number) => {
           const tenBon = row.ten_bon || ''
           const key = tenBon.trim().toUpperCase()
-          const inv = overrides[i] as any
+          const inv = overrides[i]
           // Ghi đè nhien_lieu theo config — upstream DB có thể còn legacy.
           const configFuel = TANK_FUEL_NAMES[key]?.[0] || row.nhien_lieu || ''
           return {
             ten_bon: tenBon,
             nhien_lieu: configFuel,
-            ton_kho: inv ? inv.ton_kho : (parseFloat(row.ton_kho) || 0),
+            ton_kho: inv ? inv.ton_kho : 0,
             dung_tich: inv ? inv.dung_tich : (parseFloat(row.dung_tich) || 0),
-            ty_le: inv ? inv.ty_le : (row.ty_le || 'N/A'),
+            ty_le: inv ? inv.ty_le : '0.0%',
             cot_bom: applyCotBomOverride(tenBon, row.cot_bom || ''),
-            _debug: inv?._debug,
-          } as any
+          }
         })
         
         return NextResponse.json({
@@ -276,7 +223,9 @@ export async function GET() {
             ...tank,
             nhien_lieu: configFuel,
             cot_bom: applyCotBomOverride(tank.ten_bon || '', tank.cot_bom || ''),
-            ...(inv ? { ton_kho: inv.ton_kho, dung_tich: inv.dung_tich, ty_le: inv.ty_le } : {}),
+            ...(inv
+              ? { ton_kho: inv.ton_kho, dung_tich: inv.dung_tich, ty_le: inv.ty_le }
+              : { ton_kho: 0, ty_le: '0.0%' }),
           }
         })
         data.count = validTanks.length
