@@ -56,10 +56,23 @@ interface RetailMeta {
 const fmtVN = (n: number) =>
   new Intl.NumberFormat("vi-VN").format(Math.round(n || 0))
 
+// Trả về thời điểm hiện tại theo định dạng `YYYY-MM-DDTHH:MM` để
+// dùng cho input type="datetime-local". Đồng nhất với API
+// /api/inventory-import (chấp nhận ISO + 'YYYY-MM-DD HH:MM:SS').
 function todayStr() {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, "0")
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+// Format datetime-local hoặc bất kỳ input dạng date sang dd/mm/yyyy HH:MM
+// để hiển thị trong review step (review thấy giống human-readable).
+function fmtDateHuman(s: string): string {
+  if (!s) return "—"
+  const d = new Date(s.includes("T") ? s : s.replace(" ", "T"))
+  if (isNaN(d.getTime())) return s
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} · ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 function fuelColor(nhien_lieu: string): string {
@@ -193,6 +206,7 @@ export function NhapKhoContent({ onNavigate }: NhapKhoContentProps) {
               fuel_name: l.nhien_lieu,
               quantity: l.qty,
               note: noteParts.join(" · "),
+              import_time: fuelMeta.date || undefined,
             }),
           }).then((x) => x.json())
           if (res?.success) ok++
@@ -657,10 +671,10 @@ function FuelForm({
             placeholder="HD-…"
           />
           <FieldInput
-            label="Ngày nhập"
+            label="Ngày · giờ nhập"
             value={meta.date}
             onChange={(v) => setMeta((m) => ({ ...m, date: v }))}
-            placeholder="DD/MM/YYYY"
+            type="datetime-local"
             rightIcon="calendar"
           />
           <FieldInput
@@ -1030,10 +1044,10 @@ function RetailForm({
             placeholder="HD-…"
           />
           <FieldInput
-            label="Ngày nhập"
+            label="Ngày · giờ nhập"
             value={meta.date}
             onChange={(v) => setMeta((m) => ({ ...m, date: v }))}
-            placeholder="DD/MM/YYYY"
+            type="datetime-local"
             rightIcon="calendar"
           />
           <FieldInput
@@ -1365,7 +1379,7 @@ function FuelReview({
         { l: "Nhà cung cấp", r: meta.supplier || "—" },
         { l: "Số hóa đơn", r: meta.invoiceNo || "—" },
         { l: "Mã hợp đồng", r: meta.contractCode || "—" },
-        { l: "Ngày nhập", r: meta.date || "—" },
+        { l: "Ngày nhập", r: fmtDateHuman(meta.date) },
         { l: "Người ghi nhận", r: meta.recordedBy || "—" },
         { l: "Xe bồn / tài xế", r: meta.truck || "—" },
       ]}
@@ -1503,7 +1517,7 @@ function RetailReview({
       meta={[
         { l: "Nhà cung cấp", r: meta.supplier || "—" },
         { l: "Số hóa đơn", r: meta.invoiceNo || "—" },
-        { l: "Ngày nhập", r: meta.date || "—" },
+        { l: "Ngày nhập", r: fmtDateHuman(meta.date) },
         { l: "Người ghi nhận", r: meta.recordedBy || "—" },
       ]}
       bodyRight={`${lines.length} mặt hàng · ${totalQty} SP`}
@@ -1868,12 +1882,14 @@ function FieldInput({
   onChange,
   placeholder,
   rightIcon,
+  type,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   placeholder?: string
   rightIcon?: IconName
+  type?: string
 }) {
   return (
     <div
@@ -1898,6 +1914,7 @@ function FieldInput({
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input
+          type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
@@ -1912,6 +1929,7 @@ function FieldInput({
             fontWeight: 500,
             fontFamily: HX.font,
             padding: 0,
+            colorScheme: type?.startsWith("date") ? "dark" : undefined,
           }}
         />
         {rightIcon && <Icon name={rightIcon} size={15} color={HX.text2} />}

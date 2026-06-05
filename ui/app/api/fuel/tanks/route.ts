@@ -66,10 +66,15 @@ function round2(n: number) {
 
 // Tính tồn kho thực tế theo mô hình baseline cố định:
 //   - Tại mốc BASELINE_DATE, tồn kho = TANK_BASELINE[bồn] (hardcoded).
-//   - Mỗi giao dịch bán xăng sau mốc đó trừ đi số lít bán ra
-//     (sold cộng dồn làm tròn 2 chữ số).
-//   - ton_kho cuối cùng làm tròn về số nguyên (lít).
-//   - Việc nhập kho KHÔNG reset bồn về capacity — chỉ trừ đi lượng đã bán.
+//   - Cộng SUM(quantity) các phiếu nhập kho (fuel_inventory_import) có
+//     import_time >= BASELINE_DATE cho loại nhiên liệu khớp bồn.
+//   - Trừ SUM(lit) các giao dịch bán (fuel_pump) có ket_thuc_bom >=
+//     BASELINE_DATE cho các cột bơm thuộc bồn (làm tròn 2 chữ số).
+//   - ton_kho cuối cùng = round(max(0, min(capacity, baseline + intake − sold))).
+//   - Nếu user nhập phiếu với import_time trong quá khứ, các giao dịch
+//     bán xảy ra sau thời điểm đó vẫn được trừ qua SUM(lit) toàn bộ →
+//     tự động phản ánh "imported − sold sau intake" mà không cần
+//     timestamp matching đặc biệt.
 async function computeInventoryOverride(
   tenBon: string
 ): Promise<{ ton_kho: number; dung_tich: number; ty_le: string } | null> {
@@ -77,6 +82,7 @@ async function computeInventoryOverride(
   const capacity = TANK_CAPACITY[key]
   const cotBomList = TANK_COT_BOM_NUMS[key]
   const baseline = TANK_BASELINE[key]
+  const fuelNames = TANK_FUEL_NAMES[key] || []
   if (!capacity || !cotBomList || cotBomList.length === 0 || baseline == null) {
     return null
   }
@@ -97,7 +103,26 @@ async function computeInventoryOverride(
     sold = 0
   }
 
-  const raw = baseline - sold
+  // Tổng nhập kể từ mốc baseline (đơn vị: lít, làm tròn 2 chữ số).
+  let intake = 0
+  if (fuelNames.length > 0) {
+    try {
+      const placeholders = fuelNames.map(() => '?').join(',')
+      const rows = await query<any[]>(
+        `SELECT COALESCE(SUM(quantity), 0) AS intake
+         FROM fuel_inventory_import
+         WHERE fuel_name IN (${placeholders})
+           AND import_time >= ?`,
+        [...fuelNames, BASELINE_DATE]
+      )
+      intake = round2(rows?.[0]?.intake)
+    } catch {
+      // Bảng có thể chưa tồn tại — coi như 0
+      intake = 0
+    }
+  }
+
+  const raw = baseline + intake - sold
   const tonKho = Math.round(Math.max(0, Math.min(capacity, raw)))
   const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
   return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
