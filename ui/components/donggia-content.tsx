@@ -57,7 +57,7 @@ const FUEL_BY_COT_BOM: Record<number, string> = {
   1: "DO 0,05S-II",
   2: "RON95-III",
   3: "RON95-III",
-  4: "E5",
+  4: "DO 0,05S-II",
   5: "DO 0,001S-V",
 }
 

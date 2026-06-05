@@ -20,42 +20,37 @@ interface TankData {
 // nên ép theo bảng dưới đây trước khi trả ra client.
 const TANK_COT_BOM_OVERRIDES: Record<string, string> = {
   'BỒN 1': '2,3',
-  'BỒN 2': '5',
-  'BỒN 3': '4',
-  'BỒN 4': '1',
+  'BỒN 2': '1,4',
+  'BỒN 3': '5',
 }
 
 // Capacity (dung tích) thực tế của mỗi bồn, đơn vị lít.
 const TANK_CAPACITY: Record<string, number> = {
   'BỒN 1': 10000,
-  'BỒN 2': 10000,
+  'BỒN 2': 30000,
   'BỒN 3': 10000,
-  'BỒN 4': 20000,
 }
 
 // Danh sách cot_bom của từng bồn dưới dạng số — để query fuel_pump.
 const TANK_COT_BOM_NUMS: Record<string, number[]> = {
   'BỒN 1': [2, 3],
-  'BỒN 2': [5],
-  'BỒN 3': [4],
-  'BỒN 4': [1],
+  'BỒN 2': [1, 4],
+  'BỒN 3': [5],
 }
 
 // Tên nhiên liệu (fuel_name lưu trong fuel_inventory_import) cho từng bồn.
 const TANK_FUEL_NAMES: Record<string, string[]> = {
   'BỒN 1': ['RON95-III'],
-  'BỒN 2': ['DO 0,001S-V'],
-  'BỒN 3': ['E5'],
-  'BỒN 4': ['DO 0,05S-II'],
+  'BỒN 2': ['DO 0,05S-II'],
+  'BỒN 3': ['DO 0,001S-V'],
 }
 
 // Lượng tồn kho cố định tại ngày BASELINE_DATE (mốc 20/05/2026).
 // Từ mốc này trở đi, tồn kho = baseline − SUM(lit đã bán).
 const TANK_BASELINE: Record<string, number> = {
-  'BỒN 1': 9000,    // RON95-III  (cap 10000)
-  'BỒN 2': 9500,    // DO 0,001S-V (cap 10000)
-  'BỒN 3': 8500,    // E5         (cap 10000)
-  'BỒN 4': 18500,   // DO 0,05S-II (cap 20000)
+  'BỒN 1': 9000,     // RON95-III   (cap 10000, cot 2+3)
+  'BỒN 2': 28000,    // DO 0,05S-II (cap 30000, cot 1+4)
+  'BỒN 3': 9500,     // DO 0,001S-V (cap 10000, cot 5)
 }
 const BASELINE_DATE = '2026-05-20 00:00:00'
 
