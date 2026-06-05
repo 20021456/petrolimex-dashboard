@@ -8,7 +8,7 @@ const FUEL_CASE = `
     WHEN 1 THEN 'DO 0,05S-II'
     WHEN 2 THEN 'RON95-III'
     WHEN 3 THEN 'RON95-III'
-    WHEN 4 THEN 'E5'
+    WHEN 4 THEN 'DO 0,05S-II'
     WHEN 5 THEN 'DO 0,001S-V'
     ELSE 'Khác'
   END`
