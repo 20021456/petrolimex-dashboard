@@ -7,7 +7,6 @@ import { SectionCards } from "@/components/section-cards"
 import { ChartSection } from "@/components/chart-section"
 import { ChiTietContent } from "@/components/chitiet-content"
 import { PosPage } from "@/components/pos-page"
-import { TonkhoContent } from "@/components/tonkho-content"
 import { NhapKhoMobile } from "@/components/nhap-kho-mobile"
 import { CaBanHangContent } from "@/components/cabanhang-content"
 import { CongNoContent } from "@/components/congno-content"
@@ -491,7 +490,6 @@ export default function Page() {
             <StockPage onNavigate={setActiveView} />
           ) : activeView === "nhap" ? (
             isMobile ? <NhapKhoMobile /> : <NhapKhoContent onNavigate={setActiveView} />
-
           ) : activeView === "tx" ? (
             <TxPage onNavigate={setActiveView} />
           ) : activeView === "giaoca" ? (

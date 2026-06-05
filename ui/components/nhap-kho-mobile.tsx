@@ -97,6 +97,138 @@ const captionStyle: React.CSSProperties = {
   textTransform: "uppercase",
 }
 
+// ── Metadata chung của đợt nhập (NCC, HĐ, HD, ngày, người, xe) ──
+function MetadataCard(props: {
+  supplier: string
+  setSupplier: (v: string) => void
+  supplierTax: string
+  setSupplierTax: (v: string) => void
+  contract: string
+  setContract: (v: string) => void
+  invoice: string
+  setInvoice: (v: string) => void
+  intakeDate: string
+  setIntakeDate: (v: string) => void
+  recorder: string
+  setRecorder: (v: string) => void
+  vehicle: string
+  setVehicle: (v: string) => void
+}) {
+  const fieldStyle: React.CSSProperties = {
+    width: "100%",
+    height: 40,
+    padding: "0 12px",
+    borderRadius: 10,
+    background: HX.bg,
+    border: `1px solid ${HX.hairlineStrong}`,
+    color: HX.text,
+    fontSize: 14,
+    fontFamily: HX.font,
+    outline: "none",
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10,
+    color: HX.text3,
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  }
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11,
+          color: HX.text3,
+          fontWeight: 600,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          margin: "4px 4px 8px",
+        }}
+      >
+        Thông tin chung
+      </div>
+      <div
+        style={{
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 16,
+          padding: 14,
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 10,
+        }}
+      >
+        <div style={{ gridColumn: "1 / -1" }}>
+          <div style={labelStyle}>Nhà cung cấp</div>
+          <input
+            value={props.supplier}
+            onChange={(e) => props.setSupplier(e.target.value)}
+            placeholder="VD: Petrolimex KV5"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Mã số thuế</div>
+          <input
+            value={props.supplierTax}
+            onChange={(e) => props.setSupplierTax(e.target.value)}
+            placeholder="VD: 0100107564"
+            inputMode="numeric"
+            className="hx-num"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Mã hợp đồng</div>
+          <input
+            value={props.contract}
+            onChange={(e) => props.setContract(e.target.value)}
+            placeholder="VD: HD-PTX-2026-04"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Số hoá đơn</div>
+          <input
+            value={props.invoice}
+            onChange={(e) => props.setInvoice(e.target.value)}
+            placeholder="VD: HD-2026-0512"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Ngày nhập</div>
+          <input
+            value={props.intakeDate}
+            onChange={(e) => props.setIntakeDate(e.target.value)}
+            placeholder="VD: 14/05/2026 · 09:42"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Người ghi nhận</div>
+          <input
+            value={props.recorder}
+            onChange={(e) => props.setRecorder(e.target.value)}
+            placeholder="VD: Anh Sơn (Chủ nhiệm)"
+            style={fieldStyle}
+          />
+        </div>
+        <div>
+          <div style={labelStyle}>Xe bồn / tài xế</div>
+          <input
+            value={props.vehicle}
+            onChange={(e) => props.setVehicle(e.target.value)}
+            placeholder="VD: 77C-12345 · Anh Bình"
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Top-level component — dispatches between Hub and Form ───────
 export function NhapKhoMobile() {
   const [view, setView] = React.useState<"hub" | "fuel" | "retail">("hub")
@@ -415,6 +547,14 @@ function FuelForm({
     },
   ])
   const [note, setNote] = React.useState("")
+  // Metadata chung của đợt nhập — editable, gắn vào note khi lưu.
+  const [supplier, setSupplier] = React.useState("")
+  const [supplierTax, setSupplierTax] = React.useState("")
+  const [contract, setContract] = React.useState("")
+  const [invoice, setInvoice] = React.useState("")
+  const [intakeDate, setIntakeDate] = React.useState("")
+  const [recorder, setRecorder] = React.useState("")
+  const [vehicle, setVehicle] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
 
   // Khi tanks load xong, fill bồn đầu tiên vào line đầu.
@@ -466,14 +606,31 @@ function FuelForm({
   const validLines = linesParsed.filter((l) => l.nhien_lieu && l.qty > 0)
   const canSubmit = validLines.length > 0 && !submitting
 
+  // Metadata chung gộp thành 1 chuỗi để gắn vào note của từng phiếu.
+  const metadataParts: string[] = []
+  if (supplier.trim())
+    metadataParts.push(
+      `NCC: ${supplier.trim()}${supplierTax.trim() ? ` (MST ${supplierTax.trim()})` : ""}`
+    )
+  if (contract.trim()) metadataParts.push(`HĐ: ${contract.trim()}`)
+  if (invoice.trim()) metadataParts.push(`HD: ${invoice.trim()}`)
+  if (intakeDate.trim()) metadataParts.push(`Ngày: ${intakeDate.trim()}`)
+  if (recorder.trim()) metadataParts.push(`Ghi nhận: ${recorder.trim()}`)
+  if (vehicle.trim()) metadataParts.push(`Xe/TX: ${vehicle.trim()}`)
+  const metadataPrefix = metadataParts.join(" · ")
+
   async function handleSubmit() {
     if (!canSubmit) return
     setSubmitting(true)
     let savedCount = 0
     try {
       for (const l of validLines) {
-        // Gắn ghi chú gồm Bồn + đơn giá nếu có, để truy vết.
-        const noteParts = [note.trim(), `Vào ${l.tenBon}`]
+        // Gắn ghi chú gồm metadata chung + Bồn + đơn giá để truy vết.
+        const noteParts = [
+          metadataPrefix,
+          note.trim(),
+          `Vào ${l.tenBon}`,
+        ]
         if (l.price > 0) noteParts.push(`@${fmtVN(l.price)} ₫/L`)
         const finalNote = noteParts.filter(Boolean).join(" · ")
         const res = await fetch("/api/inventory-import", {
@@ -547,6 +704,24 @@ function FuelForm({
           {lines.length} dòng · tự ghi nhận theo loại nhiên liệu
         </div>
       </div>
+
+      {/* Thông tin chung — editable */}
+      <MetadataCard
+        supplier={supplier}
+        setSupplier={setSupplier}
+        supplierTax={supplierTax}
+        setSupplierTax={setSupplierTax}
+        contract={contract}
+        setContract={setContract}
+        invoice={invoice}
+        setInvoice={setInvoice}
+        intakeDate={intakeDate}
+        setIntakeDate={setIntakeDate}
+        recorder={recorder}
+        setRecorder={setRecorder}
+        vehicle={vehicle}
+        setVehicle={setVehicle}
+      />
 
       {/* Line items */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
