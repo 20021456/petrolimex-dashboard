@@ -68,8 +68,9 @@ function round2(n: number) {
 //   - Tại mốc BASELINE_DATE, tồn kho = TANK_BASELINE[bồn] (hardcoded).
 //   - Mỗi giao dịch bán xăng sau mốc đó trừ đi số lít bán ra
 //     (sold cộng dồn làm tròn 2 chữ số).
+//   - Mỗi phiếu nhập (fuel_inventory_import) sau mốc đó cộng dồn
+//     vào ton_kho (capped tại capacity của bồn).
 //   - ton_kho cuối cùng làm tròn về số nguyên (lít).
-//   - Việc nhập kho KHÔNG reset bồn về capacity — chỉ trừ đi lượng đã bán.
 async function computeInventoryOverride(
   tenBon: string
 ): Promise<{ ton_kho: number; dung_tich: number; ty_le: string } | null> {
@@ -97,7 +98,26 @@ async function computeInventoryOverride(
     sold = 0
   }
 
-  const raw = baseline - sold
+  // Imported kể từ mốc baseline — cộng vào tồn kho.
+  let imported = 0
+  try {
+    const fuelNames = TANK_FUEL_NAMES[key] || []
+    if (fuelNames.length > 0) {
+      const placeholders = fuelNames.map(() => '?').join(',')
+      const rows = await query<any[]>(
+        `SELECT COALESCE(SUM(quantity), 0) AS imported
+         FROM fuel_inventory_import
+         WHERE fuel_name IN (${placeholders})
+           AND import_time >= ?`,
+        [...fuelNames, BASELINE_DATE]
+      )
+      imported = round2(rows?.[0]?.imported)
+    }
+  } catch {
+    imported = 0
+  }
+
+  const raw = baseline - sold + imported
   const tonKho = Math.round(Math.max(0, Math.min(capacity, raw)))
   const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
   return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
