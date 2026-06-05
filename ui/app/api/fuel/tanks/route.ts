@@ -125,7 +125,21 @@ async function computeInventoryOverride(
   const raw = baseline + intake - sold
   const tonKho = Math.round(Math.max(0, Math.min(capacity, raw)))
   const tyLe = `${((tonKho / capacity) * 100).toFixed(1)}%`
-  return { ton_kho: tonKho, dung_tich: capacity, ty_le: tyLe }
+  return {
+    ton_kho: tonKho,
+    dung_tich: capacity,
+    ty_le: tyLe,
+    // Debug — để dễ thấy tại sao ra số đó. Bỏ sau khi xác minh.
+    _debug: {
+      baseline,
+      intake,
+      sold,
+      raw,
+      baseline_date: BASELINE_DATE,
+      fuel_names: fuelNames,
+      cot_bom: cotBomList,
+    },
+  } as any
 }
 
 export async function GET() {
@@ -167,7 +181,7 @@ export async function GET() {
         const tankData: TankData[] = validRows.map((row: any, i: number) => {
           const tenBon = row.ten_bon || ''
           const key = tenBon.trim().toUpperCase()
-          const inv = overrides[i]
+          const inv = overrides[i] as any
           // Ghi đè nhien_lieu theo config — upstream DB có thể còn legacy.
           const configFuel = TANK_FUEL_NAMES[key]?.[0] || row.nhien_lieu || ''
           return {
@@ -176,8 +190,9 @@ export async function GET() {
             ton_kho: inv ? inv.ton_kho : (parseFloat(row.ton_kho) || 0),
             dung_tich: inv ? inv.dung_tich : (parseFloat(row.dung_tich) || 0),
             ty_le: inv ? inv.ty_le : (row.ty_le || 'N/A'),
-            cot_bom: applyCotBomOverride(tenBon, row.cot_bom || '')
-          }
+            cot_bom: applyCotBomOverride(tenBon, row.cot_bom || ''),
+            _debug: inv?._debug,
+          } as any
         })
         
         return NextResponse.json({
