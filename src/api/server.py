@@ -213,14 +213,28 @@ def auto_update():
             except Exception as tank_err:
                 print(f"[API] Cảnh báo: lỗi cập nhật bồn bể: {tank_err}")
 
+            # Snapshot TOTAL từ trang Theo Dõi Online vào pump_total_log.
+            # Mỗi lần update lưu thêm 1 dòng → đầu ngày trừ với hiện tại sẽ
+            # ra sản lượng thực tế trong ngày.
+            pump_totals_logged = 0
+            try:
+                online_data = api.get_online_status()
+                if online_data and api.connect_mysql():
+                    pump_totals_logged = api.log_pump_totals(online_data) or 0
+                    api.close_mysql()
+            except Exception as log_err:
+                print(f"[API] Cảnh báo: lỗi log pump totals: {log_err}")
+
             return jsonify({
                 'success': True,
                 'message': (
                     f'Đã cập nhật {total_imported} bản ghi giao dịch'
                     f' + {tanks_updated} bồn bể'
+                    f' + {pump_totals_logged} cột bơm (TOTAL)'
                 ),
                 'total_imported': total_imported,
                 'tanks_updated': tanks_updated,
+                'pump_totals_logged': pump_totals_logged,
             })
 
         finally:

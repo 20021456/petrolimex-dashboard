@@ -703,6 +703,92 @@ class FuelAPI:
             print(f"✗ Lỗi khi insert dữ liệu: {e}")
             return 0
 
+    def create_pump_total_log_table(self) -> bool:
+        """
+        Tạo bảng pump_total_log để snapshot giá trị TOTAL (lít cộng dồn
+        từ ngày khởi tạo cột bơm) mỗi lần fetch online status.
+        """
+        if not self.mysql_connection or not self.mysql_connection.is_connected():
+            return False
+        try:
+            cursor = self.mysql_connection.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pump_total_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    cot_bom INT NOT NULL,
+                    ten_cot VARCHAR(50) NOT NULL,
+                    nhien_lieu VARCHAR(50) DEFAULT '',
+                    total DECIMAL(15, 2) NOT NULL,
+                    logged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_cot_time (cot_bom, logged_at),
+                    INDEX idx_logged_at (logged_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            self.mysql_connection.commit()
+            cursor.close()
+            return True
+        except Error as e:
+            print(f"✗ Lỗi khi tạo bảng pump_total_log: {e}")
+            return False
+
+    def log_pump_totals(self, online_data: List[Dict]) -> int:
+        """
+        Ghi snapshot total các cột bơm vào pump_total_log.
+
+        online_data: list từ get_online_status() — mỗi item có ten_cot,
+        nhien_lieu, total (string). Tự parse cot_bom số nguyên từ ten_cot
+        (ví dụ "Cột 01" -> 1, "Cột 02" -> 2).
+
+        Returns:
+            Số dòng đã ghi.
+        """
+        if not online_data:
+            return 0
+        if not self.mysql_connection or not self.mysql_connection.is_connected():
+            print("✗ Chưa kết nối MySQL")
+            return 0
+
+        # Đảm bảo bảng tồn tại
+        if not self.create_pump_total_log_table():
+            return 0
+
+        import re
+        ok = 0
+        try:
+            cursor = self.mysql_connection.cursor()
+            for item in online_data:
+                try:
+                    ten_cot = str(item.get('ten_cot', '')).strip()
+                    if not ten_cot:
+                        continue
+                    # Trích số cột từ "Cột 01" / "Cot 2" / "Cột 2"
+                    m = re.search(r'(\d+)', ten_cot)
+                    if not m:
+                        continue
+                    cot_bom = int(m.group(1))
+                    total = self.clean_number(item.get('total', '0'))
+                    nhien_lieu = str(item.get('nhien_lieu', '') or '').strip()
+                    cursor.execute(
+                        """
+                        INSERT INTO pump_total_log
+                        (cot_bom, ten_cot, nhien_lieu, total, logged_at)
+                        VALUES (%s, %s, %s, %s, NOW())
+                        """,
+                        (cot_bom, ten_cot, nhien_lieu, total)
+                    )
+                    ok += 1
+                except Exception as e:
+                    print(f"⚠️  Lỗi khi log pump total cho {item}: {e}")
+                    continue
+            self.mysql_connection.commit()
+            cursor.close()
+            return ok
+        except Error as e:
+            print(f"✗ Lỗi khi log pump totals: {e}")
+            return 0
+
     def ensure_customer_overrides_table(self) -> bool:
         """Tạo bảng fuel_pump_customer_overrides (idempotent)."""
         if not self.mysql_connection or not self.mysql_connection.is_connected():

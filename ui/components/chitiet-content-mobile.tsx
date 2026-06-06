@@ -246,48 +246,84 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
             padding: 14,
           }}
         >
-          {byFuel.map((r, i) => (
-            <div
-              key={r.name}
-              style={{
-                paddingTop: i === 0 ? 0 : 12,
-                paddingBottom: i === byFuel.length - 1 ? 0 : 12,
-                borderBottom:
-                  i < byFuel.length - 1 ? `1px solid ${HX.hairline}` : "none",
-              }}
-            >
+          {byFuel.map((r, i) => {
+            const diffColor =
+              r.diffLiters == null
+                ? HX.text3
+                : Math.abs(r.diffLiters) < 1
+                  ? HX.text2
+                  : r.diffLiters > 0
+                    ? HX.warn
+                    : HX.bad
+            return (
               <div
+                key={r.name}
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 6,
-                  gap: 8,
+                  paddingTop: i === 0 ? 0 : 12,
+                  paddingBottom: i === byFuel.length - 1 ? 0 : 12,
+                  borderBottom:
+                    i < byFuel.length - 1 ? `1px solid ${HX.hairline}` : "none",
                 }}
               >
                 <div
-                  style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 6,
+                    gap: 8,
+                  }}
                 >
-                  <FuelDot kind={r.name} />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</span>
-                  <span style={{ fontSize: 11, color: HX.text3 }}>
-                    · {fmtNum(r.liters)} L
-                  </span>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}
+                  >
+                    <FuelDot kind={r.name} />
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</span>
+                    <span style={{ fontSize: 11, color: HX.text3 }}>
+                      · {fmtNum(r.liters)} L
+                    </span>
+                  </div>
+                  <div
+                    className="hx-num"
+                    style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}
+                  >
+                    {fmtNum(r.revenue)}
+                    <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}>
+                      {" "}
+                      ₫
+                    </span>
+                  </div>
                 </div>
-                <div
-                  className="hx-num"
-                  style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}
-                >
-                  {fmtNum(r.revenue)}
-                  <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}>
-                    {" "}
-                    ₫
-                  </span>
-                </div>
+                <ProgressBar pct={r.pct} color={KIND_COLOR[r.name]} h={5} />
+                {/* Thực tế vs chênh lệch */}
+                {(r.actualLiters != null || r.diffLiters != null) && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: 6,
+                      fontSize: 11,
+                    }}
+                  >
+                    <span style={{ color: HX.text3 }}>
+                      Thực tế:{" "}
+                      <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
+                        {r.actualLiters != null ? `${fmtNum(r.actualLiters)} L` : "—"}
+                      </span>
+                    </span>
+                    <span
+                      className="hx-num"
+                      style={{ color: diffColor, fontWeight: 600 }}
+                    >
+                      {r.diffLiters != null
+                        ? `${r.diffLiters > 0 ? "+" : ""}${fmtNum(r.diffLiters)} L`
+                        : "—"}
+                    </span>
+                  </div>
+                )}
               </div>
-              <ProgressBar pct={r.pct} color={KIND_COLOR[r.name]} h={5} />
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -314,54 +350,98 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
               Chưa có dữ liệu cột bơm
             </div>
           ) : (
-            byPump.map((p, i) => (
-              <div
-                key={p.cotBom}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  paddingTop: i === 0 ? 0 : 10,
-                  paddingBottom: i === byPump.length - 1 ? 0 : 10,
-                  borderBottom:
-                    i < byPump.length - 1 ? `1px solid ${HX.hairline}` : "none",
-                }}
-              >
+            byPump.map((p, i) => {
+              const diffColor =
+                p.diffLiters == null
+                  ? HX.text3
+                  : Math.abs(p.diffLiters) < 1
+                    ? HX.text2
+                    : p.diffLiters > 0
+                      ? HX.warn
+                      : HX.bad
+              return (
                 <div
+                  key={p.cotBom}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    minWidth: 0,
+                    paddingTop: i === 0 ? 0 : 10,
+                    paddingBottom: i === byPump.length - 1 ? 0 : 10,
+                    borderBottom:
+                      i < byPump.length - 1 ? `1px solid ${HX.hairline}` : "none",
                   }}
                 >
-                  <FuelDot kind={p.fuel} size={7} />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>Cột {p.cotBom}</span>
-                  <span
+                  <div
                     style={{
-                      fontSize: 11,
-                      color: HX.text3,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
                     }}
                   >
-                    · {p.fuel} · {fmtNum(p.count)} GD
-                  </span>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        minWidth: 0,
+                      }}
+                    >
+                      <FuelDot kind={p.fuel} size={7} />
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>Cột {p.cotBom}</span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: HX.text3,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        · {p.fuel} · {fmtNum(p.count)} GD
+                      </span>
+                    </div>
+                    <div
+                      className="hx-num"
+                      style={{ fontSize: 13, fontWeight: 700, flexShrink: 0 }}
+                    >
+                      {fmtBig(p.revenue)}
+                      <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}>
+                        {" "}
+                        ₫
+                      </span>
+                    </div>
+                  </div>
+                  {(p.actualLiters != null || p.diffLiters != null) && (
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: 4,
+                        fontSize: 11,
+                      }}
+                    >
+                      <span style={{ color: HX.text3 }}>
+                        DB:{" "}
+                        <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
+                          {fmtNum(p.dbLiters)} L
+                        </span>
+                        {" · "}Thực tế:{" "}
+                        <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
+                          {p.actualLiters != null ? `${fmtNum(p.actualLiters)} L` : "—"}
+                        </span>
+                      </span>
+                      <span
+                        className="hx-num"
+                        style={{ color: diffColor, fontWeight: 700 }}
+                      >
+                        {p.diffLiters != null
+                          ? `${p.diffLiters > 0 ? "+" : ""}${fmtNum(p.diffLiters)} L`
+                          : "—"}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div
-                  className="hx-num"
-                  style={{ fontSize: 13, fontWeight: 700, flexShrink: 0 }}
-                >
-                  {fmtBig(p.revenue)}
-                  <span style={{ fontSize: 10, color: HX.text3, fontWeight: 400 }}>
-                    {" "}
-                    ₫
-                  </span>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
           {bestPump && (
             <div

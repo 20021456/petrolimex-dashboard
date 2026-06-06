@@ -710,19 +710,53 @@ export function useReport() {
   const ranges = React.useMemo(() => getPeriodRange(period), [period])
   const meta = PERIOD_META[period]
 
+  // Sản lượng thực tế từ pump_total_log — chỉ có ý nghĩa cho "hôm nay"
+  // (so sánh snapshot đầu ngày vs hiện tại). Các kỳ khác bỏ qua.
+  const [pumpTotals, setPumpTotals] = React.useState<{
+    byPump: Array<{
+      cot_bom: number
+      nhien_lieu: string
+      actual_liters: number | null
+      start_total: number | null
+      current_total: number | null
+    }>
+    byFuel: Array<{
+      fuel_name: string
+      cot_boms: number[]
+      actual_liters: number | null
+    }>
+  } | null>(null)
+
   React.useEffect(() => {
     let alive = true
     setLoading(true)
-    Promise.all([fetchStats(ranges.cur), fetchStats(ranges.prev)])
-      .then(([cur, prev]) => {
+    const tasks: Promise<any>[] = [
+      fetchStats(ranges.cur),
+      fetchStats(ranges.prev),
+    ]
+    // pump_total_log chỉ áp dụng cho period="today"
+    if (period === "today") {
+      tasks.push(
+        fetch("/api/pump-totals", { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => null)
+      )
+    }
+    Promise.all(tasks)
+      .then((results) => {
         if (!alive) return
+        const cur = results[0]
+        const prev = results[1]
+        const totals = results[2]
         setStats(cur?.success ? cur.data : null)
         setPrevStats(prev?.success ? prev.data : null)
+        setPumpTotals(totals?.success ? totals.data : null)
       })
       .catch(() => {
         if (!alive) return
         setStats(null)
         setPrevStats(null)
+        setPumpTotals(null)
       })
       .finally(() => {
         if (alive) setLoading(false)
@@ -730,7 +764,7 @@ export function useReport() {
     return () => {
       alive = false
     }
-  }, [ranges])
+  }, [ranges, period])
 
   const revenue = Number(stats?.overview?.totalRevenue || 0)
   const prevRevenue = Number(prevStats?.overview?.totalRevenue || 0)
@@ -770,25 +804,66 @@ export function useReport() {
       groups[k].liters += Number(r.liters || 0)
     })
     const total = Object.values(groups).reduce((s, g) => s + g.revenue, 0)
+
+    // Map nhiên_lieu (DB string) → kind ("RON95" / "E5" / "DO" / "DO+")
+    // để cộng dồn actual_liters theo cùng key với DB byFuelType.
+    const actualByKind: Record<string, number> = {}
+    pumpTotals?.byFuel.forEach((f) => {
+      const kind = fuelKind(f.fuel_name) || "Khác"
+      if (f.actual_liters != null) {
+        actualByKind[kind] = (actualByKind[kind] || 0) + f.actual_liters
+      }
+    })
+
     return (["RON95", "E5", "DO", "DO+"] as const).map((k) => {
       const g = groups[k] || { revenue: 0, liters: 0 }
       const pct = total > 0 ? Math.round((g.revenue / total) * 100) : 0
-      return { name: k, revenue: g.revenue, liters: g.liters, pct }
+      const actualLiters =
+        actualByKind[k] != null ? actualByKind[k] : null
+      const diffLiters =
+        actualLiters != null ? actualLiters - g.liters : null
+      return {
+        name: k,
+        revenue: g.revenue,
+        liters: g.liters,
+        pct,
+        actualLiters,
+        diffLiters,
+      }
     })
-  }, [stats])
+  }, [stats, pumpTotals])
 
   const byPump = React.useMemo(() => {
     const rows: any[] = stats?.chartData?.byPump || []
+
+    const actualByCot: Record<number, number> = {}
+    pumpTotals?.byPump.forEach((p) => {
+      if (p.actual_liters != null) {
+        actualByCot[p.cot_bom] = p.actual_liters
+      }
+    })
+
     return rows
       .filter((r) => Number(r.cotBom) > 0)
-      .map((r) => ({
-        cotBom: Number(r.cotBom),
-        fuel: fuelKind(r.fuelType) || r.fuelType,
-        revenue: Number(r.revenue || 0),
-        count: Number(r.count || 0),
-      }))
+      .map((r) => {
+        const cotBom = Number(r.cotBom)
+        const dbLiters = Number(r.liters || 0)
+        const actualLiters =
+          actualByCot[cotBom] != null ? actualByCot[cotBom] : null
+        const diffLiters =
+          actualLiters != null ? actualLiters - dbLiters : null
+        return {
+          cotBom,
+          fuel: fuelKind(r.fuelType) || r.fuelType,
+          revenue: Number(r.revenue || 0),
+          count: Number(r.count || 0),
+          dbLiters,
+          actualLiters,
+          diffLiters,
+        }
+      })
       .sort((a, b) => b.revenue - a.revenue)
-  }, [stats])
+  }, [stats, pumpTotals])
 
   const bestPump = byPump[0]
     ? {
@@ -821,6 +896,7 @@ export function useReport() {
     byFuel,
     byPump,
     bestPump,
+    hasPumpTotals: !!pumpTotals,
   }
 }
 
@@ -1118,15 +1194,15 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 16, fontWeight: 600 }}>Theo loại nhiên liệu</div>
             <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>
-              Doanh thu · sản lượng · lãi gộp · {meta.label.toLowerCase()}
+              Doanh thu · sản lượng · sản lượng thực tế · {meta.label.toLowerCase()}
             </div>
           </div>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.4fr 110px 140px 110px 110px",
-              gap: 12,
+              gridTemplateColumns: "1.1fr 90px 100px 90px 110px 80px",
+              gap: 10,
               padding: "8px 0",
               borderBottom: `1px solid ${HX.hairline}`,
               fontSize: 11,
@@ -1138,19 +1214,28 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           >
             <span>Sản phẩm</span>
             <span style={{ textAlign: "right" }}>Sản lượng</span>
+            <span style={{ textAlign: "right" }}>Thực tế</span>
+            <span style={{ textAlign: "right" }}>Chênh lệch</span>
             <span style={{ textAlign: "right" }}>Doanh thu</span>
-            <span style={{ textAlign: "right" }}>Lãi gộp</span>
             <span style={{ textAlign: "right" }}>%</span>
           </div>
           {byFuel.map((r) => {
             const color = KIND_COLOR[r.name] || HX.text2
+            const diffColor =
+              r.diffLiters == null
+                ? HX.text3
+                : Math.abs(r.diffLiters) < 1
+                  ? HX.text2
+                  : r.diffLiters > 0
+                    ? HX.warn
+                    : HX.bad
             return (
               <div
                 key={r.name}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.4fr 110px 140px 110px 110px",
-                  gap: 12,
+                  gridTemplateColumns: "1.1fr 90px 100px 90px 110px 80px",
+                  gap: 10,
                   padding: "14px 0",
                   fontSize: 13,
                   alignItems: "center",
@@ -1164,11 +1249,30 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                 <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
                   {fmtNum(r.liters)} L
                 </span>
+                <span
+                  className="hx-num"
+                  style={{
+                    textAlign: "right",
+                    color: r.actualLiters != null ? HX.text : HX.text3,
+                    fontWeight: r.actualLiters != null ? 600 : 400,
+                  }}
+                >
+                  {r.actualLiters != null ? `${fmtNum(r.actualLiters)} L` : "—"}
+                </span>
+                <span
+                  className="hx-num"
+                  style={{
+                    textAlign: "right",
+                    color: diffColor,
+                    fontWeight: 600,
+                  }}
+                >
+                  {r.diffLiters != null
+                    ? `${r.diffLiters > 0 ? "+" : ""}${fmtNum(r.diffLiters)} L`
+                    : "—"}
+                </span>
                 <span className="hx-num" style={{ textAlign: "right", fontWeight: 600 }}>
                   {fmtNum(r.revenue)}
-                </span>
-                <span className="hx-num" style={{ textAlign: "right", color: HX.text3 }}>
-                  —
                 </span>
                 <span
                   style={{
@@ -1176,12 +1280,12 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "flex-end",
-                    gap: 8,
+                    gap: 6,
                   }}
                 >
                   <span
                     style={{
-                      width: 40,
+                      width: 28,
                       height: 4,
                       background: HX.hairline,
                       borderRadius: 2,
@@ -1201,10 +1305,10 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                   <span
                     className="hx-num"
                     style={{
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: 600,
                       color,
-                      minWidth: 32,
+                      minWidth: 28,
                       textAlign: "right",
                     }}
                   >
@@ -1243,49 +1347,102 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
               Chưa có dữ liệu cột bơm trong kỳ
             </div>
           ) : (
-            byPump.map((p, i) => (
-              <div
-                key={p.cotBom}
-                style={{
-                  padding: "14px 0",
-                  borderBottom: i < byPump.length - 1 ? `1px solid ${HX.hairline}` : "none",
-                }}
-              >
+            byPump.map((p, i) => {
+              const diffColor =
+                p.diffLiters == null
+                  ? HX.text3
+                  : Math.abs(p.diffLiters) < 1
+                    ? HX.text2
+                    : p.diffLiters > 0
+                      ? HX.warn
+                      : HX.bad
+              return (
                 <div
+                  key={p.cotBom}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: 12,
+                    padding: "14px 0",
+                    borderBottom: i < byPump.length - 1 ? `1px solid ${HX.hairline}` : "none",
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>Cột {p.cotBom}</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>Cột {p.cotBom}</div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          marginTop: 4,
+                          fontSize: 11,
+                          color: HX.text3,
+                        }}
+                      >
+                        <FuelDot kind={p.fuel} size={7} />
+                        <span>{p.fuel}</span>
+                        <span>· {fmtNum(p.count)} GD</span>
+                      </div>
+                    </div>
                     <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        marginTop: 4,
-                        fontSize: 11,
-                        color: HX.text3,
-                      }}
+                      className="hx-num"
+                      style={{ fontSize: 15, fontWeight: 700, flexShrink: 0 }}
                     >
-                      <FuelDot kind={p.fuel} size={7} />
-                      <span>{p.fuel}</span>
-                      <span>· {fmtNum(p.count)} GD</span>
+                      {fmtNum(p.revenue)}
+                      <span style={{ color: HX.text3, fontSize: 11, fontWeight: 400 }}> ₫</span>
                     </div>
                   </div>
+                  {/* Sản lượng DB vs Thực tế vs Chênh lệch */}
                   <div
-                    className="hx-num"
-                    style={{ fontSize: 15, fontWeight: 700, flexShrink: 0 }}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr 1fr",
+                      gap: 10,
+                      marginTop: 8,
+                      paddingTop: 8,
+                      borderTop: `1px dashed ${HX.hairline}`,
+                      fontSize: 11,
+                    }}
                   >
-                    {fmtNum(p.revenue)}
-                    <span style={{ color: HX.text3, fontSize: 11, fontWeight: 400 }}> ₫</span>
+                    <div>
+                      <div style={{ color: HX.text3, marginBottom: 2 }}>Sản lượng DB</div>
+                      <div className="hx-num" style={{ color: HX.text2, fontWeight: 600, fontSize: 12 }}>
+                        {fmtNum(p.dbLiters)} L
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ color: HX.text3, marginBottom: 2 }}>Thực tế</div>
+                      <div
+                        className="hx-num"
+                        style={{
+                          color: p.actualLiters != null ? HX.text : HX.text3,
+                          fontWeight: 600,
+                          fontSize: 12,
+                        }}
+                      >
+                        {p.actualLiters != null ? `${fmtNum(p.actualLiters)} L` : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ color: HX.text3, marginBottom: 2 }}>Chênh lệch</div>
+                      <div
+                        className="hx-num"
+                        style={{ color: diffColor, fontWeight: 700, fontSize: 12 }}
+                      >
+                        {p.diffLiters != null
+                          ? `${p.diffLiters > 0 ? "+" : ""}${fmtNum(p.diffLiters)} L`
+                          : "—"}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
           {bestPump && (
             <div

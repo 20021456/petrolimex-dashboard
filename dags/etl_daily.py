@@ -53,7 +53,13 @@ def run_auto_update(api, max_days=90):
     print("🛢️  CẬP NHẬT DỮ LIỆU BỒN BỂ")
     print("-" * 70)
     update_tank_data(api)
-    
+
+    # Snapshot TOTAL của các cột bơm (dùng so sánh sản lượng thực tế vs DB)
+    print("\n" + "-" * 70)
+    print("📊 SNAPSHOT TOTAL CỘT BƠM")
+    print("-" * 70)
+    log_pump_totals(api)
+
     if total_imported > 0:
         print(f"\n✅ THÀNH CÔNG! Đã cập nhật {total_imported:,} bản ghi mới")
     else:
@@ -65,34 +71,54 @@ def update_tank_data(api):
     try:
         # Lấy dữ liệu bồn bể từ trang web
         tank_data = api.get_tank_inventory()
-        
+
         if not tank_data:
             print("ℹ️  Không có dữ liệu bồn bể để cập nhật")
             return
-        
+
         # Kết nối MySQL
         if not api.connect_mysql():
             print("✗ Không thể kết nối MySQL để cập nhật bồn bể")
             return
-        
+
         # Tạo bảng nếu chưa tồn tại
         if not api.create_tanks_table():
             print("✗ Không thể tạo bảng fuel_tanks")
             api.close_mysql()
             return
-        
+
         # Insert dữ liệu
         success = api.insert_tanks_to_mysql(tank_data)
-        
+
         api.close_mysql()
-        
+
         if success > 0:
             print(f"✅ Đã cập nhật {success} bồn bể vào database")
         else:
             print("⚠️  Không có bồn bể nào được cập nhật")
-            
+
     except Exception as e:
         print(f"✗ Lỗi khi cập nhật bồn bể: {e}")
+
+
+def log_pump_totals(api):
+    """Snapshot TOTAL của các cột bơm vào pump_total_log."""
+    try:
+        online_data = api.get_online_status()
+        if not online_data:
+            print("ℹ️  Không có dữ liệu online để snapshot TOTAL")
+            return
+        if not api.connect_mysql():
+            print("✗ Không thể kết nối MySQL để log pump totals")
+            return
+        ok = api.log_pump_totals(online_data)
+        api.close_mysql()
+        if ok > 0:
+            print(f"✅ Đã snapshot TOTAL của {ok} cột bơm")
+        else:
+            print("⚠️  Không snapshot được TOTAL nào")
+    except Exception as e:
+        print(f"✗ Lỗi khi log pump totals: {e}")
 
 
 def run_reload_from_august(api):
