@@ -373,7 +373,7 @@ function Hub({
                 Xăng dầu
               </div>
               <div style={{ fontSize: 13, color: HX.text2, marginTop: 2 }}>
-                Nhập vào 4 bồn · tính theo lít
+                Nhập vào 3 bồn · tính theo lít
               </div>
             </div>
             <Icon name="chevron" size={18} color={HX.text2} strokeWidth={2.2} />

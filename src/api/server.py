@@ -202,16 +202,8 @@ def auto_update():
 
             total_imported = api.auto_update(max_days_back=90)
 
-            # Cập nhật bồn bể (giống bước 2 của etl_daily mode 1)
-            tanks_updated = 0
-            try:
-                tank_data = api.get_tank_inventory()
-                if tank_data and api.connect_mysql():
-                    if api.create_tanks_table():
-                        tanks_updated = api.insert_tanks_to_mysql(tank_data) or 0
-                    api.close_mysql()
-            except Exception as tank_err:
-                print(f"[API] Cảnh báo: lỗi cập nhật bồn bể: {tank_err}")
+            # KHÔNG còn upsert vào fuel_tanks — bảng đã bị xóa. UI lấy 3 bồn
+            # từ config cứng (xem /api/fuel/tanks).
 
             # Snapshot TOTAL từ trang Theo Dõi Online vào pump_total_log.
             # Mỗi lần update lưu thêm 1 dòng → đầu ngày trừ với hiện tại sẽ
@@ -229,11 +221,9 @@ def auto_update():
                 'success': True,
                 'message': (
                     f'Đã cập nhật {total_imported} bản ghi giao dịch'
-                    f' + {tanks_updated} bồn bể'
                     f' + {pump_totals_logged} cột bơm (TOTAL)'
                 ),
                 'total_imported': total_imported,
-                'tanks_updated': tanks_updated,
                 'pump_totals_logged': pump_totals_logged,
             })
 

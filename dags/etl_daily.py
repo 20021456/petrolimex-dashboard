@@ -48,11 +48,8 @@ def run_auto_update(api, max_days=90):
     
     total_imported = api.auto_update(max_days_back=max_days)
     
-    # Cập nhật dữ liệu bồn bể
-    print("\n" + "-" * 70)
-    print("🛢️  CẬP NHẬT DỮ LIỆU BỒN BỂ")
-    print("-" * 70)
-    update_tank_data(api)
+    # Bảng fuel_tanks đã được xóa — UI lấy 3 bồn từ config cứng trong
+    # /api/fuel/tanks. Không upsert vào bảng đó nữa.
 
     # Snapshot TOTAL của các cột bơm (dùng so sánh sản lượng thực tế vs DB)
     print("\n" + "-" * 70)
@@ -64,41 +61,6 @@ def run_auto_update(api, max_days=90):
         print(f"\n✅ THÀNH CÔNG! Đã cập nhật {total_imported:,} bản ghi mới")
     else:
         print(f"\n✅ THÀNH CÔNG! Dữ liệu đã up-to-date")
-
-
-def update_tank_data(api):
-    """Cập nhật dữ liệu bồn bể vào MySQL"""
-    try:
-        # Lấy dữ liệu bồn bể từ trang web
-        tank_data = api.get_tank_inventory()
-
-        if not tank_data:
-            print("ℹ️  Không có dữ liệu bồn bể để cập nhật")
-            return
-
-        # Kết nối MySQL
-        if not api.connect_mysql():
-            print("✗ Không thể kết nối MySQL để cập nhật bồn bể")
-            return
-
-        # Tạo bảng nếu chưa tồn tại
-        if not api.create_tanks_table():
-            print("✗ Không thể tạo bảng fuel_tanks")
-            api.close_mysql()
-            return
-
-        # Insert dữ liệu
-        success = api.insert_tanks_to_mysql(tank_data)
-
-        api.close_mysql()
-
-        if success > 0:
-            print(f"✅ Đã cập nhật {success} bồn bể vào database")
-        else:
-            print("⚠️  Không có bồn bể nào được cập nhật")
-
-    except Exception as e:
-        print(f"✗ Lỗi khi cập nhật bồn bể: {e}")
 
 
 def log_pump_totals(api):

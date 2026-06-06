@@ -140,8 +140,8 @@ export function fuelKind(fuelType: string): "RON95" | "E5" | "DO" | "DO+" | "" {
   return ""
 }
 
-// Bồn → fuel kind, theo ánh xạ thực tế tại trạm (xem TANK_COT_BOM_NUMS
-// trong /api/fuel/tanks). Dùng làm fallback khi nhien_lieu upstream rỗng.
+// Bồn → fuel kind (chỉ dùng làm fallback chấm màu/icon khi nhien_lieu rỗng).
+// Bồn 1 RON95, Bồn 2 DO 0,05S-II, Bồn 3 DO 0,001S-V — 3 bồn cố định.
 const BON_TO_KIND: Record<string, "RON95" | "E5" | "DO" | "DO+"> = {
   "BỒN 1": "RON95",
   "BỒN 2": "DO",
@@ -162,10 +162,13 @@ export function tankKind(tenBon: string, fuelType: string): "RON95" | "E5" | "DO
   return BON_TO_KIND[(tenBon || "").trim().toUpperCase()] || ""
 }
 
-// Nhãn hiển thị "Bồn N (KIND)" — luôn có cả số bồn và loại nhiên liệu.
+// Nhãn hiển thị "Bồn N (<fuel_name>)" — ưu tiên tên nhiên liệu cụ thể
+// (RON95-III, DO 0,05S-II, DO 0,001S-V) thay vì kind ngắn (RON95, DO, DO+).
 export function tankLabel(tenBon: string, fuelType: string): string {
-  const kind = tankKind(tenBon, fuelType)
   const bon = prettyBon(tenBon)
+  const fuel = (fuelType || "").trim()
+  if (fuel) return `${bon} (${fuel})`
+  const kind = BON_TO_KIND[(tenBon || "").trim().toUpperCase()]
   return kind ? `${bon} (${kind})` : bon
 }
 
