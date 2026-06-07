@@ -6,7 +6,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
-import { HX, Icon, FuelDot, Delta, ProgressBar } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelEntryByKind, Delta, ProgressBar } from "@/components/htx-kit"
 import {
   type ReportState,
   type Period,
@@ -396,7 +396,7 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        · {p.fuel} · {fmtNum(p.count)} GD
+                        · {fuelEntryByKind(p.fuel)?.name || p.fuel} · {fmtNum(p.count)} GD
                       </span>
                     </div>
                     <div
