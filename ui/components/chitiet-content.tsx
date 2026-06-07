@@ -867,14 +867,19 @@ export function useReport() {
           diffLiters,
         }
       })
-      .sort((a, b) => b.revenue - a.revenue)
+      // Sắp theo số cột (Cột 1 → 5) cho dễ nhìn, không theo doanh thu.
+      .sort((a, b) => a.cotBom - b.cotBom)
   }, [stats, pumpTotals])
 
-  const bestPump = byPump[0]
-    ? {
-        name: `Cột ${byPump[0].cotBom} · ${byPump[0].fuel}`,
-        avg: byPump[0].count > 0 ? byPump[0].revenue / byPump[0].count : 0,
-      }
+  // "Cột hiệu quả nhất" = doanh thu cao nhất — tính độc lập với thứ tự hiển thị.
+  const bestPump = byPump.length
+    ? (() => {
+        const top = byPump.reduce((best, p) => (p.revenue > best.revenue ? p : best))
+        return {
+          name: `Cột ${top.cotBom} · ${top.fuel}`,
+          avg: top.count > 0 ? top.revenue / top.count : 0,
+        }
+      })()
     : null
 
   return {
