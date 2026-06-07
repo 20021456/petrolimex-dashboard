@@ -172,6 +172,42 @@ export function tankLabel(tenBon: string, fuelType: string): string {
   return kind ? `${bon} (${kind})` : bon
 }
 
+// ── Canonical fuel taxonomy ───────────────────────────────────
+// Nguồn chân lý DUY NHẤT nối 3 bảng với nhau: giao dịch (suy từ cot_bom)
+// · tồn kho (bồn bể) · báo cáo "theo loại nhiên liệu". Trạm có đúng 3 bồn:
+//   Bồn 1 = RON95-III   = cột 2,3 → kind RON95
+//   Bồn 2 = DO 0,05S-II  = cột 1,4 → kind DO
+//   Bồn 3 = DO 0,001S-V  = cột 5   → kind DO+
+// Không có E5 (không có bồn) nên KHÔNG hiển thị E5.
+export interface FuelEntry {
+  kind: "RON95" | "DO" | "DO+"
+  name: string // tên nhiên liệu đầy đủ
+  bon: string // nhãn bồn
+  label: string // "Bồn 1 · RON95-III"
+  cotBoms: number[] // các cột bơm thuộc bồn
+  color: string
+}
+
+export const FUELS: FuelEntry[] = [
+  { kind: "RON95", name: "RON95-III", bon: "Bồn 1", label: "Bồn 1 · RON95-III", cotBoms: [2, 3], color: HX.ron95 },
+  { kind: "DO", name: "DO 0,05S-II", bon: "Bồn 2", label: "Bồn 2 · DO 0,05S-II", cotBoms: [1, 4], color: HX.do },
+  { kind: "DO+", name: "DO 0,001S-V", bon: "Bồn 3", label: "Bồn 3 · DO 0,001S-V", cotBoms: [5], color: HX.doPlus },
+]
+
+// cot_bom → nhiên liệu (đồng bộ FUEL_CASE ở các API route).
+export const COT_BOM_TO_FUEL: Record<number, string> = {
+  1: "DO 0,05S-II",
+  2: "RON95-III",
+  3: "RON95-III",
+  4: "DO 0,05S-II",
+  5: "DO 0,001S-V",
+}
+
+// Tra cứu nhiên liệu theo kind (RON95 / DO / DO+).
+export function fuelEntryByKind(kind: string): FuelEntry | undefined {
+  return FUELS.find((f) => f.kind === kind)
+}
+
 // ── Delta badge ───────────────────────────────────────────────
 export function Delta({
   value,

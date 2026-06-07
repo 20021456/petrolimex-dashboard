@@ -7,7 +7,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
-import { HX, Icon, FuelDot, fuelKind, WKpi, useIsMobile } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelKind, FUELS, WKpi, useIsMobile } from "@/components/htx-kit"
 import { CustomerEditPopover } from "@/components/customer-edit-popover"
 import { TxPageMobile } from "@/components/tx-page-mobile"
 
@@ -388,10 +388,7 @@ export function TxPage({ onNavigate }: TxPageProps) {
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {[
                 { k: "all", l: "Tất cả", color: undefined as string | undefined },
-                { k: "RON95", l: "RON95", color: HX.ron95 },
-                { k: "E5", l: "E5", color: HX.e5 },
-                { k: "DO", l: "DO", color: HX.do },
-                { k: "DO+", l: "DO+", color: HX.doPlus },
+                ...FUELS.map((f) => ({ k: f.kind, l: f.name, color: f.color })),
               ].map((o) => (
                 <div
                   key={o.k}
