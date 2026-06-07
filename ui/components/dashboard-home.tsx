@@ -88,6 +88,7 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const isMobile = useIsMobile()
   const [home, setHome] = React.useState<any>(null)
   const [tanksRaw, setTanksRaw] = React.useState<any[]>([])
+  const [hourlyTotals, setHourlyTotals] = React.useState<any>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -95,15 +96,19 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
     setLoading(true)
     setError(null)
     try {
-      const [h, t] = await Promise.all([
+      const [h, t, ht] = await Promise.all([
         fetch("/api/home", { cache: "no-store" }).then((r) => r.json()),
         fetch("/api/fuel/tanks", { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => ({ success: false })),
+        fetch("/api/pump-totals/hourly", { cache: "no-store" })
           .then((r) => r.json())
           .catch(() => ({ success: false })),
       ])
       if (!h?.success) throw new Error(h?.error || "Không tải được dữ liệu")
       setHome(h.data)
       setTanksRaw(t?.success && Array.isArray(t.data) ? t.data : [])
+      setHourlyTotals(ht?.success ? ht.data : null)
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -668,6 +673,94 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
           })}
         </div>
       </div>
+
+      {/* ─── TOTAL theo giờ (pump_total_log) ─── */}
+      {(() => {
+        const cotBoms: number[] = Array.isArray(hourlyTotals?.cotBoms) ? hourlyTotals.cotBoms : []
+        const cotMeta: Record<string, any> = hourlyTotals?.cotMeta || {}
+        const hours: any[] = Array.isArray(hourlyTotals?.hours) ? hourlyTotals.hours : []
+        const HT_COLS = `64px repeat(${Math.max(cotBoms.length, 1)}, 1fr) 110px`
+        return (
+          <WSection
+            title="Chỉ số TOTAL theo giờ"
+            sub="Số đọc cộng dồn của từng cột bơm chốt cuối mỗi giờ · từ pump_total_log"
+            right={<GhostBtn onClick={() => onNavigate?.("chitiet")}>Xem chi tiết →</GhostBtn>}
+          >
+            <div
+              style={{
+                background: HX.surface,
+                border: `1px solid ${HX.hairline}`,
+                borderRadius: 14,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: HT_COLS,
+                  alignItems: "center",
+                  columnGap: 12,
+                  padding: "12px 20px",
+                  background: HX.bg,
+                  borderBottom: `1px solid ${HX.hairline}`,
+                  fontSize: 11,
+                  color: HX.text3,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                <span>Giờ</span>
+                {cotBoms.map((cb) => (
+                  <span key={cb} style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                    <span>{cotMeta[cb]?.ten_cot || `Cột ${cb}`}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, opacity: 0.85 }}>
+                      <FuelDot kind={fuelKind(cotMeta[cb]?.nhien_lieu || "")} size={6} />
+                      {cotMeta[cb]?.nhien_lieu || ""}
+                    </span>
+                  </span>
+                ))}
+                <span style={{ textAlign: "right" }}>Lít bán/giờ</span>
+              </div>
+              <div style={{ maxHeight: 360, overflowY: "auto" }} className="hxw-scroll">
+                {cotBoms.length === 0 || hours.length === 0 ? (
+                  <div style={{ padding: "28px 20px", textAlign: "center", fontSize: 13, color: HX.text3 }}>
+                    Chưa có dữ liệu TOTAL hôm nay
+                  </div>
+                ) : (
+                  hours.map((row: any, i: number) => (
+                    <div
+                      key={row.hour}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: HT_COLS,
+                        alignItems: "center",
+                        columnGap: 12,
+                        padding: "13px 20px",
+                        fontSize: 13,
+                        color: HX.text,
+                        borderTop: i === 0 ? "none" : `1px solid ${HX.hairline}`,
+                      }}
+                    >
+                      <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
+                        {String(row.hour).padStart(2, "0")}:00
+                      </span>
+                      {cotBoms.map((cb) => (
+                        <span key={cb} className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
+                          {row.totals?.[cb] != null ? fmtVN(row.totals[cb]) : "—"}
+                        </span>
+                      ))}
+                      <span className="hx-num" style={{ textAlign: "right", fontWeight: 700 }}>
+                        {row.soldTotal > 0 ? `${fmtVN(row.soldTotal)} L` : "—"}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </WSection>
+        )
+      })()}
 
       {/* ─── Recent transactions ─── */}
       <WSection
