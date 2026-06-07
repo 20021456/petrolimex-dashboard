@@ -103,6 +103,9 @@ function fmtDM(d: Date) {
 function fmtDMY(d: Date) {
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`
 }
+function toYmd(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
 
 interface DateRange {
   from: Date
@@ -703,11 +706,14 @@ export function useRetailSales(from: Date, to: Date) {
 // ── Main ──────────────────────────────────────────────────────
 export function useReport() {
   const [period, setPeriod] = React.useState<Period>("today")
+  // Ngày tham chiếu — kỳ hiện tại tính quanh ngày này, kỳ so sánh lùi 1 đơn vị.
+  const [refDate, setRefDate] = React.useState<Date>(() => new Date())
   const [stats, setStats] = React.useState<any>(null)
   const [prevStats, setPrevStats] = React.useState<any>(null)
   const [loading, setLoading] = React.useState(true)
 
-  const ranges = React.useMemo(() => getPeriodRange(period), [period])
+  const ranges = React.useMemo(() => getPeriodRange(period, refDate), [period, refDate])
+  const refIsToday = React.useMemo(() => toYmd(refDate) === toYmd(new Date()), [refDate])
   const meta = PERIOD_META[period]
 
   // Sản lượng thực tế từ pump_total_log — chỉ có ý nghĩa cho "hôm nay"
@@ -748,8 +754,9 @@ export function useReport() {
       fetchStats(ranges.cur),
       fetchStats(ranges.prev),
     ]
-    // pump_total_log chỉ áp dụng cho period="today"
-    if (period === "today") {
+    // pump_total_log (đồng hồ thực tế) chỉ có dữ liệu cho NGÀY HÔM NAY
+    // thật sự — không áp dụng khi xem ngày quá khứ.
+    if (period === "today" && refIsToday) {
       tasks.push(
         fetch("/api/pump-totals", { cache: "no-store" })
           .then((r) => r.json())
@@ -786,7 +793,7 @@ export function useReport() {
     return () => {
       alive = false
     }
-  }, [ranges, period])
+  }, [ranges, period, refIsToday])
 
   const revenue = Number(stats?.overview?.totalRevenue || 0)
   const prevRevenue = Number(prevStats?.overview?.totalRevenue || 0)
@@ -930,6 +937,9 @@ export function useReport() {
     bestPump,
     hasPumpTotals: !!pumpTotals,
     discrepancy,
+    refDate,
+    setRefDate,
+    refIsToday,
   }
 }
 
@@ -961,6 +971,9 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
     byPump,
     bestPump,
     discrepancy,
+    refDate,
+    setRefDate,
+    refIsToday,
   } = report
 
   const { staff } = useStaff()
@@ -1031,12 +1044,19 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
         >
           <span>
             Đang xem{" "}
-            <span style={{ color: HX.accent, fontWeight: 600 }}>{meta.label}</span> · So sánh với{" "}
-            <span style={{ color: HX.text2, fontWeight: 500 }}>{meta.compare}</span>
+            <span style={{ color: HX.accent, fontWeight: 600 }}>
+              {refIsToday ? meta.label : rangeLabel(period, ranges.cur)}
+            </span>{" "}
+            · So sánh với{" "}
+            <span style={{ color: HX.text2, fontWeight: 500 }}>
+              {refIsToday ? meta.compare : rangeLabel(period, ranges.prev)}
+            </span>
             {loading && <span style={{ marginLeft: 10, color: HX.text3 }}>· Đang tải…</span>}
           </span>
-          <div
+          <label
+            title="Chọn ngày tham chiếu"
             style={{
+              position: "relative",
               display: "flex",
               alignItems: "center",
               gap: 8,
@@ -1048,11 +1068,57 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
               fontSize: 13,
               fontWeight: 500,
               color: HX.text,
+              cursor: "pointer",
             }}
           >
             <Icon name="calendar" size={15} color={HX.text2} />
             <span>{rangeLabel(period, ranges.cur)}</span>
-          </div>
+            <Icon name="chevronDown" size={13} color={HX.text3} />
+            <input
+              type="date"
+              value={toYmd(refDate)}
+              max={toYmd(new Date())}
+              onClick={(e) => {
+                const el = e.currentTarget as HTMLInputElement & { showPicker?: () => void }
+                el.showPicker?.()
+              }}
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v) return
+                const [y, m, d] = v.split("-").map(Number)
+                setRefDate(new Date(y, m - 1, d))
+              }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                opacity: 0,
+                cursor: "pointer",
+                colorScheme: "dark",
+              }}
+            />
+          </label>
+          {!refIsToday && (
+            <button
+              onClick={() => setRefDate(new Date())}
+              className="hxw-press"
+              style={{
+                height: 36,
+                padding: "0 12px",
+                borderRadius: 10,
+                background: "transparent",
+                color: HX.accent,
+                border: `1px solid ${accentBorder}`,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Về hôm nay
+            </button>
+          )}
         </div>
       </div>
 
@@ -1368,7 +1434,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
         </div>
 
         {/* Chênh lệch giao dịch vs đồng hồ thực tế theo giờ */}
-        {period === "today" && (
+        {period === "today" && refIsToday && (
           <div
             style={{
               background: HX.surface,
