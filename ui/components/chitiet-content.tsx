@@ -7,7 +7,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
-import { HX, Icon, FuelDot, fuelKind, Delta, WKpi, WSection, useIsMobile } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelKind, FUELS, Delta, WKpi, WSection, useIsMobile } from "@/components/htx-kit"
 import { ChiTietContentMobile } from "@/components/chitiet-content-mobile"
 import { useStaff, type StaffMember } from "@/components/cabanhang-content"
 import { useRetailProducts, type PosProduct } from "@/components/pos-page"
@@ -815,15 +815,20 @@ export function useReport() {
       }
     })
 
-    return (["RON95", "E5", "DO", "DO+"] as const).map((k) => {
-      const g = groups[k] || { revenue: 0, liters: 0 }
+    // Chỉ 3 nhiên liệu theo bồn (RON95-III / DO 0,05S-II / DO 0,001S-V),
+    // nhãn kèm tên bồn để khớp thẳng với thẻ tồn kho. Bỏ E5 (không có bồn).
+    return FUELS.map((f) => {
+      const g = groups[f.kind] || { revenue: 0, liters: 0 }
       const pct = total > 0 ? Math.round((g.revenue / total) * 100) : 0
       const actualLiters =
-        actualByKind[k] != null ? actualByKind[k] : null
+        actualByKind[f.kind] != null ? actualByKind[f.kind] : null
       const diffLiters =
         actualLiters != null ? actualLiters - g.liters : null
       return {
-        name: k,
+        kind: f.kind,
+        name: f.name,
+        bon: f.bon,
+        label: f.label,
         revenue: g.revenue,
         liters: g.liters,
         pct,
@@ -1220,7 +1225,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
             <span style={{ textAlign: "right" }}>%</span>
           </div>
           {byFuel.map((r) => {
-            const color = KIND_COLOR[r.name] || HX.text2
+            const color = KIND_COLOR[r.kind] || HX.text2
             const diffColor =
               r.diffLiters == null
                 ? HX.text3
@@ -1231,7 +1236,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                     : HX.bad
             return (
               <div
-                key={r.name}
+                key={r.kind}
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1.1fr 90px 100px 90px 110px 80px",
@@ -1242,9 +1247,12 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                   borderBottom: `1px solid ${HX.hairline}`,
                 }}
               >
-                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <FuelDot kind={r.name} />
-                  <span style={{ fontWeight: 600 }}>{r.name}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                  <FuelDot kind={r.kind} />
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ fontWeight: 600, display: "block" }}>{r.name}</span>
+                    <span style={{ fontSize: 11, color: HX.text3 }}>{r.bon}</span>
+                  </span>
                 </span>
                 <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
                   {fmtNum(r.liters)} L

@@ -257,7 +257,7 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
                     : HX.bad
             return (
               <div
-                key={r.name}
+                key={r.kind}
                 style={{
                   paddingTop: i === 0 ? 0 : 12,
                   paddingBottom: i === byFuel.length - 1 ? 0 : 12,
@@ -277,10 +277,10 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
                   <div
                     style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}
                   >
-                    <FuelDot kind={r.name} />
+                    <FuelDot kind={r.kind} />
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</span>
                     <span style={{ fontSize: 11, color: HX.text3 }}>
-                      · {fmtNum(r.liters)} L
+                      · {r.bon} · {fmtNum(r.liters)} L
                     </span>
                   </div>
                   <div
@@ -294,7 +294,7 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
                     </span>
                   </div>
                 </div>
-                <ProgressBar pct={r.pct} color={KIND_COLOR[r.name]} h={5} />
+                <ProgressBar pct={r.pct} color={KIND_COLOR[r.kind]} h={5} />
                 {/* Thực tế vs chênh lệch */}
                 {(r.actualLiters != null || r.diffLiters != null) && (
                   <div

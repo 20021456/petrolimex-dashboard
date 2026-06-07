@@ -11,6 +11,7 @@ import {
   Icon,
   FuelDot,
   fuelKind,
+  fuelEntryByKind,
   tankKind,
   tankLabel,
   Sparkline,
@@ -367,7 +368,12 @@ export function DashboardHomeMobile({ home, tanksRaw, onNavigate, reload }: Mobi
                   }}
                 >
                   <FuelDot kind={kind} />
-                  <span style={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0 }}>{r.fuelType}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0 }}>
+                    {r.fuelType}
+                    {fuelEntryByKind(kind)?.bon ? (
+                      <span style={{ fontSize: 11, color: HX.text3, fontWeight: 400 }}> · {fuelEntryByKind(kind)!.bon}</span>
+                    ) : null}
+                  </span>
                   <span className="hx-num" style={{ fontSize: 13, fontWeight: 600 }}>
                     {fmtVN(r.revenue)} ₫
                   </span>

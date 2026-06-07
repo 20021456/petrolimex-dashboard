@@ -12,6 +12,7 @@ import {
   Icon,
   FuelDot,
   fuelKind,
+  fuelEntryByKind,
   tankKind,
   tankLabel,
   Sparkline,
@@ -659,7 +660,7 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
                       {r.name}
                     </span>
                     <span style={{ fontSize: 12, color: HX.text3, whiteSpace: "nowrap" }}>
-                      · {fmtVN(r.liters)} L
+                      {fuelEntryByKind(kind)?.bon ? `· ${fuelEntryByKind(kind)!.bon} ` : ""}· {fmtVN(r.liters)} L
                     </span>
                   </div>
                   <div className="hx-num" style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
