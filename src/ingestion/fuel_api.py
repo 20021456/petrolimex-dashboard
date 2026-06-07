@@ -443,8 +443,18 @@ class FuelAPI:
         
         try:
             self.mysql_connection = mysql.connector.connect(**self.mysql_config)
-            
+
             if self.mysql_connection.is_connected():
+                # Ép session về giờ Việt Nam (UTC+7) để NOW()/CURDATE()/DATE()
+                # khớp với dữ liệu giờ địa phương (fuel_pump, pump_total_log).
+                # Nếu không, NOW() theo giờ server (UTC) làm logged_at lệch 7h
+                # và tính sai sản lượng đầu ngày.
+                try:
+                    cursor = self.mysql_connection.cursor()
+                    cursor.execute("SET time_zone = '+07:00'")
+                    cursor.close()
+                except Error as tz_err:
+                    print(f"⚠️  Không set được time_zone +07:00: {tz_err}")
                 print(f"✓ Kết nối MySQL thành công - Database: {self.mysql_config['database']}")
                 return True
             else:
