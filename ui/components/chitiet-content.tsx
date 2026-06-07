@@ -7,7 +7,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
-import { HX, Icon, FuelDot, fuelKind, FUELS, Delta, WKpi, WSection, useIsMobile } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelKind, fuelEntryByKind, FUELS, Delta, WKpi, WSection, useIsMobile } from "@/components/htx-kit"
 import { ChiTietContentMobile } from "@/components/chitiet-content-mobile"
 import { useStaff, type StaffMember } from "@/components/cabanhang-content"
 import { useRetailProducts, type PosProduct } from "@/components/pos-page"
@@ -727,6 +727,20 @@ export function useReport() {
     }>
   } | null>(null)
 
+  // Chênh lệch giao dịch vs đồng hồ thực tế theo khoảng giờ (chỉ "hôm nay").
+  const [discrepancy, setDiscrepancy] = React.useState<{
+    threshold: number
+    items: Array<{
+      cotBom: number
+      fuel: string
+      fromHm: string
+      toHm: string
+      meterDelta: number
+      dbLiters: number
+      diff: number
+    }>
+  } | null>(null)
+
   React.useEffect(() => {
     let alive = true
     setLoading(true)
@@ -741,6 +755,11 @@ export function useReport() {
           .then((r) => r.json())
           .catch(() => null)
       )
+      tasks.push(
+        fetch("/api/pump-totals/discrepancy", { cache: "no-store" })
+          .then((r) => r.json())
+          .catch(() => null)
+      )
     }
     Promise.all(tasks)
       .then((results) => {
@@ -748,15 +767,18 @@ export function useReport() {
         const cur = results[0]
         const prev = results[1]
         const totals = results[2]
+        const disc = results[3]
         setStats(cur?.success ? cur.data : null)
         setPrevStats(prev?.success ? prev.data : null)
         setPumpTotals(totals?.success ? totals.data : null)
+        setDiscrepancy(disc?.success ? disc.data : null)
       })
       .catch(() => {
         if (!alive) return
         setStats(null)
         setPrevStats(null)
         setPumpTotals(null)
+        setDiscrepancy(null)
       })
       .finally(() => {
         if (alive) setLoading(false)
@@ -907,6 +929,7 @@ export function useReport() {
     byPump,
     bestPump,
     hasPumpTotals: !!pumpTotals,
+    discrepancy,
   }
 }
 
@@ -937,6 +960,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
     byFuel,
     byPump,
     bestPump,
+    discrepancy,
   } = report
 
   const { staff } = useStaff()
@@ -1192,6 +1216,8 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           marginBottom: 22,
         }}
       >
+        {/* Left column: by fuel + discrepancy */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
         {/* By fuel */}
         <div
           style={{
@@ -1211,7 +1237,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0,1.5fr) 64px 64px 62px 96px 62px",
+              gridTemplateColumns: "minmax(0,1.2fr) repeat(5, minmax(0,1fr))",
               gap: 8,
               padding: "8px 0",
               borderBottom: `1px solid ${HX.hairline}`,
@@ -1244,7 +1270,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                 key={r.kind}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0,1.5fr) 64px 64px 62px 96px 62px",
+                  gridTemplateColumns: "minmax(0,1.2fr) repeat(5, minmax(0,1fr))",
                   gap: 8,
                   padding: "12px 0",
                   fontSize: 13,
@@ -1341,6 +1367,105 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           })}
         </div>
 
+        {/* Chênh lệch giao dịch vs đồng hồ thực tế theo giờ */}
+        {period === "today" && (
+          <div
+            style={{
+              background: HX.surface,
+              border: `1px solid ${HX.hairline}`,
+              borderRadius: 16,
+              padding: 24,
+              flex: 1,
+            }}
+          >
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>Chênh lệch theo giờ</div>
+              <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>
+                Giao dịch ghi nhận so với đồng hồ thực tế · lệch ≥ {discrepancy?.threshold ?? 2} L · hôm nay
+              </div>
+            </div>
+            {!discrepancy ? (
+              <div style={{ padding: "24px 0", textAlign: "center", color: HX.text3, fontSize: 13 }}>
+                Đang tải…
+              </div>
+            ) : discrepancy.items.length === 0 ? (
+              <div
+                style={{
+                  padding: "24px 0",
+                  textAlign: "center",
+                  color: HX.text3,
+                  fontSize: 13,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke={HX.good} strokeWidth="1.6" />
+                  <path d="m8 12 3 3 5-6" stroke={HX.good} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Không có chênh lệch đáng kể giữa giao dịch và đồng hồ
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {discrepancy.items.map((d, i) => {
+                  const positive = d.diff > 0
+                  const c = positive ? HX.warn : HX.bad
+                  return (
+                    <div
+                      key={`${d.cotBom}-${d.toHm}-${i}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        padding: "11px 14px",
+                        background: HX.bg,
+                        border: `1px solid ${HX.hairline}`,
+                        borderLeft: `3px solid ${c}`,
+                        borderRadius: 10,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                        <span
+                          className="hx-num"
+                          style={{ fontSize: 13, fontWeight: 600, color: HX.text2, flexShrink: 0 }}
+                        >
+                          {d.fromHm}–{d.toHm}
+                        </span>
+                        <FuelDot kind={fuelKind(d.fuel)} size={7} />
+                        <span style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Cột {d.cotBom}</span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: HX.text3,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {d.fuel}
+                        </span>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div className="hx-num" style={{ fontSize: 14, fontWeight: 700, color: c }}>
+                          {positive ? "+" : ""}
+                          {fmtNum(d.diff)} L
+                        </div>
+                        <div className="hx-num" style={{ fontSize: 10.5, color: HX.text3, marginTop: 1 }}>
+                          ĐH {fmtNum(d.meterDelta)} · GD {fmtNum(d.dbLiters)}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+        </div>
+
         {/* By pump */}
         <div
           style={{
@@ -1389,26 +1514,24 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      alignItems: "flex-start",
+                      alignItems: "center",
                       gap: 12,
                     }}
                   >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>Cột {p.cotBom}</div>
-                      <div
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, flexShrink: 0 }}>Cột {p.cotBom}</span>
+                      <FuelDot kind={p.fuel} size={7} />
+                      <span
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                          marginTop: 4,
                           fontSize: 11,
                           color: HX.text3,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        <FuelDot kind={p.fuel} size={7} />
-                        <span>{p.fuel}</span>
-                        <span>· {fmtNum(p.count)} GD</span>
-                      </div>
+                        {fuelEntryByKind(p.fuel)?.name || p.fuel} · {fmtNum(p.count)} GD
+                      </span>
                     </div>
                     <div
                       className="hx-num"
