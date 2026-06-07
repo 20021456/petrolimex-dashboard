@@ -13,7 +13,7 @@ if PROJECT_ROOT not in sys.path:
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from bs4 import BeautifulSoup
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import time
 import sys
@@ -445,16 +445,6 @@ class FuelAPI:
             self.mysql_connection = mysql.connector.connect(**self.mysql_config)
 
             if self.mysql_connection.is_connected():
-                # Ép session về giờ Việt Nam (UTC+7) để NOW()/CURDATE()/DATE()
-                # khớp với dữ liệu giờ địa phương (fuel_pump, pump_total_log).
-                # Nếu không, NOW() theo giờ server (UTC) làm logged_at lệch 7h
-                # và tính sai sản lượng đầu ngày.
-                try:
-                    cursor = self.mysql_connection.cursor()
-                    cursor.execute("SET time_zone = '+07:00'")
-                    cursor.close()
-                except Error as tz_err:
-                    print(f"⚠️  Không set được time_zone +07:00: {tz_err}")
                 print(f"✓ Kết nối MySQL thành công - Database: {self.mysql_config['database']}")
                 return True
             else:
@@ -784,6 +774,11 @@ class FuelAPI:
         print("   " + "-" * 78)
 
         ok = 0
+        # Giờ Việt Nam (UTC+7) đúng theo đồng hồ thực, độc lập với timezone
+        # của container/server. logged_at là cột DATETIME (không bị MySQL quy
+        # đổi theo session time_zone) nên ghi thẳng giờ VN để khớp convention
+        # giờ địa phương của fuel_pump.ket_thuc_bom.
+        vn_now = datetime.now(timezone(timedelta(hours=7))).replace(tzinfo=None)
         try:
             cursor = self.mysql_connection.cursor()
             inserted_cols = []
@@ -805,9 +800,9 @@ class FuelAPI:
                         """
                         INSERT INTO pump_total_log
                         (cot_bom, ten_cot, nhien_lieu, total, logged_at)
-                        VALUES (%s, %s, %s, %s, NOW())
+                        VALUES (%s, %s, %s, %s, %s)
                         """,
-                        (cot_bom, ten_cot, nhien_lieu, total)
+                        (cot_bom, ten_cot, nhien_lieu, total, vn_now)
                     )
                     ok += 1
                     inserted_cols.append(f"cột {cot_bom}={total:,.2f}")
