@@ -755,17 +755,38 @@ class FuelAPI:
             return 0
 
         import re
+        # ── In chi tiết thông số từng cột bơm lấy được để kiểm tra ──
+        print(f"📋 Thông số {len(online_data)} cột bơm lấy được từ Theo Dõi Online:")
+        print(f"   {'Cột':<10} {'Nhiên liệu':<14} {'TOTAL':>16}   {'Lít':>10} {'Tiền':>12} {'Giá':>10}")
+        print("   " + "-" * 78)
+        for item in online_data:
+            _ten = str(item.get('ten_cot', '') or '').strip() or '—'
+            _nl = str(item.get('nhien_lieu', '') or '').strip() or '—'
+            _total_raw = item.get('total', '')
+            _total_val = self.clean_number(_total_raw)
+            _flag = '  ⚠️ TOTAL=0' if not _total_val else ''
+            print(
+                f"   {_ten:<10} {_nl:<14} {_total_val:>16,.2f}   "
+                f"{str(item.get('lit', '') or '—'):>10} "
+                f"{str(item.get('tien', '') or '—'):>12} "
+                f"{str(item.get('gia', '') or '—'):>10}{_flag}"
+            )
+        print("   " + "-" * 78)
+
         ok = 0
         try:
             cursor = self.mysql_connection.cursor()
+            inserted_cols = []
             for item in online_data:
                 try:
                     ten_cot = str(item.get('ten_cot', '')).strip()
                     if not ten_cot:
+                        print(f"   ⏭️  Bỏ qua: thiếu ten_cot ({item})")
                         continue
                     # Trích số cột từ "Cột 01" / "Cot 2" / "Cột 2"
                     m = re.search(r'(\d+)', ten_cot)
                     if not m:
+                        print(f"   ⏭️  Bỏ qua '{ten_cot}': không tách được số cột")
                         continue
                     cot_bom = int(m.group(1))
                     total = self.clean_number(item.get('total', '0'))
@@ -779,11 +800,17 @@ class FuelAPI:
                         (cot_bom, ten_cot, nhien_lieu, total)
                     )
                     ok += 1
+                    inserted_cols.append(f"cột {cot_bom}={total:,.2f}")
                 except Exception as e:
                     print(f"⚠️  Lỗi khi log pump total cho {item}: {e}")
                     continue
             self.mysql_connection.commit()
             cursor.close()
+            print(
+                f"   💾 Đã INSERT + COMMIT {ok} dòng vào pump_total_log "
+                f"(DB: {(self.mysql_config or {}).get('database', '?')}): "
+                f"{', '.join(inserted_cols) if inserted_cols else 'không có'}"
+            )
             return ok
         except Error as e:
             print(f"✗ Lỗi khi log pump totals: {e}")
