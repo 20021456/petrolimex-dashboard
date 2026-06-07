@@ -15,6 +15,18 @@ const pool = mysql.createPool({
   connectTimeout: 60000, // 60 seconds
 });
 
+// Ép mọi kết nối trong pool về giờ Việt Nam (UTC+7) để NOW()/CURDATE()/
+// DATE() khớp với dữ liệu giờ địa phương trong DB. Nếu để mặc định (UTC),
+// các mốc "hôm nay"/"đầu ngày" bị lệch 7h → tính sai sản lượng.
+const underlyingPool: any = (pool as any).pool ?? pool;
+if (underlyingPool && typeof underlyingPool.on === 'function') {
+  underlyingPool.on('connection', (conn: any) => {
+    conn.query("SET time_zone='+07:00'", (err: any) => {
+      if (err) console.error('Không set được time_zone +07:00:', err.message);
+    });
+  });
+}
+
 export async function getConnection() {
   let retries = 3;
   let lastError: any;
