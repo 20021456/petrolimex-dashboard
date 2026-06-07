@@ -1211,14 +1211,14 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.1fr 90px 100px 90px 110px 80px",
-              gap: 10,
+              gridTemplateColumns: "minmax(0,1.5fr) 64px 64px 62px 96px 62px",
+              gap: 8,
               padding: "8px 0",
               borderBottom: `1px solid ${HX.hairline}`,
               fontSize: 11,
               color: HX.text3,
               fontWeight: 600,
-              letterSpacing: "0.08em",
+              letterSpacing: "0.06em",
               textTransform: "uppercase",
             }}
           >
@@ -1244,20 +1244,27 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                 key={r.kind}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.1fr 90px 100px 90px 110px 80px",
-                  gap: 10,
-                  padding: "14px 0",
+                  gridTemplateColumns: "minmax(0,1.5fr) 64px 64px 62px 96px 62px",
+                  gap: 8,
+                  padding: "12px 0",
                   fontSize: 13,
                   alignItems: "center",
                   borderBottom: `1px solid ${HX.hairline}`,
                 }}
               >
-                <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
                   <FuelDot kind={r.kind} />
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ fontWeight: 600, display: "block" }}>{r.name}</span>
-                    <span style={{ fontSize: 11, color: HX.text3 }}>{r.bon}</span>
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {r.name}
                   </span>
+                  <span style={{ fontSize: 11, color: HX.text3, whiteSpace: "nowrap" }}>· {r.bon}</span>
                 </span>
                 <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
                   {fmtNum(r.liters)} L
@@ -1293,16 +1300,17 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "flex-end",
-                    gap: 6,
+                    gap: 5,
                   }}
                 >
                   <span
                     style={{
-                      width: 28,
+                      width: 20,
                       height: 4,
                       background: HX.hairline,
                       borderRadius: 2,
                       overflow: "hidden",
+                      flexShrink: 0,
                     }}
                   >
                     <span
