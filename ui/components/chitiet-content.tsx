@@ -754,16 +754,17 @@ export function useReport() {
       fetchStats(ranges.cur),
       fetchStats(ranges.prev),
     ]
-    // pump_total_log (đồng hồ thực tế) chỉ có dữ liệu cho NGÀY HÔM NAY
-    // thật sự — không áp dụng khi xem ngày quá khứ.
-    if (period === "today" && refIsToday) {
+    // pump_total_log (đồng hồ thực tế) áp dụng cho kỳ NGÀY (today/quá khứ):
+    // thực tế = total cuối ngày − total đầu ngày của đúng ngày đang xem.
+    if (period === "today") {
+      const dq = `?date=${toYmd(refDate)}`
       tasks.push(
-        fetch("/api/pump-totals", { cache: "no-store" })
+        fetch(`/api/pump-totals${dq}`, { cache: "no-store" })
           .then((r) => r.json())
           .catch(() => null)
       )
       tasks.push(
-        fetch("/api/pump-totals/discrepancy", { cache: "no-store" })
+        fetch(`/api/pump-totals/discrepancy${dq}`, { cache: "no-store" })
           .then((r) => r.json())
           .catch(() => null)
       )
@@ -793,7 +794,7 @@ export function useReport() {
     return () => {
       alive = false
     }
-  }, [ranges, period, refIsToday])
+  }, [ranges, period, refDate])
 
   const revenue = Number(stats?.overview?.totalRevenue || 0)
   const prevRevenue = Number(prevStats?.overview?.totalRevenue || 0)
@@ -983,6 +984,10 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
     () => staff.filter((s) => s.active !== false),
     [staff]
   )
+
+  // Nhãn kỳ đang xem: "hôm nay/tuần này…" nếu là kỳ hiện tại, ngược lại là
+  // khoảng ngày thực tế (vd "05/06/2026").
+  const viewLabel = refIsToday ? meta.label.toLowerCase() : rangeLabel(period, ranges.cur)
 
   return (
     <div
@@ -1296,7 +1301,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 16, fontWeight: 600 }}>Theo loại nhiên liệu</div>
             <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>
-              Doanh thu · sản lượng · sản lượng thực tế · {meta.label.toLowerCase()}
+              Doanh thu · sản lượng · sản lượng thực tế · {viewLabel}
             </div>
           </div>
 
@@ -1434,7 +1439,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
         </div>
 
         {/* Chênh lệch giao dịch vs đồng hồ thực tế theo giờ */}
-        {period === "today" && refIsToday && (
+        {period === "today" && (
           <div
             style={{
               background: HX.surface,
@@ -1447,7 +1452,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 16, fontWeight: 600 }}>Chênh lệch theo giờ</div>
               <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>
-                Giao dịch ghi nhận so với đồng hồ thực tế · lệch ≥ {discrepancy?.threshold ?? 2} L · hôm nay
+                Giao dịch ghi nhận so với đồng hồ thực tế · lệch ≥ {discrepancy?.threshold ?? 2} L · {viewLabel}
               </div>
             </div>
             {!discrepancy ? (
@@ -1544,7 +1549,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 16, fontWeight: 600 }}>Theo cột bơm</div>
             <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>
-              Hiệu suất từng cột · {meta.label.toLowerCase()}
+              Hiệu suất từng cột · {viewLabel}
             </div>
           </div>
           {byPump.length === 0 ? (

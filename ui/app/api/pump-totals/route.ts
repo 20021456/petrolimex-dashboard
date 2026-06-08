@@ -54,31 +54,44 @@ async function ensureTable() {
   `)
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureTable()
 
-    // Snapshot đầu ngày: dòng cũ nhất với DATE(logged_at) = CURDATE().
+    // Ngày cần xem (mặc định hôm nay). Cho phép xem sản lượng thực tế của
+    // ngày quá khứ = total cuối ngày − total đầu ngày của ĐÚNG ngày đó.
+    const { searchParams } = new URL(request.url)
+    const dateParam = searchParams.get('date')
+    const validDate =
+      dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null
+    const dateSql = validDate ? '?' : 'CURDATE()'
+    const dParams = validDate ? [validDate] : []
+
+    // Snapshot đầu ngày: dòng cũ nhất trong ngày được chọn.
     const startRows = await query<any[]>(
       `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu, t1.total, t1.logged_at
        FROM pump_total_log t1
        INNER JOIN (
          SELECT cot_bom, MIN(logged_at) AS min_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = CURDATE()
+         WHERE DATE(logged_at) = ${dateSql}
          GROUP BY cot_bom
-       ) m ON m.cot_bom = t1.cot_bom AND m.min_at = t1.logged_at`
+       ) m ON m.cot_bom = t1.cot_bom AND m.min_at = t1.logged_at`,
+      dParams
     )
 
-    // Snapshot mới nhất (toàn thời gian — thường cũng là hôm nay).
+    // Snapshot cuối ngày: dòng mới nhất trong ngày được chọn (với hôm nay là
+    // bản ghi gần nhất hiện có).
     const currentRows = await query<any[]>(
       `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu, t1.total, t1.logged_at
        FROM pump_total_log t1
        INNER JOIN (
          SELECT cot_bom, MAX(logged_at) AS max_at
          FROM pump_total_log
+         WHERE DATE(logged_at) = ${dateSql}
          GROUP BY cot_bom
-       ) m ON m.cot_bom = t1.cot_bom AND m.max_at = t1.logged_at`
+       ) m ON m.cot_bom = t1.cot_bom AND m.max_at = t1.logged_at`,
+      dParams
     )
 
     const start = new Map<number, LogRow>()

@@ -23,22 +23,30 @@ const COT_BOM_TO_FUEL: Record<number, string> = {
 
 const THRESHOLD = 2 // lít — bỏ qua sai số nhỏ do làm tròn đồng hồ
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const dateParam = searchParams.get('date')
+    const validDate =
+      dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null
+    const dateSql = validDate ? '?' : 'CURDATE()'
+
     // Format thẳng về chuỗi 'YYYY-MM-DD HH:MM:SS' để so sánh theo thứ tự
     // chữ, tránh lệ thuộc cách driver quy đổi Date/timezone.
     const snaps = await query<any[]>(
       `SELECT cot_bom, total,
               DATE_FORMAT(logged_at, '%Y-%m-%d %H:%i:%s') ts
        FROM pump_total_log
-       WHERE DATE(logged_at) = CURDATE()
-       ORDER BY cot_bom, logged_at`
+       WHERE DATE(logged_at) = ${dateSql}
+       ORDER BY cot_bom, logged_at`,
+      validDate ? [validDate] : []
     )
     const txs = await query<any[]>(
       `SELECT COALESCE(cot_bom, 0) cot_bom, lit,
               DATE_FORMAT(ket_thuc_bom, '%Y-%m-%d %H:%i:%s') ts
        FROM fuel_pump
-       WHERE DATE(ket_thuc_bom) = CURDATE()`
+       WHERE DATE(ket_thuc_bom) = ${dateSql}`,
+      validDate ? [validDate] : []
     )
 
     const snapByCot = new Map<number, Array<{ total: number; ts: string }>>()
