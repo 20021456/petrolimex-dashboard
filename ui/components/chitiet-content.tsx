@@ -1870,34 +1870,52 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
               Chưa có dữ liệu cột bơm trong kỳ
             </div>
           ) : (
-            byPump.map((p, i) => {
-              const diffColor =
-                p.diffLiters == null
-                  ? HX.text3
-                  : Math.abs(p.diffLiters) < 1
-                    ? HX.text2
-                    : p.diffLiters > 0
-                      ? HX.warn
-                      : HX.bad
-              return (
-                <div
-                  key={p.cotBom}
-                  style={{
-                    padding: "14px 0",
-                    borderBottom: i < byPump.length - 1 ? `1px solid ${HX.hairline}` : "none",
-                  }}
-                >
+            <>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1.8fr) 1fr 1fr 1fr 1.2fr",
+                  gap: 10,
+                  padding: "0 0 10px",
+                  borderBottom: `1px solid ${HX.hairline}`,
+                  fontSize: 11,
+                  color: HX.text3,
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                <span>Cột bơm</span>
+                <span style={{ textAlign: "right" }}>Sản lượng DB</span>
+                <span style={{ textAlign: "right" }}>Thực tế</span>
+                <span style={{ textAlign: "right" }}>Chênh lệch</span>
+                <span style={{ textAlign: "right" }}>Doanh thu</span>
+              </div>
+              {byPump.map((p, i) => {
+                const diffColor =
+                  p.diffLiters == null
+                    ? HX.text3
+                    : Math.abs(p.diffLiters) < 1
+                      ? HX.text2
+                      : p.diffLiters > 0
+                        ? HX.warn
+                        : HX.bad
+                return (
                   <div
+                    key={p.cotBom}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
+                      display: "grid",
+                      gridTemplateColumns: "minmax(0,1.8fr) 1fr 1fr 1fr 1.2fr",
+                      gap: 10,
+                      padding: "13px 0",
                       alignItems: "center",
-                      gap: 12,
+                      fontSize: 13,
+                      borderBottom: i < byPump.length - 1 ? `1px solid ${HX.hairline}` : "none",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, flexShrink: 0 }}>Cột {p.cotBom}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                       <FuelDot kind={p.fuel} size={7} />
+                      <span style={{ fontWeight: 600, flexShrink: 0 }}>Cột {p.cotBom}</span>
                       <span
                         style={{
                           fontSize: 11,
@@ -1909,61 +1927,33 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                       >
                         {fuelEntryByKind(p.fuel)?.name || p.fuel} · {fmtNum(p.count)} GD
                       </span>
-                    </div>
-                    <div
+                    </span>
+                    <span className="hx-num" style={{ textAlign: "right", color: HX.text2, fontWeight: 600 }}>
+                      {fmtNum(p.dbLiters)} L
+                    </span>
+                    <span
                       className="hx-num"
-                      style={{ fontSize: 15, fontWeight: 700, flexShrink: 0 }}
+                      style={{
+                        textAlign: "right",
+                        color: p.actualLiters != null ? HX.text : HX.text3,
+                        fontWeight: 600,
+                      }}
                     >
+                      {p.actualLiters != null ? `${fmtNum(p.actualLiters)} L` : "—"}
+                    </span>
+                    <span className="hx-num" style={{ textAlign: "right", color: diffColor, fontWeight: 700 }}>
+                      {p.diffLiters != null
+                        ? `${p.diffLiters > 0 ? "+" : ""}${fmtNum(p.diffLiters)} L`
+                        : "—"}
+                    </span>
+                    <span className="hx-num" style={{ textAlign: "right", fontWeight: 700 }}>
                       {fmtNum(p.revenue)}
                       <span style={{ color: HX.text3, fontSize: 11, fontWeight: 400 }}> ₫</span>
-                    </div>
+                    </span>
                   </div>
-                  {/* Sản lượng DB vs Thực tế vs Chênh lệch */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: 10,
-                      marginTop: 8,
-                      paddingTop: 8,
-                      borderTop: `1px dashed ${HX.hairline}`,
-                      fontSize: 11,
-                    }}
-                  >
-                    <div>
-                      <div style={{ color: HX.text3, marginBottom: 2 }}>Sản lượng DB</div>
-                      <div className="hx-num" style={{ color: HX.text2, fontWeight: 600, fontSize: 12 }}>
-                        {fmtNum(p.dbLiters)} L
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ color: HX.text3, marginBottom: 2 }}>Thực tế</div>
-                      <div
-                        className="hx-num"
-                        style={{
-                          color: p.actualLiters != null ? HX.text : HX.text3,
-                          fontWeight: 600,
-                          fontSize: 12,
-                        }}
-                      >
-                        {p.actualLiters != null ? `${fmtNum(p.actualLiters)} L` : "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ color: HX.text3, marginBottom: 2 }}>Chênh lệch</div>
-                      <div
-                        className="hx-num"
-                        style={{ color: diffColor, fontWeight: 700, fontSize: 12 }}
-                      >
-                        {p.diffLiters != null
-                          ? `${p.diffLiters > 0 ? "+" : ""}${fmtNum(p.diffLiters)} L`
-                          : "—"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })
+                )
+              })}
+            </>
           )}
           {bestPump && (
             <div
