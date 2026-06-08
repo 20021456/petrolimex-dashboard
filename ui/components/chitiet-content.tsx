@@ -1712,8 +1712,8 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0,1.2fr) repeat(5, minmax(0,1fr))",
-              gap: 8,
+              gridTemplateColumns: "minmax(0,1fr) 42px 42px 50px 80px 54px",
+              gap: 6,
               padding: "8px 0",
               borderBottom: `1px solid ${HX.hairline}`,
               fontSize: 11,
@@ -1745,27 +1745,29 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                 key={r.kind}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0,1.2fr) repeat(5, minmax(0,1fr))",
-                  gap: 8,
+                  gridTemplateColumns: "minmax(0,1fr) 42px 42px 50px 80px 54px",
+                  gap: 6,
                   padding: "12px 0",
                   fontSize: 13,
                   alignItems: "center",
                   borderBottom: `1px solid ${HX.hairline}`,
                 }}
               >
-                <span style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, overflow: "hidden" }}>
                   <FuelDot kind={r.kind} />
+                  <span style={{ fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>{r.name}</span>
                   <span
                     style={{
-                      fontWeight: 600,
+                      fontSize: 11,
+                      color: HX.text3,
+                      whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      minWidth: 0,
                     }}
                   >
-                    {r.name}
+                    · {r.bon}
                   </span>
-                  <span style={{ fontSize: 11, color: HX.text3, whiteSpace: "nowrap" }}>· {r.bon}</span>
                 </span>
                 <span className="hx-num" style={{ textAlign: "right", color: HX.text2 }}>
                   {fmtNum(r.liters)} L
