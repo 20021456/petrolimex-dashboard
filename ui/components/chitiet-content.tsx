@@ -1687,7 +1687,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1.2fr 1fr",
+          gridTemplateColumns: "4fr 6fr",
           gap: 20,
           marginBottom: 22,
           alignItems: "start",
