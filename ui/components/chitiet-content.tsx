@@ -733,19 +733,8 @@ export function useReport() {
     }>
   } | null>(null)
 
-  // Chênh lệch giao dịch vs đồng hồ thực tế theo khoảng giờ (chỉ "hôm nay").
-  const [discrepancy, setDiscrepancy] = React.useState<{
-    threshold: number
-    items: Array<{
-      cotBom: number
-      fuel: string
-      fromHm: string
-      toHm: string
-      meterDelta: number
-      dbLiters: number
-      diff: number
-    }>
-  } | null>(null)
+  // Đối chiếu Thực tế (giao dịch) vs Đồng hồ (pump_total_log) cho kỳ NGÀY.
+  const [reconcile, setReconcile] = React.useState<any>(null)
 
   React.useEffect(() => {
     let alive = true
@@ -764,7 +753,7 @@ export function useReport() {
           .catch(() => null)
       )
       tasks.push(
-        fetch(`/api/pump-totals/discrepancy${dq}`, { cache: "no-store" })
+        fetch(`/api/pump-totals/reconcile${dq}`, { cache: "no-store" })
           .then((r) => r.json())
           .catch(() => null)
       )
@@ -775,18 +764,18 @@ export function useReport() {
         const cur = results[0]
         const prev = results[1]
         const totals = results[2]
-        const disc = results[3]
+        const recon = results[3]
         setStats(cur?.success ? cur.data : null)
         setPrevStats(prev?.success ? prev.data : null)
         setPumpTotals(totals?.success ? totals.data : null)
-        setDiscrepancy(disc?.success ? disc.data : null)
+        setReconcile(recon?.success ? recon.data : null)
       })
       .catch(() => {
         if (!alive) return
         setStats(null)
         setPrevStats(null)
         setPumpTotals(null)
-        setDiscrepancy(null)
+        setReconcile(null)
       })
       .finally(() => {
         if (alive) setLoading(false)
@@ -937,7 +926,7 @@ export function useReport() {
     byPump,
     bestPump,
     hasPumpTotals: !!pumpTotals,
-    discrepancy,
+    reconcile,
     refDate,
     setRefDate,
     refIsToday,
@@ -945,6 +934,422 @@ export function useReport() {
 }
 
 export type ReportState = ReturnType<typeof useReport>
+
+// ── Đối chiếu Thực tế (giao dịch) vs Đồng hồ (pump_total_log) ──
+const fmt1 = (n: number) =>
+  new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n || 0)
+const signL = (n: number) => `${n > 0 ? "+" : ""}${fmt1(n)} L`
+const signP = (n: number) => `${n > 0 ? "+" : ""}${fmt1(n)}%`
+
+const RECON_STATUS: Record<string, { label: string; color: string }> = {
+  warn: { label: "Vượt ngưỡng", color: "#ff453a" },
+  watch: { label: "Cần theo dõi", color: "#ffd60a" },
+  ok: { label: "Bình thường", color: "#30d158" },
+}
+
+function diffColorOf(n: number): string {
+  if (Math.abs(n) < 0.05) return HX.text2
+  return n > 0 ? HX.warn : HX.bad
+}
+
+function ReconHourBars({ hourly }: { hourly: Array<{ hour: number; diff: number }> }) {
+  const H = 92
+  const maxAbs = Math.max(1, ...hourly.map((h) => Math.abs(h.diff)))
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "stretch", gap: 3, height: H, position: "relative" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: "50%",
+            height: 1,
+            background: HX.hairline,
+          }}
+        />
+        {hourly.map((h) => {
+          const frac = Math.abs(h.diff) / maxAbs
+          const barH = Math.max(h.diff !== 0 ? 2 : 0, frac * (H / 2 - 3))
+          return (
+            <div key={h.hour} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              <div style={{ height: H / 2, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+                {h.diff > 0 && (
+                  <div style={{ width: "62%", height: barH, background: HX.warn, borderRadius: "2px 2px 0 0" }} />
+                )}
+              </div>
+              <div style={{ height: H / 2, display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+                {h.diff < 0 && (
+                  <div style={{ width: "62%", height: barH, background: HX.bad, borderRadius: "0 0 2px 2px" }} />
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ display: "flex", marginTop: 6 }}>
+        {hourly.map((h) => (
+          <div
+            key={h.hour}
+            style={{ flex: 1, textAlign: "center", fontSize: 10, color: HX.text3 }}
+          >
+            {h.hour % 2 === 1 ? pad2(h.hour) : ""}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SummaryCard({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        background: HX.bg,
+        border: `1px solid ${HX.hairline}`,
+        borderRadius: 12,
+        padding: "14px 16px",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          color: HX.text3,
+          fontWeight: 600,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          marginBottom: 8,
+        }}
+      >
+        {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function ReconcileBox({ data, dateLabel }: { data: any; dateLabel: string }) {
+  const [open, setOpen] = React.useState<number | null>(null)
+
+  const cols: any[] = data?.columns || []
+  const sum = data?.summary
+  const th = data?.thresholds || { warnL: 20, warnPct: 1.5 }
+  const excluded: any[] = data?.excluded || []
+
+  const RECON_COLS = "120px 130px 1fr 1fr 1fr 70px 130px 150px 36px"
+
+  return (
+    <div
+      style={{
+        background: HX.surface,
+        border: `1px solid ${HX.hairline}`,
+        borderRadius: 16,
+        padding: 24,
+        marginBottom: 22,
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 16,
+          marginBottom: 18,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>Đối chiếu Thực tế vs Đồng hồ</span>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                color: HX.accent,
+                background: "rgba(255,90,31,0.12)",
+                border: `1px solid ${accentBorder}`,
+                padding: "2px 8px",
+                borderRadius: 6,
+              }}
+            >
+              TRỌNG TÂM
+            </span>
+          </div>
+          <div style={{ fontSize: 13, color: HX.text3, marginTop: 4 }}>
+            Sản lượng đồng hồ tổng so với thực tế đo bồn · từng cột bơm · {dateLabel}
+          </div>
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: HX.text2,
+            padding: "8px 12px",
+            background: HX.bg,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 10,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Ngưỡng cảnh báo ±{fmt1(th.warnL)} L hoặc ±{fmt1(th.warnPct)}%
+        </div>
+      </div>
+
+      {!data ? (
+        <div style={{ padding: "30px 0", textAlign: "center", color: HX.text3, fontSize: 13 }}>
+          Đang tải…
+        </div>
+      ) : cols.length === 0 ? (
+        <div style={{ padding: "30px 0", textAlign: "center", color: HX.text3, fontSize: 13 }}>
+          Chưa có dữ liệu đồng hồ để đối chiếu cho ngày này
+        </div>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 14,
+              marginBottom: 20,
+            }}
+          >
+            <SummaryCard label="Chênh lệch ròng toàn trạm">
+              <div className="hx-num" style={{ fontSize: 26, fontWeight: 800, color: diffColorOf(sum.netDiff) }}>
+                {signL(sum.netDiff)}
+              </div>
+              <div className="hx-num" style={{ fontSize: 12, color: HX.text3, marginTop: 4 }}>
+                trên {fmt1(sum.totalMeter)} L máy · {signP(sum.netPct)}
+              </div>
+            </SummaryCard>
+            <SummaryCard label="Cột lệch nhiều nhất">
+              {sum.worstColumn ? (
+                <>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>Cột {sum.worstColumn.cotBom}</div>
+                  <div className="hx-num" style={{ fontSize: 12, color: HX.text3, marginTop: 4 }}>
+                    {sum.worstColumn.fuel} · {signL(sum.worstColumn.diff)}
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 18, color: HX.text3 }}>—</div>
+              )}
+            </SummaryCard>
+            <SummaryCard label="Khung giờ lệch lớn nhất">
+              {sum.worstHour ? (
+                <>
+                  <div className="hx-num" style={{ fontSize: 20, fontWeight: 700 }}>
+                    {sum.worstHour.fromHm}–{sum.worstHour.toHm}
+                  </div>
+                  <div className="hx-num" style={{ fontSize: 12, color: HX.text3, marginTop: 4 }}>
+                    Cột {sum.worstHour.cotBom} · {signL(sum.worstHour.diff)}
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 18, color: HX.text3 }}>—</div>
+              )}
+            </SummaryCard>
+            <SummaryCard label="Tình trạng các cột">
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                {([
+                  ["warn", sum.counts.warn, "vượt ngưỡng"],
+                  ["watch", sum.counts.watch, "cần theo dõi"],
+                  ["ok", sum.counts.ok, "bình thường"],
+                ] as Array<[string, number, string]>).map(([k, n, t]) => (
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 4, background: RECON_STATUS[k].color }} />
+                    <span style={{ color: HX.text2 }}>
+                      <b style={{ color: HX.text }}>{n}</b> {t}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </SummaryCard>
+          </div>
+
+          {/* Table header */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: RECON_COLS,
+              gap: 10,
+              padding: "10px 12px",
+              background: HX.bg,
+              borderRadius: 10,
+              fontSize: 11,
+              color: HX.text3,
+              fontWeight: 600,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+            }}
+          >
+            <span>Cột bơm</span>
+            <span>Loại NL</span>
+            <span style={{ textAlign: "right" }}>Số máy (ĐH)</span>
+            <span style={{ textAlign: "right" }}>Thực tế</span>
+            <span style={{ textAlign: "right" }}>Chênh lệch</span>
+            <span style={{ textAlign: "right" }}>%</span>
+            <span>Trạng thái</span>
+            <span>Giờ lệch lớn nhất</span>
+            <span />
+          </div>
+
+          {cols.map((c) => {
+            const st = RECON_STATUS[c.status]
+            const top = c.topHours?.[0]
+            const isOpen = open === c.cotBom
+            return (
+              <div key={c.cotBom} style={{ borderBottom: `1px solid ${HX.hairline}` }}>
+                <div
+                  onClick={() => setOpen(isOpen ? null : c.cotBom)}
+                  className="hxw-press"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: RECON_COLS,
+                    gap: 10,
+                    padding: "14px 12px",
+                    alignItems: "center",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    background: isOpen ? HX.elevated : "transparent",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <FuelDot kind={fuelKind(c.fuel)} size={7} />
+                    <b>Cột {c.cotBom}</b>
+                  </span>
+                  <span style={{ color: HX.text3, fontSize: 12 }}>{c.fuel}</span>
+                  <span className="hx-num" style={{ textAlign: "right", fontWeight: 600 }}>
+                    {fmt1(c.meter)} L
+                  </span>
+                  <span className="hx-num" style={{ textAlign: "right", fontWeight: 600 }}>
+                    {fmt1(c.actual)} L
+                  </span>
+                  <span className="hx-num" style={{ textAlign: "right", fontWeight: 700, color: diffColorOf(c.diff) }}>
+                    {signL(c.diff)}
+                  </span>
+                  <span className="hx-num" style={{ textAlign: "right", color: diffColorOf(c.diff) }}>
+                    {signP(c.pct)}
+                  </span>
+                  <span>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: st.color,
+                        background: `${st.color}1f`,
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                      }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: 3, background: st.color }} />
+                      {st.label}
+                    </span>
+                  </span>
+                  <span className="hx-num" style={{ fontSize: 12, color: top ? HX.text2 : HX.text3 }}>
+                    {top ? `${top.fromHm}–${top.toHm} (${signL(top.diff)})` : "—"}
+                  </span>
+                  <span style={{ textAlign: "right", transform: isOpen ? "rotate(180deg)" : "none" }}>
+                    <Icon name="chevronDown" size={14} color={HX.text3} />
+                  </span>
+                </div>
+
+                {isOpen && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 230px",
+                      gap: 20,
+                      padding: "6px 12px 18px",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "baseline",
+                          marginBottom: 10,
+                        }}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>
+                          Chênh lệch theo giờ — Cột {c.cotBom}
+                        </span>
+                        <span style={{ fontSize: 11, color: HX.text3 }}>
+                          Thanh đỏ = thiếu (thực tế &lt; máy) · vàng = thừa
+                        </span>
+                      </div>
+                      <ReconHourBars hourly={c.hourly} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: HX.text2, marginBottom: 8 }}>
+                        Khung giờ lệch nhiều nhất
+                      </div>
+                      {c.topHours.length === 0 ? (
+                        <div style={{ fontSize: 12, color: HX.text3 }}>Không có</div>
+                      ) : (
+                        c.topHours.map((thh: any, i: number) => (
+                          <div
+                            key={i}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              padding: "6px 0",
+                              borderBottom: i < c.topHours.length - 1 ? `1px dashed ${HX.hairline}` : "none",
+                              fontSize: 12,
+                            }}
+                          >
+                            <span className="hx-num" style={{ color: HX.text2 }}>
+                              {thh.fromHm}–{thh.toHm}
+                            </span>
+                            <span className="hx-num" style={{ fontWeight: 700, color: diffColorOf(thh.diff) }}>
+                              {signL(thh.diff)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Footer: excluded outliers */}
+          {excluded.length > 0 && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: "11px 14px",
+                background: "rgba(255,214,10,0.08)",
+                border: `1px solid rgba(255,214,10,0.25)`,
+                borderRadius: 10,
+                fontSize: 12,
+                color: HX.text2,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+              }}
+            >
+              <Icon name="alert" size={15} color={HX.warn} />
+              <span>
+                Đã loại <b style={{ color: HX.text }}>{excluded.length} bản ghi</b> nghi lỗi đồng hồ
+                (chênh &gt; {fmt1(th.outlierL)} L do số ĐH/GD bất thường) khỏi đối chiếu:{" "}
+                {excluded
+                  .map((e) => `${e.fromHm}–${e.toHm} Cột ${e.cotBom} ${signL(e.diff)}`)
+                  .join(" · ")}
+              </span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
 
 function ChiTietContentWeb({ report }: { report: ReportState }) {
   const {
@@ -971,7 +1376,7 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
     byFuel,
     byPump,
     bestPump,
-    discrepancy,
+    reconcile,
     refDate,
     setRefDate,
     refIsToday,
@@ -1285,10 +1690,9 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           gridTemplateColumns: "1.2fr 1fr",
           gap: 20,
           marginBottom: 22,
+          alignItems: "start",
         }}
       >
-        {/* Left column: by fuel + discrepancy */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
         {/* By fuel */}
         <div
           style={{
@@ -1438,104 +1842,6 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           })}
         </div>
 
-        {/* Chênh lệch giao dịch vs đồng hồ thực tế theo giờ */}
-        {period === "today" && (
-          <div
-            style={{
-              background: HX.surface,
-              border: `1px solid ${HX.hairline}`,
-              borderRadius: 16,
-              padding: 24,
-              flex: 1,
-            }}
-          >
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 16, fontWeight: 600 }}>Chênh lệch theo giờ</div>
-              <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>
-                Giao dịch ghi nhận so với đồng hồ thực tế · lệch ≥ {discrepancy?.threshold ?? 2} L · {viewLabel}
-              </div>
-            </div>
-            {!discrepancy ? (
-              <div style={{ padding: "24px 0", textAlign: "center", color: HX.text3, fontSize: 13 }}>
-                Đang tải…
-              </div>
-            ) : discrepancy.items.length === 0 ? (
-              <div
-                style={{
-                  padding: "24px 0",
-                  textAlign: "center",
-                  color: HX.text3,
-                  fontSize: 13,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="9" stroke={HX.good} strokeWidth="1.6" />
-                  <path d="m8 12 3 3 5-6" stroke={HX.good} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Không có chênh lệch đáng kể giữa giao dịch và đồng hồ
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {discrepancy.items.map((d, i) => {
-                  const positive = d.diff > 0
-                  const c = positive ? HX.warn : HX.bad
-                  return (
-                    <div
-                      key={`${d.cotBom}-${d.toHm}-${i}`}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        padding: "11px 14px",
-                        background: HX.bg,
-                        border: `1px solid ${HX.hairline}`,
-                        borderLeft: `3px solid ${c}`,
-                        borderRadius: 10,
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                        <span
-                          className="hx-num"
-                          style={{ fontSize: 13, fontWeight: 600, color: HX.text2, flexShrink: 0 }}
-                        >
-                          {d.fromHm}–{d.toHm}
-                        </span>
-                        <FuelDot kind={fuelKind(d.fuel)} size={7} />
-                        <span style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Cột {d.cotBom}</span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: HX.text3,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {d.fuel}
-                        </span>
-                      </div>
-                      <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div className="hx-num" style={{ fontSize: 14, fontWeight: 700, color: c }}>
-                          {positive ? "+" : ""}
-                          {fmtNum(d.diff)} L
-                        </div>
-                        <div className="hx-num" style={{ fontSize: 10.5, color: HX.text3, marginTop: 1 }}>
-                          ĐH {fmtNum(d.meterDelta)} · GD {fmtNum(d.dbLiters)}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-        </div>
 
         {/* By pump */}
         <div
@@ -1711,6 +2017,9 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
           )}
         </div>
       </div>
+
+      {/* Đối chiếu Thực tế vs Đồng hồ */}
+      {period === "today" && <ReconcileBox data={reconcile} dateLabel={viewLabel} />}
 
       {/* Nhân viên — sản phẩm bán lẻ theo người bán + tồn kho */}
       <WSection
