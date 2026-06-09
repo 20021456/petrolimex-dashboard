@@ -1607,90 +1607,16 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
         />
       </div>
 
-      {/* Big area chart */}
-      <div
-        style={{
-          background: HX.surface,
-          border: `1px solid ${HX.hairline}`,
-          borderRadius: 16,
-          padding: 24,
-          marginBottom: 22,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            marginBottom: 22,
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: HX.text }}>
-              Doanh thu {meta.chartHeader}
-            </div>
-            <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>{meta.chartSub}</div>
-          </div>
-          <div style={{ display: "flex", gap: 18, fontSize: 12 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 12, height: 3, borderRadius: 2, background: HX.accent }} />
-              <span style={{ color: HX.text2 }}>{meta.compareLabel} · </span>
-              <span className="hx-num" style={{ color: HX.text, fontWeight: 600 }}>
-                {revenueComma}
-              </span>
-            </span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <svg width="14" height="3">
-                <line
-                  x1="0"
-                  y1="1.5"
-                  x2="14"
-                  y2="1.5"
-                  stroke={HX.text3}
-                  strokeWidth="2"
-                  strokeDasharray="3 2"
-                />
-              </svg>
-              <span style={{ color: HX.text2 }}>{meta.compareSubLabel} · </span>
-              <span className="hx-num" style={{ color: HX.text2, fontWeight: 500 }}>
-                {prevComma}
-              </span>
-            </span>
-          </div>
-        </div>
-        <div>
-          <AreaChart
-            key={period}
-            data={cur.data}
-            prevData={prev.data}
-            color={HX.accent}
-          />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: 6,
-              fontSize: 11,
-              color: HX.text3,
-            }}
-          >
-            {cur.labels.map((l, i) => (
-              <span key={i}>{l}</span>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Đối chiếu Thực tế vs Đồng hồ */}
+      {period === "today" && <ReconcileBox data={reconcile} dateLabel={viewLabel} />}
 
       {/* Two columns: by fuel + by pump */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "4fr 6fr",
+          gridTemplateColumns: "4.5fr 5.5fr",
           gap: 20,
           marginBottom: 22,
-          alignItems: "start",
         }}
       >
         {/* By fuel */}
@@ -2010,8 +1936,81 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
         </div>
       </div>
 
-      {/* Đối chiếu Thực tế vs Đồng hồ */}
-      {period === "today" && <ReconcileBox data={reconcile} dateLabel={viewLabel} />}
+      {/* Big area chart */}
+      <div
+        style={{
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 16,
+          padding: 24,
+          marginBottom: 22,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            marginBottom: 22,
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: HX.text }}>
+              Doanh thu {meta.chartHeader}
+            </div>
+            <div style={{ fontSize: 13, color: HX.text3, marginTop: 3 }}>{meta.chartSub}</div>
+          </div>
+          <div style={{ display: "flex", gap: 18, fontSize: 12 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 12, height: 3, borderRadius: 2, background: HX.accent }} />
+              <span style={{ color: HX.text2 }}>{meta.compareLabel} · </span>
+              <span className="hx-num" style={{ color: HX.text, fontWeight: 600 }}>
+                {revenueComma}
+              </span>
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <svg width="14" height="3">
+                <line
+                  x1="0"
+                  y1="1.5"
+                  x2="14"
+                  y2="1.5"
+                  stroke={HX.text3}
+                  strokeWidth="2"
+                  strokeDasharray="3 2"
+                />
+              </svg>
+              <span style={{ color: HX.text2 }}>{meta.compareSubLabel} · </span>
+              <span className="hx-num" style={{ color: HX.text2, fontWeight: 500 }}>
+                {prevComma}
+              </span>
+            </span>
+          </div>
+        </div>
+        <div>
+          <AreaChart
+            key={period}
+            data={cur.data}
+            prevData={prev.data}
+            color={HX.accent}
+          />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: 6,
+              fontSize: 11,
+              color: HX.text3,
+            }}
+          >
+            {cur.labels.map((l, i) => (
+              <span key={i}>{l}</span>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Nhân viên — sản phẩm bán lẻ theo người bán + tồn kho */}
       <WSection
