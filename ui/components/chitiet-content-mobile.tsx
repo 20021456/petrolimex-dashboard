@@ -6,7 +6,7 @@
 // ════════════════════════════════════════════════════════════════
 
 import * as React from "react"
-import { HX, Icon, FuelDot, fuelEntryByKind, Delta, ProgressBar } from "@/components/htx-kit"
+import { HX, Icon, FuelDot, fuelKind, fuelEntryByKind, Delta, ProgressBar } from "@/components/htx-kit"
 import {
   type ReportState,
   type Period,
@@ -17,6 +17,13 @@ import {
   fmtBig,
   KIND_COLOR,
   rangeLabel,
+  toYmd,
+  fmt1,
+  signL,
+  signP,
+  RECON_STATUS,
+  diffColorOf,
+  ReconHourBars,
 } from "@/components/chitiet-content"
 import { useStaff, type StaffMember } from "@/components/cabanhang-content"
 import { useRetailProducts, type PosProduct } from "@/components/pos-page"
@@ -53,6 +60,10 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
     byFuel,
     byPump,
     bestPump,
+    reconcile,
+    refDate,
+    setRefDate,
+    refIsToday,
   } = report
 
   const { staff } = useStaff()
@@ -62,6 +73,8 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
     () => staff.filter((s) => s.active !== false),
     [staff]
   )
+
+  const viewLabel = refIsToday ? meta.label.toLowerCase() : rangeLabel(period, ranges.cur)
 
   return (
     <div style={{ color: HX.text, fontFamily: HX.font }}>
@@ -102,7 +115,7 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
         })}
       </div>
 
-      {/* Compare label + date chip */}
+      {/* Compare label + date picker */}
       <div
         style={{
           display: "flex",
@@ -112,25 +125,75 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
           marginBottom: 14,
         }}
       >
-        <span style={{ fontSize: 11, color: HX.text3 }}>
-          So sánh <span style={{ color: HX.text2, fontWeight: 500 }}>{meta.compare}</span>
+        <span style={{ fontSize: 11, color: HX.text3, minWidth: 0 }}>
+          So sánh{" "}
+          <span style={{ color: HX.text2, fontWeight: 500 }}>
+            {refIsToday ? meta.compare : rangeLabel(period, ranges.prev)}
+          </span>
           {loading && <span style={{ marginLeft: 6 }}>· Đang tải…</span>}
         </span>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 10px",
-            background: HX.surface,
-            borderRadius: 999,
-            border: `1px solid ${HX.hairline}`,
-            fontSize: 12,
-            fontWeight: 500,
-          }}
-        >
-          <Icon name="calendar" size={13} color={HX.text2} />
-          {rangeLabel(period, ranges.cur)}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          {!refIsToday && (
+            <button
+              onClick={() => setRefDate(new Date())}
+              className="hxw-press"
+              style={{
+                padding: "6px 10px",
+                borderRadius: 999,
+                background: "transparent",
+                color: HX.accent,
+                border: `1px solid ${accentBorder}`,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Hôm nay
+            </button>
+          )}
+          <label
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 10px",
+              background: HX.surface,
+              borderRadius: 999,
+              border: `1px solid ${HX.hairline}`,
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            <Icon name="calendar" size={13} color={HX.text2} />
+            {rangeLabel(period, ranges.cur)}
+            <input
+              type="date"
+              value={toYmd(refDate)}
+              max={toYmd(new Date())}
+              onClick={(e) => {
+                const el = e.currentTarget as HTMLInputElement & { showPicker?: () => void }
+                el.showPicker?.()
+              }}
+              onChange={(e) => {
+                const v = e.target.value
+                if (!v) return
+                const [y, m, d] = v.split("-").map(Number)
+                setRefDate(new Date(y, m - 1, d))
+              }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                opacity: 0,
+                cursor: "pointer",
+                colorScheme: "dark",
+              }}
+            />
+          </label>
         </div>
       </div>
 
@@ -499,6 +562,9 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
         </div>
       </div>
 
+      {/* Đối chiếu Thực tế vs Đồng hồ */}
+      {period === "today" && <ReconcileMobile data={reconcile} dateLabel={viewLabel} />}
+
       {/* So sánh */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>So sánh</div>
@@ -562,6 +628,284 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
           sales={retailSales}
         />
       </div>
+    </div>
+  )
+}
+
+function ReconcileMobile({ data, dateLabel }: { data: any; dateLabel: string }) {
+  const [open, setOpen] = React.useState<number | null>(null)
+  const cols: any[] = data?.columns || []
+  const sum = data?.summary
+  const th = data?.thresholds || { warnL: 20, warnPct: 1.5, outlierL: 200 }
+  const excluded: any[] = data?.excluded || []
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 16, fontWeight: 600 }}>Đối chiếu Thực tế vs Đồng hồ</span>
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            color: HX.accent,
+            background: "rgba(255,90,31,0.12)",
+            border: `1px solid ${accentBorder}`,
+            padding: "2px 7px",
+            borderRadius: 6,
+          }}
+        >
+          TRỌNG TÂM
+        </span>
+      </div>
+      <div style={{ fontSize: 11, color: HX.text3, marginBottom: 10 }}>
+        Đồng hồ tổng vs giao dịch · ngưỡng ±{fmt1(th.warnL)} L / ±{fmt1(th.warnPct)}% · {dateLabel}
+      </div>
+
+      {!data ? (
+        <div
+          style={{
+            background: HX.surface,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 14,
+            padding: 24,
+            textAlign: "center",
+            color: HX.text3,
+            fontSize: 12,
+          }}
+        >
+          Đang tải…
+        </div>
+      ) : cols.length === 0 ? (
+        <div
+          style={{
+            background: HX.surface,
+            border: `1px solid ${HX.hairline}`,
+            borderRadius: 14,
+            padding: 24,
+            textAlign: "center",
+            color: HX.text3,
+            fontSize: 12,
+          }}
+        >
+          Chưa có dữ liệu đồng hồ để đối chiếu
+        </div>
+      ) : (
+        <>
+          {/* Summary */}
+          <div
+            style={{
+              background: HX.surface,
+              border: `1px solid ${HX.hairline}`,
+              borderRadius: 14,
+              padding: 14,
+              marginBottom: 10,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: HX.text3 }}>Chênh lệch ròng toàn trạm</div>
+                <div
+                  className="hx-num"
+                  style={{ fontSize: 24, fontWeight: 800, color: diffColorOf(sum.netDiff), marginTop: 2 }}
+                >
+                  {signL(sum.netDiff)}
+                </div>
+                <div className="hx-num" style={{ fontSize: 11, color: HX.text3, marginTop: 2 }}>
+                  trên {fmt1(sum.totalMeter)} L máy · {signP(sum.netPct)}
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+                {([
+                  ["warn", sum.counts.warn, "vượt ngưỡng"],
+                  ["watch", sum.counts.watch, "cần theo dõi"],
+                  ["ok", sum.counts.ok, "bình thường"],
+                ] as Array<[string, number, string]>).map(([k, n, t]) => (
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 3, background: RECON_STATUS[k].color }} />
+                    <span style={{ color: HX.text2 }}>
+                      <b style={{ color: HX.text }}>{n}</b> {t}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {(sum.worstColumn || sum.worstHour) && (
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  marginTop: 10,
+                  paddingTop: 10,
+                  borderTop: `1px solid ${HX.hairline}`,
+                  fontSize: 11,
+                  color: HX.text3,
+                  flexWrap: "wrap",
+                }}
+              >
+                {sum.worstColumn && (
+                  <span>
+                    Lệch nhiều nhất:{" "}
+                    <b style={{ color: HX.text2 }}>Cột {sum.worstColumn.cotBom}</b> ({signL(sum.worstColumn.diff)})
+                  </span>
+                )}
+                {sum.worstHour && (
+                  <span className="hx-num" style={{ marginLeft: "auto" }}>
+                    {sum.worstHour.fromHm}–{sum.worstHour.toHm}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Per-column list */}
+          <div
+            style={{
+              background: HX.surface,
+              border: `1px solid ${HX.hairline}`,
+              borderRadius: 14,
+              padding: 14,
+            }}
+          >
+            {cols.map((c, i) => {
+              const st = RECON_STATUS[c.status]
+              const isOpen = open === c.cotBom
+              return (
+                <div
+                  key={c.cotBom}
+                  style={{
+                    paddingTop: i === 0 ? 0 : 10,
+                    paddingBottom: i < cols.length - 1 ? 10 : 0,
+                    borderBottom: i < cols.length - 1 ? `1px solid ${HX.hairline}` : "none",
+                  }}
+                >
+                  <div
+                    onClick={() => setOpen(isOpen ? null : c.cotBom)}
+                    className="hxw-press"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <FuelDot kind={fuelKind(c.fuel)} size={7} />
+                      <span style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Cột {c.cotBom}</span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: HX.text3,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {c.fuel}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <span className="hx-num" style={{ fontSize: 13, fontWeight: 700, color: diffColorOf(c.diff) }}>
+                        {signL(c.diff)}
+                      </span>
+                      <span style={{ width: 7, height: 7, borderRadius: 4, background: st.color }} />
+                      <span style={{ display: "inline-flex", transform: isOpen ? "rotate(180deg)" : "none" }}>
+                        <Icon name="chevronDown" size={13} color={HX.text3} />
+                      </span>
+                    </div>
+                  </div>
+
+                  {isOpen && (
+                    <div style={{ marginTop: 10 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          fontSize: 11,
+                          color: HX.text3,
+                          marginBottom: 10,
+                        }}
+                      >
+                        <span>
+                          Số máy:{" "}
+                          <b className="hx-num" style={{ color: HX.text2 }}>
+                            {fmt1(c.meter)} L
+                          </b>
+                        </span>
+                        <span>
+                          Thực tế:{" "}
+                          <b className="hx-num" style={{ color: HX.text2 }}>
+                            {fmt1(c.actual)} L
+                          </b>
+                        </span>
+                        <span className="hx-num" style={{ color: diffColorOf(c.diff) }}>
+                          {signP(c.pct)} · {st.label}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: HX.text3, marginBottom: 4 }}>
+                        Chênh lệch theo giờ{" "}
+                        <span style={{ fontSize: 10 }}>(đỏ = thiếu · vàng = thừa)</span>
+                      </div>
+                      <ReconHourBars hourly={c.hourly} />
+                      {c.topHours.length > 0 && (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: HX.text2, marginBottom: 4 }}>
+                            Khung giờ lệch nhiều nhất
+                          </div>
+                          {c.topHours.map((thh: any, j: number) => (
+                            <div
+                              key={j}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "5px 0",
+                                borderBottom:
+                                  j < c.topHours.length - 1 ? `1px dashed ${HX.hairline}` : "none",
+                                fontSize: 11,
+                              }}
+                            >
+                              <span className="hx-num" style={{ color: HX.text2 }}>
+                                {thh.fromHm}–{thh.toHm}
+                              </span>
+                              <span className="hx-num" style={{ fontWeight: 700, color: diffColorOf(thh.diff) }}>
+                                {signL(thh.diff)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {excluded.length > 0 && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: "10px 12px",
+                background: "rgba(255,214,10,0.08)",
+                border: "1px solid rgba(255,214,10,0.25)",
+                borderRadius: 12,
+                fontSize: 11,
+                color: HX.text2,
+                display: "flex",
+                gap: 8,
+              }}
+            >
+              <Icon name="alert" size={14} color={HX.warn} />
+              <span>
+                Đã loại <b style={{ color: HX.text }}>{excluded.length} bản ghi</b> nghi lỗi đồng hồ (chênh &gt;{" "}
+                {fmt1(th.outlierL)} L) khỏi đối chiếu.
+              </span>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
