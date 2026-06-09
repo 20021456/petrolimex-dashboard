@@ -1343,12 +1343,26 @@ class FuelAPI:
         
         try:
             print("📊 Đang lấy dữ liệu Theo Dõi Online...")
-            self.page.goto(self.ONLINE_URL)
-            self.page.wait_for_load_state('networkidle')
-            time.sleep(0.3)  # Tối ưu: giảm từ 2s → 0.3s
-            
-            # Lấy HTML
-            html = self.page.content()
+            # Trang Theo Dõi Online cập nhật thời gian thực (polling liên tục)
+            # nên 'networkidle' gần như không bao giờ đạt → timeout. Thay bằng
+            # chờ DOM tải xong rồi chờ đúng phần tử dữ liệu xuất hiện, có retry.
+            html = ''
+            last_err: Optional[Exception] = None
+            for attempt in range(1, 4):
+                try:
+                    self.page.goto(self.ONLINE_URL, wait_until='domcontentloaded', timeout=30000)
+                    # Chờ ít nhất 1 cột bơm render xong
+                    self.page.wait_for_selector('div.show-cot', timeout=20000)
+                    time.sleep(0.3)
+                    html = self.page.content()
+                    break
+                except PlaywrightTimeoutError as e:
+                    last_err = e
+                    print(f"   ⏳ Lần {attempt}/3: timeout chờ dữ liệu online, thử lại...")
+                    time.sleep(2 * attempt)
+            if not html:
+                raise last_err or RuntimeError("Không tải được trang Theo Dõi Online")
+
             soup = BeautifulSoup(html, 'html.parser')
             
             data = []
