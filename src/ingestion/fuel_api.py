@@ -720,12 +720,22 @@ class FuelAPI:
                     ten_cot VARCHAR(50) NOT NULL,
                     nhien_lieu VARCHAR(50) DEFAULT '',
                     total DECIMAL(15, 2) NOT NULL,
+                    tien DECIMAL(15, 2) DEFAULT 0,
                     logged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_cot_time (cot_bom, logged_at),
                     INDEX idx_logged_at (logged_at)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """
             )
+            # Bảng cũ chưa có cột tien → thêm vào (bỏ qua nếu đã tồn tại).
+            try:
+                cursor.execute(
+                    "ALTER TABLE pump_total_log ADD COLUMN tien DECIMAL(15, 2) DEFAULT 0 AFTER total"
+                )
+            except Error as alter_err:
+                # 1060 = Duplicate column name → cột đã có, bỏ qua.
+                if getattr(alter_err, 'errno', None) != 1060:
+                    print(f"⚠️  ALTER pump_total_log.tien: {alter_err}")
             self.mysql_connection.commit()
             cursor.close()
             return True
@@ -795,17 +805,20 @@ class FuelAPI:
                         continue
                     cot_bom = int(m.group(1))
                     total = self.clean_number(item.get('total', '0'))
+                    # Cột "tiền" trên Theo Dõi Online thực chất là SỐ LÍT cộng
+                    # dồn (đặt sai tên) → bỏ dấu chấm rồi lưu để tính sản lượng.
+                    tien = self.clean_number(item.get('tien', '0'))
                     nhien_lieu = str(item.get('nhien_lieu', '') or '').strip()
                     cursor.execute(
                         """
                         INSERT INTO pump_total_log
-                        (cot_bom, ten_cot, nhien_lieu, total, logged_at)
-                        VALUES (%s, %s, %s, %s, %s)
+                        (cot_bom, ten_cot, nhien_lieu, total, tien, logged_at)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         """,
-                        (cot_bom, ten_cot, nhien_lieu, total, vn_now)
+                        (cot_bom, ten_cot, nhien_lieu, total, tien, vn_now)
                     )
                     ok += 1
-                    inserted_cols.append(f"cột {cot_bom}={total:,.2f}")
+                    inserted_cols.append(f"cột {cot_bom}: total={total:,.2f} tien={tien:,.2f}")
                 except Exception as e:
                     print(f"⚠️  Lỗi khi log pump total cho {item}: {e}")
                     continue
