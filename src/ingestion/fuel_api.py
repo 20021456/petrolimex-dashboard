@@ -1351,14 +1351,34 @@ class FuelAPI:
             for attempt in range(1, 4):
                 try:
                     self.page.goto(self.ONLINE_URL, wait_until='domcontentloaded', timeout=30000)
-                    # Chờ ít nhất 1 cột bơm render xong
+                    # Chờ khung cột bơm render xong
                     self.page.wait_for_selector('div.show-cot', timeout=20000)
+                    # QUAN TRỌNG: các ô TIỀN/LÍT/TOTAL được JS nạp sau (feed thời
+                    # gian thực). Phải chờ tới khi MỌI cột đã có giá trị TOTAL
+                    # khác rỗng/0, nếu không sẽ đọc nhầm khung trống → toàn số 0.
+                    self.page.wait_for_function(
+                        """() => {
+                            const cots = document.querySelectorAll('div.show-cot');
+                            if (cots.length === 0) return false;
+                            for (const c of cots) {
+                                const rights = c.querySelectorAll('.info-right p');
+                                let ok = false;
+                                for (const r of rights) {
+                                    const t = (r.textContent || '').replace(/[\\s.,0]/g, '');
+                                    if (t.length > 0) { ok = true; break; }
+                                }
+                                if (!ok) return false;
+                            }
+                            return true;
+                        }""",
+                        timeout=20000,
+                    )
                     time.sleep(0.3)
                     html = self.page.content()
                     break
                 except PlaywrightTimeoutError as e:
                     last_err = e
-                    print(f"   ⏳ Lần {attempt}/3: timeout chờ dữ liệu online, thử lại...")
+                    print(f"   ⏳ Lần {attempt}/3: chưa nạp xong giá trị online, thử lại...")
                     time.sleep(2 * attempt)
             if not html:
                 raise last_err or RuntimeError("Không tải được trang Theo Dõi Online")
