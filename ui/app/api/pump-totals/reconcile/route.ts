@@ -34,9 +34,11 @@ export async function GET(request: Request) {
     const dateSql = validDate ? '?' : 'CURDATE()'
     const p = validDate ? [validDate] : []
 
+    // SỐ MÁY (ĐH) lấy từ cột `tien` (số lít cộng dồn thật). Chỉ xét tien > 0
+    // để bỏ qua bản ghi cũ chưa có tien. Alias `tien AS total` để dùng lại logic.
     const snaps = await query<any[]>(
-      `SELECT cot_bom, total, DATE_FORMAT(logged_at,'%Y-%m-%d %H:%i:%s') ts
-       FROM pump_total_log WHERE DATE(logged_at) = ${dateSql}
+      `SELECT cot_bom, tien AS total, DATE_FORMAT(logged_at,'%Y-%m-%d %H:%i:%s') ts
+       FROM pump_total_log WHERE DATE(logged_at) = ${dateSql} AND tien > 0
        ORDER BY cot_bom, logged_at`,
       p
     )
