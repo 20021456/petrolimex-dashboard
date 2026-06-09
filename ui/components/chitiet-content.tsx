@@ -103,7 +103,7 @@ function fmtDM(d: Date) {
 function fmtDMY(d: Date) {
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`
 }
-function toYmd(d: Date) {
+export function toYmd(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
 
@@ -936,23 +936,23 @@ export function useReport() {
 export type ReportState = ReturnType<typeof useReport>
 
 // ── Đối chiếu Thực tế (giao dịch) vs Đồng hồ (pump_total_log) ──
-const fmt1 = (n: number) =>
+export const fmt1 = (n: number) =>
   new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n || 0)
-const signL = (n: number) => `${n > 0 ? "+" : ""}${fmt1(n)} L`
-const signP = (n: number) => `${n > 0 ? "+" : ""}${fmt1(n)}%`
+export const signL = (n: number) => `${n > 0 ? "+" : ""}${fmt1(n)} L`
+export const signP = (n: number) => `${n > 0 ? "+" : ""}${fmt1(n)}%`
 
-const RECON_STATUS: Record<string, { label: string; color: string }> = {
+export const RECON_STATUS: Record<string, { label: string; color: string }> = {
   warn: { label: "Vượt ngưỡng", color: "#ff453a" },
   watch: { label: "Cần theo dõi", color: "#ffd60a" },
   ok: { label: "Bình thường", color: "#30d158" },
 }
 
-function diffColorOf(n: number): string {
+export function diffColorOf(n: number): string {
   if (Math.abs(n) < 0.05) return HX.text2
   return n > 0 ? HX.warn : HX.bad
 }
 
-function ReconHourBars({ hourly }: { hourly: Array<{ hour: number; diff: number }> }) {
+export function ReconHourBars({ hourly }: { hourly: Array<{ hour: number; diff: number }> }) {
   const H = 92
   const maxAbs = Math.max(1, ...hourly.map((h) => Math.abs(h.diff)))
   return (
