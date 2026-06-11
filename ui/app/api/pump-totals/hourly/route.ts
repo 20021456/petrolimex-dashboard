@@ -32,16 +32,15 @@ const COT_BOM_TO_FUEL: Record<number, string> = {
 export async function GET() {
   try {
     // Với mỗi (cot_bom, giờ) → snapshot mới nhất trong giờ đó hôm nay.
-    // Dùng cột `tien` (số lít cộng dồn thật) làm chỉ số chốt cuối giờ; chỉ xét
-    // tien > 0 để bỏ qua bản ghi cũ. Alias `tien AS total` để dùng lại logic.
+    // Dùng cột `total` trong pump_total_log làm chỉ số chốt cuối giờ (như cũ).
     const rows = await query<any[]>(
       `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu,
-              HOUR(t1.logged_at) AS h, t1.tien AS total, t1.logged_at
+              HOUR(t1.logged_at) AS h, t1.total, t1.logged_at
        FROM pump_total_log t1
        INNER JOIN (
          SELECT cot_bom, HOUR(logged_at) AS h, MAX(logged_at) AS max_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = CURDATE() AND tien > 0
+         WHERE DATE(logged_at) = CURDATE()
          GROUP BY cot_bom, HOUR(logged_at)
        ) m ON m.cot_bom = t1.cot_bom AND m.h = HOUR(t1.logged_at)
               AND m.max_at = t1.logged_at
