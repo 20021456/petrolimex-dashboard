@@ -33,6 +33,7 @@ export async function GET() {
   try {
     // Với mỗi (cot_bom, giờ) → snapshot mới nhất trong giờ đó hôm nay.
     // Dùng cột `total` trong pump_total_log làm chỉ số chốt cuối giờ (như cũ).
+    // Lọc `total > 0` để bỏ snapshot đọc lỗi (rỗng → total=0).
     const rows = await query<any[]>(
       `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu,
               HOUR(t1.logged_at) AS h, t1.total, t1.logged_at
@@ -40,7 +41,7 @@ export async function GET() {
        INNER JOIN (
          SELECT cot_bom, HOUR(logged_at) AS h, MAX(logged_at) AS max_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = CURDATE()
+         WHERE DATE(logged_at) = CURDATE() AND total > 0
          GROUP BY cot_bom, HOUR(logged_at)
        ) m ON m.cot_bom = t1.cot_bom AND m.h = HOUR(t1.logged_at)
               AND m.max_at = t1.logged_at

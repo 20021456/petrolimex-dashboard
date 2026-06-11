@@ -34,10 +34,11 @@ export async function GET(request: Request) {
     const dateSql = validDate ? '?' : 'CURDATE()'
     const p = validDate ? [validDate] : []
 
-    // SỐ MÁY (ĐH) lấy từ cột `total` trong pump_total_log (như cũ).
+    // SỐ MÁY (ĐH) lấy từ cột `total` trong pump_total_log (như cũ). Lọc
+    // `total > 0` để bỏ snapshot đọc lỗi (rỗng → total=0) làm hỏng delta.
     const snaps = await query<any[]>(
       `SELECT cot_bom, total, DATE_FORMAT(logged_at,'%Y-%m-%d %H:%i:%s') ts
-       FROM pump_total_log WHERE DATE(logged_at) = ${dateSql}
+       FROM pump_total_log WHERE DATE(logged_at) = ${dateSql} AND total > 0
        ORDER BY cot_bom, logged_at`,
       p
     )
