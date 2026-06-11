@@ -146,6 +146,9 @@ export function usePos(
   const [status, setStatus] = React.useState<PayStatus>("paid")
   const [paid, setPaid] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
+  // Thời gian ghi nhận: null = dùng giờ hiện tại (mặc định). Khi user sửa thì
+  // giữ chuỗi datetime-local (YYYY-MM-DDTHH:mm:ss).
+  const [customTime, setCustomTime] = React.useState<string | null>(null)
   // Người bán: mặc định lấy từ ca đang mở; cho phép override bằng dropdown.
   const [seller, setSeller] = React.useState<string>(opts.sellerName || "")
   const lastDefaultRef = React.useRef<string>(opts.sellerName || "")
@@ -244,7 +247,10 @@ export function usePos(
 
   async function handleSubmit() {
     if (!canSave || submitting) return
-    const ts = new Date()
+    // Mặc định giờ hiện tại; nếu user đã sửa thời gian thì dùng giá trị đó
+    // (bỏ qua nếu không hợp lệ).
+    const parsed = customTime ? new Date(customTime) : null
+    const ts = parsed && !isNaN(parsed.getTime()) ? parsed : new Date()
     const sale_time = saleTimeStr(ts)
     const payment_status = status === "debt" ? "unpaid" : status
     const totalAll = cartLines.reduce((s, l) => s + l.lineTotal, 0)
@@ -298,6 +304,8 @@ export function usePos(
     paid,
     setPaid,
     submitting,
+    customTime,
+    setCustomTime,
     addToCart,
     updateQty,
     setQty,
@@ -332,6 +340,90 @@ function LiveClock({ mode = "time" }: { mode?: "time" | "date" }) {
   )
 }
 
+// Chuỗi cho input datetime-local theo giờ ĐỊA PHƯƠNG: YYYY-MM-DDTHH:mm:ss
+export function nowLocalStr(d: Date = new Date()) {
+  const p = (x: number) => String(x).padStart(2, "0")
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(
+    d.getHours()
+  )}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+// Ô "Thời gian ghi nhận": mặc định hiển thị đồng hồ chạy (giờ hiện tại). Bấm
+// "Sửa" để chọn ngày giờ thủ công; "Giờ hiện tại" để quay lại mặc định.
+export function SaleTimeField({
+  customTime,
+  setCustomTime,
+}: {
+  customTime: string | null
+  setCustomTime: (v: string | null) => void
+}) {
+  const editing = customTime !== null
+  const linkBtn: React.CSSProperties = {
+    background: "transparent",
+    border: "none",
+    padding: "2px 4px",
+    fontSize: 11,
+    color: HX.accent,
+    cursor: "pointer",
+    fontFamily: HX.font,
+    fontWeight: 600,
+  }
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        fontSize: 11,
+        color: HX.text3,
+        marginTop: -4,
+        flexWrap: "wrap",
+      }}
+    >
+      <Icon name="clock" size={11} color={HX.text3} />
+      Thời gian ghi nhận:{" "}
+      {editing ? (
+        <>
+          <input
+            type="datetime-local"
+            step={1}
+            value={customTime}
+            onChange={(e) => setCustomTime(e.target.value)}
+            style={{
+              height: 28,
+              padding: "0 8px",
+              borderRadius: 8,
+              background: HX.bg,
+              border: `1px solid ${HX.hairlineStrong}`,
+              color: HX.text,
+              fontSize: 12,
+              fontFamily: HX.font,
+              outline: "none",
+            }}
+          />
+          <button type="button" onClick={() => setCustomTime(null)} style={linkBtn}>
+            Giờ hiện tại
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
+            <LiveClock />
+          </span>
+          <button
+            type="button"
+            onClick={() => setCustomTime(nowLocalStr())}
+            style={linkBtn}
+          >
+            Sửa
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
 const PAY_OPTIONS: { k: PayStatus; l: string; c: string }[] = [
   { k: "paid", l: "Đã trả", c: HX.good },
   { k: "partial", l: "1 phần", c: HX.warn },
@@ -363,6 +455,8 @@ function PosPageWeb() {
     paid,
     setPaid,
     submitting,
+    customTime,
+    setCustomTime,
     addToCart,
     updateQty,
     setQty,
@@ -1203,23 +1297,7 @@ function PosPageWeb() {
                 </div>
               )}
 
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  fontSize: 11,
-                  color: HX.text3,
-                  marginTop: -4,
-                }}
-              >
-                <Icon name="clock" size={11} color={HX.text3} />
-                Thời gian ghi nhận:{" "}
-                <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
-                  <LiveClock />
-                </span>
-              </div>
+              <SaleTimeField customTime={customTime} setCustomTime={setCustomTime} />
             </div>
           )}
         </div>

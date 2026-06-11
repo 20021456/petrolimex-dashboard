@@ -13,6 +13,7 @@ import {
   useCustomers,
   POS_CATS,
   fmtVN,
+  SaleTimeField,
   type PayStatus,
 } from "@/components/pos-page"
 import { useShiftStore, useStaff } from "@/components/cabanhang-content"
@@ -54,6 +55,8 @@ export function PosPageMobile() {
     owed,
     canSave,
     submitting,
+    customTime,
+    setCustomTime,
     handleSubmit,
   } = usePos(products, {
     onSaved: reloadProducts,
@@ -696,6 +699,10 @@ export function PosPageMobile() {
                       : ""}
               </div>
             )}
+
+            <div style={{ marginTop: 10 }}>
+              <SaleTimeField customTime={customTime} setCustomTime={setCustomTime} />
+            </div>
 
             <div
               onClick={clearCart}
