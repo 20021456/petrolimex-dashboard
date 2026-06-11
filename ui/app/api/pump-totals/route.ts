@@ -78,27 +78,29 @@ export async function GET(request: Request) {
     const dParams = validDate ? [validDate] : []
 
     // Sản lượng số máy = total cuối ngày − total đầu ngày (lấy cột `total`
-    // trong pump_total_log như cũ).
+    // trong pump_total_log như cũ). Lọc `total > 0` để bỏ snapshot đọc lỗi
+    // (trang Theo Dõi Online trả rỗng → total=0); nếu không, mốc đầu ngày dính
+    // bản ghi 0 sẽ khiến actual = cả chỉ số đồng hồ cộng dồn.
     const startRows = await query<any[]>(
       `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu, t1.total, t1.logged_at
        FROM pump_total_log t1
        INNER JOIN (
          SELECT cot_bom, MIN(logged_at) AS min_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = ${dateSql}
+         WHERE DATE(logged_at) = ${dateSql} AND total > 0
          GROUP BY cot_bom
        ) m ON m.cot_bom = t1.cot_bom AND m.min_at = t1.logged_at`,
       dParams
     )
 
-    // Snapshot cuối ngày: dòng mới nhất trong ngày được chọn.
+    // Snapshot cuối ngày: dòng mới nhất (total > 0) trong ngày được chọn.
     const currentRows = await query<any[]>(
       `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu, t1.total, t1.logged_at
        FROM pump_total_log t1
        INNER JOIN (
          SELECT cot_bom, MAX(logged_at) AS max_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = ${dateSql}
+         WHERE DATE(logged_at) = ${dateSql} AND total > 0
          GROUP BY cot_bom
        ) m ON m.cot_bom = t1.cot_bom AND m.max_at = t1.logged_at`,
       dParams
