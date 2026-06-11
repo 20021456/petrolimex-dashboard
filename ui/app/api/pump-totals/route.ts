@@ -77,29 +77,28 @@ export async function GET(request: Request) {
     const dateSql = validDate ? '?' : 'CURDATE()'
     const dParams = validDate ? [validDate] : []
 
-    // Sản lượng thực tế tính từ cột `tien` (số lít cộng dồn thật, đặt sai tên
-    // "tiền" trên Theo Dõi Online). Chỉ xét dòng có tien > 0 để bỏ qua các bản
-    // ghi cũ chưa có tien. Alias `tien AS total` để phần xử lý bên dưới dùng lại.
+    // Sản lượng số máy = total cuối ngày − total đầu ngày (lấy cột `total`
+    // trong pump_total_log như cũ).
     const startRows = await query<any[]>(
-      `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu, t1.tien AS total, t1.logged_at
+      `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu, t1.total, t1.logged_at
        FROM pump_total_log t1
        INNER JOIN (
          SELECT cot_bom, MIN(logged_at) AS min_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = ${dateSql} AND tien > 0
+         WHERE DATE(logged_at) = ${dateSql}
          GROUP BY cot_bom
        ) m ON m.cot_bom = t1.cot_bom AND m.min_at = t1.logged_at`,
       dParams
     )
 
-    // Snapshot cuối ngày: dòng mới nhất (có tien) trong ngày được chọn.
+    // Snapshot cuối ngày: dòng mới nhất trong ngày được chọn.
     const currentRows = await query<any[]>(
-      `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu, t1.tien AS total, t1.logged_at
+      `SELECT t1.cot_bom, t1.ten_cot, t1.nhien_lieu, t1.total, t1.logged_at
        FROM pump_total_log t1
        INNER JOIN (
          SELECT cot_bom, MAX(logged_at) AS max_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = ${dateSql} AND tien > 0
+         WHERE DATE(logged_at) = ${dateSql}
          GROUP BY cot_bom
        ) m ON m.cot_bom = t1.cot_bom AND m.max_at = t1.logged_at`,
       dParams
