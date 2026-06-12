@@ -64,13 +64,62 @@ export function PosPageMobile() {
   })
 
   const [cat, setCat] = React.useState("all")
+  const [search, setSearch] = React.useState("")
   const [showCart, setShowCart] = React.useState(false)
 
-  const filtered = cat === "all" ? products : products.filter((p) => p.cat === cat)
+  const filtered = products.filter((p) => {
+    const matchSearch =
+      !search || (p.name + p.sku + p.cat).toLowerCase().includes(search.toLowerCase())
+    const matchCat = cat === "all" || p.cat === cat
+    return matchSearch && matchCat
+  })
   const hasItems = cartLines.length > 0
 
   return (
     <div style={{ color: HX.text, fontFamily: HX.font }}>
+      {/* Ô tìm kiếm sản phẩm (giống bản web) */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          height: 42,
+          padding: "0 14px",
+          marginBottom: 12,
+          background: HX.surface,
+          border: `1px solid ${HX.hairline}`,
+          borderRadius: 12,
+        }}
+      >
+        <Icon name="search" size={16} color={HX.text3} />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Tìm sản phẩm, mã SKU…"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            color: HX.text,
+            fontSize: 14,
+            fontFamily: HX.font,
+          }}
+        />
+        {search && (
+          <div
+            onClick={() => setSearch("")}
+            className="hxw-press"
+            style={{ cursor: "pointer", padding: 4, lineHeight: 0 }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14">
+              <path d="M3 3l8 8M11 3l-8 8" stroke={HX.text3} strokeWidth={1.6} strokeLinecap="round" />
+            </svg>
+          </div>
+        )}
+      </div>
+
       {/* Category chips */}
       <div
         className="hxw-scroll"
@@ -260,7 +309,7 @@ export function PosPageMobile() {
             borderRadius: 14,
           }}
         >
-          Không có sản phẩm.
+          {search ? `Không tìm thấy sản phẩm cho "${search}".` : "Không có sản phẩm."}
         </div>
       )}
 
