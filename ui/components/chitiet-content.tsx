@@ -1035,7 +1035,7 @@ function ReconcileBox({ data, dateLabel }: { data: any; dateLabel: string }) {
   const cols: any[] = data?.columns || []
   const sum = data?.summary
   const th = data?.thresholds || { warnL: 20, warnPct: 1.5 }
-  const excluded: any[] = data?.excluded || []
+  const flagged: any[] = data?.flagged || []
 
   const RECON_COLS = "120px 130px 1fr 1fr 1fr 70px 130px 150px 36px"
 
@@ -1062,7 +1062,7 @@ function ReconcileBox({ data, dateLabel }: { data: any; dateLabel: string }) {
       >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>Đối chiếu Thực tế vs Đồng hồ</span>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>Đối chiếu Giao dịch vs Số máy</span>
             <span
               style={{
                 fontSize: 10,
@@ -1079,7 +1079,7 @@ function ReconcileBox({ data, dateLabel }: { data: any; dateLabel: string }) {
             </span>
           </div>
           <div style={{ fontSize: 13, color: HX.text3, marginTop: 4 }}>
-            Sản lượng đồng hồ tổng so với thực tế đo bồn · từng cột bơm · {dateLabel}
+            Số máy (đồng hồ tổng) so với tổng giao dịch · từng cột bơm · {dateLabel}
           </div>
         </div>
         <div
@@ -1187,7 +1187,7 @@ function ReconcileBox({ data, dateLabel }: { data: any; dateLabel: string }) {
             <span>Cột bơm</span>
             <span>Loại NL</span>
             <span style={{ textAlign: "right" }}>Số máy (ĐH)</span>
-            <span style={{ textAlign: "right" }}>Thực tế</span>
+            <span style={{ textAlign: "right" }}>Giao dịch</span>
             <span style={{ textAlign: "right" }}>Chênh lệch</span>
             <span style={{ textAlign: "right" }}>%</span>
             <span>Trạng thái</span>
@@ -1319,8 +1319,8 @@ function ReconcileBox({ data, dateLabel }: { data: any; dateLabel: string }) {
             )
           })}
 
-          {/* Footer: excluded outliers */}
-          {excluded.length > 0 && (
+          {/* Footer: flagged outlier intervals (đã tính vào tổng, chỉ đánh dấu) */}
+          {flagged.length > 0 && (
             <div
               style={{
                 marginTop: 16,
@@ -1337,9 +1337,9 @@ function ReconcileBox({ data, dateLabel }: { data: any; dateLabel: string }) {
             >
               <Icon name="alert" size={15} color={HX.warn} />
               <span>
-                Đã loại <b style={{ color: HX.text }}>{excluded.length} bản ghi</b> nghi lỗi đồng hồ
-                (chênh &gt; {fmt1(th.outlierL)} L do số ĐH/GD bất thường) khỏi đối chiếu:{" "}
-                {excluded
+                <b style={{ color: HX.text }}>{flagged.length} khoảng</b> nghi trễ/lỗi đồng hồ
+                (chênh &gt; {fmt1(th.outlierL)} L) — <b>vẫn tính vào tổng</b>, chỉ đánh dấu để soi:{" "}
+                {flagged
                   .map((e) => `${e.fromHm}–${e.toHm} Cột ${e.cotBom} ${signL(e.diff)}`)
                   .join(" · ")}
               </span>
@@ -1650,8 +1650,8 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
             }}
           >
             <span>Sản phẩm</span>
-            <span style={{ textAlign: "right" }}>Sản lượng</span>
-            <span style={{ textAlign: "right" }}>Thực tế</span>
+            <span style={{ textAlign: "right" }}>Giao dịch</span>
+            <span style={{ textAlign: "right" }}>Số máy</span>
             <span style={{ textAlign: "right" }}>Chênh lệch</span>
             <span style={{ textAlign: "right" }}>Doanh thu</span>
             <span style={{ textAlign: "right" }}>%</span>
@@ -1814,8 +1814,8 @@ function ChiTietContentWeb({ report }: { report: ReportState }) {
                 }}
               >
                 <span>Cột bơm</span>
-                <span style={{ textAlign: "right" }}>Sản lượng DB</span>
-                <span style={{ textAlign: "right" }}>Thực tế</span>
+                <span style={{ textAlign: "right" }}>Giao dịch</span>
+                <span style={{ textAlign: "right" }}>Số máy</span>
                 <span style={{ textAlign: "right" }}>Chênh lệch</span>
                 <span style={{ textAlign: "right" }}>Doanh thu</span>
               </div>

@@ -369,7 +369,7 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
                     }}
                   >
                     <span style={{ color: HX.text3 }}>
-                      Thực tế:{" "}
+                      Số máy:{" "}
                       <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
                         {r.actualLiters != null ? `${fmtNum(r.actualLiters)} L` : "—"}
                       </span>
@@ -483,11 +483,11 @@ export function ChiTietContentMobile({ report }: { report: ReportState }) {
                       }}
                     >
                       <span style={{ color: HX.text3 }}>
-                        DB:{" "}
+                        Giao dịch:{" "}
                         <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
                           {fmtNum(p.dbLiters)} L
                         </span>
-                        {" · "}Thực tế:{" "}
+                        {" · "}Số máy:{" "}
                         <span className="hx-num" style={{ color: HX.text2, fontWeight: 600 }}>
                           {p.actualLiters != null ? `${fmtNum(p.actualLiters)} L` : "—"}
                         </span>
@@ -637,12 +637,12 @@ function ReconcileMobile({ data, dateLabel }: { data: any; dateLabel: string }) 
   const cols: any[] = data?.columns || []
   const sum = data?.summary
   const th = data?.thresholds || { warnL: 20, warnPct: 1.5, outlierL: 200 }
-  const excluded: any[] = data?.excluded || []
+  const flagged: any[] = data?.flagged || []
 
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 16, fontWeight: 600 }}>Đối chiếu Thực tế vs Đồng hồ</span>
+        <span style={{ fontSize: 16, fontWeight: 600 }}>Đối chiếu Giao dịch vs Số máy</span>
         <span
           style={{
             fontSize: 9,
@@ -835,7 +835,7 @@ function ReconcileMobile({ data, dateLabel }: { data: any; dateLabel: string }) 
                           </b>
                         </span>
                         <span>
-                          Thực tế:{" "}
+                          Giao dịch:{" "}
                           <b className="hx-num" style={{ color: HX.text2 }}>
                             {fmt1(c.actual)} L
                           </b>
@@ -883,7 +883,7 @@ function ReconcileMobile({ data, dateLabel }: { data: any; dateLabel: string }) 
             })}
           </div>
 
-          {excluded.length > 0 && (
+          {flagged.length > 0 && (
             <div
               style={{
                 marginTop: 10,
@@ -899,8 +899,8 @@ function ReconcileMobile({ data, dateLabel }: { data: any; dateLabel: string }) 
             >
               <Icon name="alert" size={14} color={HX.warn} />
               <span>
-                Đã loại <b style={{ color: HX.text }}>{excluded.length} bản ghi</b> nghi lỗi đồng hồ (chênh &gt;{" "}
-                {fmt1(th.outlierL)} L) khỏi đối chiếu.
+                <b style={{ color: HX.text }}>{flagged.length} khoảng</b> nghi trễ/lỗi đồng hồ (chênh &gt;{" "}
+                {fmt1(th.outlierL)} L) — vẫn tính vào tổng, chỉ đánh dấu để soi.
               </span>
             </div>
           )}
