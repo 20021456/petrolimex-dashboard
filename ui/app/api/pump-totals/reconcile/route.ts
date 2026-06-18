@@ -3,10 +3,11 @@ import { query } from '@/lib/db'
 
 // ════════════════════════════════════════════════════════════════
 // /api/pump-totals/reconcile — đối chiếu SỐ MÁY (đồng hồ tổng,
-// pump_total_log) với THỰC TẾ (tổng giao dịch fuel_pump) theo từng cột
-// bơm cho một ngày. Loại các khoảng nghi lỗi đồng hồ (|lệch| > OUTLIER)
-// để con số đối chiếu sạch.
-//   chênh lệch = THỰC TẾ − SỐ MÁY  (âm = thiếu, dương = thừa)
+// pump_total_log) với GIAO DỊCH (tổng fuel_pump) theo từng cột bơm
+// cho một ngày. Tính ĐỦ cả ngày để khớp với ô "Theo cột bơm"; các khoảng
+// |lệch| > OUTLIER chỉ được ĐÁNH DẤU (flagged) để giải thích, KHÔNG bị
+// trừ khỏi tổng.
+//   chênh lệch = GIAO DỊCH − SỐ MÁY  (âm = thiếu, dương = thừa)
 // ════════════════════════════════════════════════════════════════
 
 const COT_BOM_TO_FUEL: Record<number, string> = {
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
     }
 
     const columns: any[] = []
-    const excluded: any[] = []
+    const flagged: any[] = []
 
     for (const cb of Array.from(snapByCot.keys()).sort((a, b) => a - b)) {
       const list = snapByCot.get(cb)!
@@ -78,14 +79,15 @@ export async function GET(request: Request) {
         let txSum = 0
         for (const t of txList) if (t.ts > prev.ts && t.ts <= curr.ts) txSum += t.lit
         const d = txSum - meterDelta
+        // Tính ĐỦ cả ngày (không trừ khoảng nhiễu) để nhất quán với ô cột bơm;
+        // khoảng |lệch| lớn chỉ ĐÁNH DẤU để giải thích nguồn chênh lệch.
         if (Math.abs(d) > OUTLIER_L) {
-          excluded.push({
+          flagged.push({
             cotBom: cb,
             fromHm: prev.ts.slice(11, 16),
             toHm: curr.ts.slice(11, 16),
             diff: r1(d),
           })
-          continue
         }
         meter += meterDelta
         actual += txSum
@@ -148,7 +150,7 @@ export async function GET(request: Request) {
       watch: columns.filter((c) => c.status === 'watch').length,
       ok: columns.filter((c) => c.status === 'ok').length,
     }
-    excluded.sort((a, b) => (a.fromHm < b.fromHm ? -1 : 1))
+    flagged.sort((a, b) => (a.fromHm < b.fromHm ? -1 : 1))
 
     return NextResponse.json({
       success: true,
@@ -157,7 +159,7 @@ export async function GET(request: Request) {
         thresholds: { warnL: WARN_L, warnPct: WARN_PCT, watchL: WATCH_L, watchPct: WATCH_PCT, outlierL: OUTLIER_L },
         columns,
         summary: { netDiff, totalMeter, netPct, worstColumn, worstHour, counts },
-        excluded,
+        flagged,
       },
     })
   } catch (e: any) {
