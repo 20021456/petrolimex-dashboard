@@ -10,6 +10,14 @@ import os
 import argparse
 from datetime import datetime, timedelta
 
+# Container chạy schedule có pids-limit chặt; OpenBLAS (numpy/pandas) mặc định
+# spawn thread theo số CPU và sẽ chết ngay lúc import nếu container cạn
+# tiến trình ("pthread_create failed: Resource temporarily unavailable").
+# Ép các thư viện BLAS chạy 1 thread TRƯỚC khi import pandas.
+for _v in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -216,6 +224,42 @@ def run_reload_days(api, days):
     print(f"   - Đã thêm: {total_success:,} bản ghi mới")
 
 
+def reap_stale_browsers(max_age_seconds=5400):
+    """
+    Dọn các tiến trình Chromium/headless_shell mồ côi còn sót từ những lần
+    chạy trước bị ngắt giữa chừng (timeout của scheduler → cleanup() không
+    kịp chạy). Tích tụ lâu ngày sẽ làm container cạn pids limit và crash
+    ngay từ lúc import pandas. Chỉ kill tiến trình chạy lâu hơn
+    max_age_seconds (mặc định 90 phút) để không đụng run đang chạy song song.
+    """
+    import signal
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["ps", "-eo", "pid,etimes,comm"],
+            capture_output=True, text=True, timeout=10
+        ).stdout
+    except Exception:
+        return
+    killed = 0
+    for line in out.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        pid_s, etimes_s, comm = parts[0], parts[1], " ".join(parts[2:])
+        if not any(k in comm.lower() for k in ("chrom", "headless_shell")):
+            continue
+        try:
+            if int(etimes_s) < max_age_seconds:
+                continue
+            os.kill(int(pid_s), signal.SIGKILL)
+            killed += 1
+        except (ValueError, ProcessLookupError, PermissionError):
+            continue
+    if killed:
+        print(f"🧹 Đã dọn {killed} tiến trình browser mồ côi (chạy > {max_age_seconds // 60} phút)")
+
+
 def main():
     """Main function với argument parsing"""
     parser = argparse.ArgumentParser(description='Fuel Auto Update với options')
@@ -225,7 +269,10 @@ def main():
                         help='Số ngày (dùng cho mode 3)')
     
     args = parser.parse_args()
-    
+
+    # Dọn browser mồ côi từ các run trước bị ngắt giữa chừng
+    reap_stale_browsers()
+
     # Khởi tạo API
     api = FuelAPI(
         username=FUEL_USERNAME,
