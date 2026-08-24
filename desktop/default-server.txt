@@ -1,0 +1,12 @@
+# Địa chỉ dashboard nhúng sẵn vào app.
+#
+# Điền một dòng địa chỉ vào đây trước khi build thì app cài xong mở là vào
+# thẳng dashboard, không hỏi màn hình cấu hình nữa. Để trống thì app hỏi địa
+# chỉ ở lần mở đầu tiên.
+#
+# Dùng domain hoặc IP đều được, ví dụ:
+#   https://fuel.tencongty.com
+#   http://14.225.xxx.xxx:3000
+#   http://192.168.1.10:3000
+#
+# Dòng bắt đầu bằng # là ghi chú, app bỏ qua.
