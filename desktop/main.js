@@ -15,6 +15,7 @@ const fs = require('fs');
 const CONFIG_FILE = () => path.join(app.getPath('userData'), 'config.json');
 const SETUP_PAGE = path.join(__dirname, 'renderer', 'setup.html');
 const ERROR_PAGE = path.join(__dirname, 'renderer', 'error.html');
+const DEFAULT_SERVER_FILE = path.join(__dirname, 'default-server.txt');
 
 const DEFAULT_CONFIG = {
   serverUrl: '',
@@ -65,9 +66,34 @@ function normalizeUrl(input) {
   }
 }
 
-/** Địa chỉ ưu tiên từ biến môi trường (dùng khi triển khai hàng loạt). */
+/**
+ * Địa chỉ nhúng sẵn lúc build (desktop/default-server.txt). Có giá trị thì app
+ * cài xong mở thẳng dashboard, không cần qua màn hình cấu hình.
+ */
+function builtInUrl() {
+  try {
+    const raw = fs.readFileSync(DEFAULT_SERVER_FILE, 'utf8');
+    const line = raw
+      .split('\n')
+      .map((item) => item.trim())
+      .find((item) => item && !item.startsWith('#'));
+    return normalizeUrl(line);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Thứ tự ưu tiên: biến môi trường (triển khai hàng loạt) > địa chỉ người dùng
+ * tự nhập > địa chỉ nhúng sẵn lúc build.
+ */
 function configuredUrl() {
-  return normalizeUrl(process.env.PETROLIMEX_DASHBOARD_URL) || readConfig().serverUrl;
+  return (
+    normalizeUrl(process.env.PETROLIMEX_DASHBOARD_URL) ||
+    readConfig().serverUrl ||
+    builtInUrl() ||
+    ''
+  );
 }
 
 /* --------------------------------------------------------------- loading */

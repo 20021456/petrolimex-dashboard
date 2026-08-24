@@ -11,6 +11,31 @@ Cái được thêm so với mở bằng trình duyệt: có icon + shortcut ngo
 Start Menu, chạy trong cửa sổ riêng không có thanh địa chỉ, nhớ kích thước cửa
 sổ và mức zoom, có trang báo lỗi kèm nút thử lại khi mất mạng.
 
+## Nhúng sẵn địa chỉ máy chủ (khỏi phải nhập khi cài)
+
+Điền một dòng địa chỉ vào `desktop/default-server.txt` **trước khi build** thì
+app cài xong mở là vào thẳng dashboard, bỏ qua màn hình cấu hình:
+
+```
+https://fuel.tencongty.com
+```
+
+Build qua GitHub Actions thì khỏi sửa file: khi bấm **Run workflow**, điền địa
+chỉ vào ô `server_url`, workflow tự ghi vào `default-server.txt` rồi build.
+
+Không cần domain cũng được — điền thẳng IP kèm port, ví dụ
+`http://14.225.1.2:3000` (VPS) hoặc `http://192.168.1.10:3000` (mạng nội bộ).
+Điều kiện là port đó phải mở ra ngoài: `docker-compose.dokploy.yml` hiện chỉ
+`expose: 3000` cho Traefik dùng nội bộ, muốn vào bằng IP thì đổi thành
+`ports: ["3000:3000"]` và mở firewall. Dùng IP thì không có HTTPS, và QR code
+cho nhân viên quét cũng sẽ trỏ về IP đó.
+
+Thứ tự ưu tiên khi app tìm địa chỉ máy chủ:
+
+1. Biến môi trường `PETROLIMEX_DASHBOARD_URL`
+2. Địa chỉ người dùng tự nhập (lưu trong `config.json`)
+3. Địa chỉ nhúng sẵn trong `default-server.txt`
+
 ## Người dùng cuối cài thế nào
 
 1. Tải file `PetrolimexDashboard-Setup-<version>.exe`.
@@ -84,6 +109,7 @@ ngay sau khi tải lại (F5) — không phải build lại `.exe`.
 | `renderer/setup.html` | Màn hình nhập địa chỉ máy chủ |
 | `renderer/error.html` | Trang báo mất kết nối, có nút Thử lại / Đổi địa chỉ |
 | `resources/icon.png` | Icon ứng dụng (dùng lại icon của dashboard) |
+| `default-server.txt` | Địa chỉ máy chủ nhúng sẵn lúc build (để trống = app hỏi) |
 
 Về bảo mật: cửa sổ bật `contextIsolation`, tắt `nodeIntegration`; các hàm IPC
 chỉ nhận lệnh từ trang `file://` trong app, nên nội dung web tải từ server

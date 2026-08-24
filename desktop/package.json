@@ -31,6 +31,7 @@
       "preload.js",
       "renderer/**/*",
       "resources/icon.png",
+      "default-server.txt",
       "package.json"
     ],
     "win": {

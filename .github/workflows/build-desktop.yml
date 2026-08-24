@@ -2,6 +2,11 @@ name: Build Desktop App (Windows)
 
 on:
   workflow_dispatch:
+    inputs:
+      server_url:
+        description: 'Địa chỉ dashboard nhúng sẵn vào app (vd https://fuel.tencongty.com hoặc http://14.225.1.2:3000). Bỏ trống thì app hỏi khi mở lần đầu.'
+        required: false
+        default: ''
   push:
     tags:
       - 'desktop-v*'
@@ -20,6 +25,13 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: desktop/package-lock.json
+
+      - name: Nhúng địa chỉ máy chủ mặc định
+        if: inputs.server_url != ''
+        working-directory: desktop
+        env:
+          SERVER_URL: ${{ inputs.server_url }}
+        run: Set-Content -Path default-server.txt -Value $env:SERVER_URL -NoNewline
 
       - name: Install dependencies
         working-directory: desktop
