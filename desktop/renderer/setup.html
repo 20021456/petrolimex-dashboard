@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:" />
+<title>Cấu hình máy chủ</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0a0a0a;
+    --card: #141414;
+    --border: #262626;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --accent: #2563eb;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  .card {
+    width: 100%;
+    max-width: 520px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+  }
+  h1 { margin: 0 0 8px; font-size: 22px; font-weight: 650; }
+  p.lead { margin: 0 0 24px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  input {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 15px;
+    color: var(--text);
+    background: #0f0f0f;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  .hint { margin-top: 10px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+  .hint code { background: #1f1f1f; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .error { margin-top: 12px; font-size: 13px; color: var(--danger); min-height: 18px; }
+  button {
+    margin-top: 20px;
+    width: 100%;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+  }
+  button:hover { background: #1d4ed8; }
+  button:disabled { opacity: .6; cursor: default; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <h1>Kết nối tới máy chủ</h1>
+    <p class="lead">
+      Ứng dụng này hiển thị dashboard đang chạy trên máy chủ của bạn, nên cần có mạng.
+      Nhập địa chỉ dashboard rồi bấm Kết nối — địa chỉ sẽ được nhớ cho các lần mở sau.
+    </p>
+
+    <label for="url">Địa chỉ máy chủ</label>
+    <input id="url" type="text" placeholder="https://fuel.tencongty.com" autocomplete="off" spellcheck="false" />
+    <div class="hint">
+      Ví dụ: <code>https://fuel.tencongty.com</code> hoặc trong mạng nội bộ <code>http://192.168.1.10:3000</code>
+    </div>
+    <div class="error" id="error"></div>
+
+    <button id="save" type="button">Kết nối</button>
+  </main>
+
+<script>
+  const input = document.getElementById('url');
+  const button = document.getElementById('save');
+  const error = document.getElementById('error');
+
+  window.desktopApp.getConfig().then((config) => {
+    if (config && config.serverUrl) input.value = config.serverUrl;
+    input.focus();
+    input.select();
+  });
+
+  async function save() {
+    error.textContent = '';
+    button.disabled = true;
+    const result = await window.desktopApp.saveUrl(input.value);
+    if (!result || !result.ok) {
+      error.textContent = (result && result.error) || 'Không lưu được địa chỉ';
+      button.disabled = false;
+    }
+  }
+
+  button.addEventListener('click', save);
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') save();
+  });
+</script>
+</body>
+</html>

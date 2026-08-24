@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:" />
+<title>Không kết nối được</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0a0a0a;
+    --card: #141414;
+    --border: #262626;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --accent: #2563eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  .card {
+    width: 100%;
+    max-width: 520px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+  }
+  h1 { margin: 0 0 8px; font-size: 21px; font-weight: 650; }
+  p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+  .detail {
+    background: #0f0f0f;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 14px;
+    font-size: 12.5px;
+    color: var(--muted);
+    word-break: break-all;
+    line-height: 1.7;
+  }
+  .detail b { color: var(--text); font-weight: 600; }
+  ul { margin: 14px 0 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; line-height: 1.8; }
+  .actions { display: flex; gap: 10px; margin-top: 22px; }
+  button {
+    flex: 1;
+    padding: 11px 16px;
+    font-size: 14.5px;
+    font-weight: 600;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #1d4ed8; }
+  button:not(.primary):hover { background: #1c1c1c; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <h1>Không kết nối được máy chủ</h1>
+    <p>Ứng dụng cần mạng để tải dashboard. Kiểm tra kết nối rồi bấm Thử lại.</p>
+
+    <div class="detail">
+      <b>Địa chỉ:</b> <span id="url">—</span><br />
+      <b>Lỗi:</b> <span id="message">—</span> <span id="code"></span>
+    </div>
+
+    <ul>
+      <li>Kiểm tra máy tính đã vào được mạng chưa</li>
+      <li>Thử mở địa chỉ trên bằng trình duyệt</li>
+      <li>Nếu địa chỉ máy chủ đã đổi, bấm "Đổi địa chỉ"</li>
+    </ul>
+
+    <div class="actions">
+      <button type="button" id="setup">Đổi địa chỉ</button>
+      <button type="button" class="primary" id="retry">Thử lại</button>
+    </div>
+  </main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  document.getElementById('url').textContent = params.get('url') || '(chưa cấu hình)';
+  document.getElementById('message').textContent = params.get('message') || 'Không rõ nguyên nhân';
+  const code = params.get('code');
+  document.getElementById('code').textContent = code ? '(' + code + ')' : '';
+
+  document.getElementById('retry').addEventListener('click', () => window.desktopApp.retry());
+  document.getElementById('setup').addEventListener('click', () => window.desktopApp.openSetup());
+</script>
+</body>
+</html>
