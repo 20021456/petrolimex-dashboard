@@ -122,6 +122,26 @@ TZ=Asia/Ho_Chi_Minh
 
 ---
 
+## 💻 Ứng dụng Desktop (Windows)
+
+Thư mục `desktop/` đóng gói dashboard thành file cài `.exe` cho Windows. App là
+vỏ Electron mở đúng dashboard đang chạy trên server, nên giao diện y hệt bản web
+và **cần có mạng** mới dùng được — server/MySQL/Python không thay đổi gì.
+
+```bash
+cd desktop
+npm install
+npm run dist:win    # ra desktop/dist/PetrolimexDashboard-Setup-x.y.z.exe
+```
+
+Không có máy Windows thì chạy workflow **Build Desktop App (Windows)** trong tab
+Actions và tải file `.exe` ở phần Artifacts.
+
+Lần đầu mở app sẽ hỏi địa chỉ máy chủ (ví dụ `https://fuel.tencongty.com`), sau
+đó nhớ luôn. Chi tiết xem [`desktop/README.md`](desktop/README.md).
+
+---
+
 ## 📖 Hướng dẫn sử dụng Dashboard
 
 ### 🏠 Trang chủ Dashboard
