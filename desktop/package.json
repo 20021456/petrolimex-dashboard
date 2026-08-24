@@ -1,0 +1,59 @@
+{
+  "name": "petrolimex-dashboard-desktop",
+  "productName": "Petrolimex Dashboard",
+  "version": "1.0.0",
+  "description": "Petrolimex Dashboard - ứng dụng desktop",
+  "main": "main.js",
+  "private": true,
+  "author": "Petrolimex Dashboard",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis --x64",
+    "dist:win:portable": "electron-builder --win portable --x64",
+    "pack": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.petrolimex.dashboard",
+    "productName": "Petrolimex Dashboard",
+    "copyright": "Copyright © 2026 Petrolimex Dashboard",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "publish": null,
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "resources/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "resources/icon.png",
+      "artifactName": "PetrolimexDashboard-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Petrolimex Dashboard",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "PetrolimexDashboard-Portable-${version}.${ext}"
+    }
+  }
+}
