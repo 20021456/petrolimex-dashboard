@@ -27,6 +27,7 @@ import { X, PanelLeftClose, PanelLeftOpen, RefreshCw, Plus, Search } from "lucid
 import { toast } from "sonner"
 import { DonGiaContent } from "@/components/donggia-content"
 import { NhapKhoContent } from "@/components/nhap-kho-content"
+import { HuongDanContent } from "@/components/huongdan-content"
 import { usePriceDialog } from "@/components/global-price-dialog"
 import {
   DndContext,
@@ -305,6 +306,7 @@ export default function Page() {
     gia: "Đơn giá",
     giaoca: "Ca bán hàng",
     khachquen: "Công nợ",
+    huongdan: "Hướng dẫn sử dụng",
     revenue: "Doanh Thu",
     statistics: "Thống Kê & Biểu Đồ",
     pumps: "Quản Lý Cột Bơm",
@@ -321,6 +323,7 @@ export default function Page() {
     giaoca: "Mở / đóng ca làm việc",
     gia: "Cập nhật giá xăng dầu & bán lẻ",
     khachquen: "Theo dõi & thu nợ khách quen",
+    huongdan: "Các bước dùng từng chức năng cho người mới",
   }
 
   return (
@@ -498,6 +501,8 @@ export default function Page() {
             <CongNoContent />
           ) : activeView === "gia" ? (
             <DonGiaContent />
+          ) : activeView === "huongdan" ? (
+            <HuongDanContent onNavigate={setActiveView} />
           ) : (
             <DashboardHome onNavigate={setActiveView} />
           )}
