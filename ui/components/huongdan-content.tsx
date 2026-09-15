@@ -950,11 +950,15 @@ function TaskCard({
 }
 
 // ── Trang chính ───────────────────────────────────────────────
+// Bố cục "mục lục ↔ nội dung": bấm một mục ở mục lục thì khung bên
+// cạnh chỉ hiển thị đúng mục đó (không cuộn một trang dài).
 export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
   const isMobile = useIsMobile()
   const [query, setQuery] = React.useState("")
   const [active, setActive] = React.useState<string>(GUIDES[0].id)
   const [openTasks, setOpenTasks] = React.useState<Record<string, boolean>>({})
+  const panelRef = React.useRef<HTMLDivElement>(null)
+  const layoutRef = React.useRef<HTMLDivElement>(null)
 
   const q = query.trim().toLowerCase()
 
@@ -980,14 +984,33 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
     }).filter((g) => g.tasks.length > 0)
   }, [q])
 
+  // Khi đang tìm mà mục đang chọn không còn khớp → tự nhảy sang mục khớp đầu tiên.
+  React.useEffect(() => {
+    if (filtered.length === 0) return
+    if (!filtered.some((g) => g.id === active)) setActive(filtered[0].id)
+  }, [filtered, active])
+
+  const activeIndex = filtered.findIndex((g) => g.id === active)
+  const current = activeIndex >= 0 ? filtered[activeIndex] : undefined
+  const prevGuide = activeIndex > 0 ? filtered[activeIndex - 1] : undefined
+  const nextGuide = activeIndex >= 0 && activeIndex < filtered.length - 1 ? filtered[activeIndex + 1] : undefined
+
   const toggleTask = (id: string) =>
     setOpenTasks((m) => ({ ...m, [id]: !m[id] }))
 
-  const jumpTo = (guideId: string) => {
+  // Chọn mục: đổi nội dung khung bên phải và đưa khung lên đầu vùng nhìn
+  // (chỉ cuộn khi đầu khung đang nằm ngoài tầm nhìn).
+  const select = React.useCallback((guideId: string) => {
     setActive(guideId)
-    const el = document.getElementById(`hd-sec-${guideId}`)
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
-  }
+    requestAnimationFrame(() => {
+      const el = layoutRef.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top
+      if (top < 64 || top > window.innerHeight * 0.5) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" })
+      }
+    })
+  }, [])
 
   const openAllIn = (g: Guide, open: boolean) =>
     setOpenTasks((m) => {
@@ -996,29 +1019,58 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
       return next
     })
 
-  // Theo dõi mục đang xem để tô sáng mục lục (máy tính).
+  // Mobile: chip của mục đang chọn tự cuộn vào giữa dải.
   React.useEffect(() => {
-    if (isMobile || typeof IntersectionObserver === "undefined") return
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-        if (visible[0]) {
-          const id = visible[0].target.id.replace("hd-sec-", "")
-          setActive(id)
-        }
-      },
-      { rootMargin: "-80px 0px -70% 0px", threshold: 0 }
-    )
-    GUIDES.forEach((g) => {
-      const el = document.getElementById(`hd-sec-${g.id}`)
-      if (el) obs.observe(el)
-    })
-    return () => obs.disconnect()
-  }, [isMobile, filtered])
+    if (!isMobile) return
+    const el = document.getElementById(`hd-chip-${active}`)
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
+  }, [active, isMobile])
 
   const totalTasks = GUIDES.reduce((n, g) => n + g.tasks.length, 0)
+
+  const navBtn = (label: string, g: Guide | undefined, dir: "prev" | "next") => (
+    <button
+      type="button"
+      disabled={!g}
+      onClick={() => g && select(g.id)}
+      className={g ? "hxw-press" : undefined}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: dir === "prev" ? "flex-start" : "flex-end",
+        gap: 4,
+        padding: "12px 14px",
+        borderRadius: 12,
+        background: HX.surface,
+        border: `1px solid ${HX.hairline}`,
+        color: HX.text,
+        cursor: g ? "pointer" : "default",
+        opacity: g ? 1 : 0.4,
+        textAlign: dir === "prev" ? "left" : "right",
+      }}
+    >
+      <span style={{ fontSize: 11, color: HX.text3, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+        {label}
+      </span>
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 13.5,
+          fontWeight: 600,
+          color: g ? g.color : HX.text3,
+          maxWidth: "100%",
+        }}
+      >
+        {dir === "prev" && <Icon name="chevron" size={14} color={g?.color || HX.text3} style={{ transform: "rotate(180deg)" }} />}
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g ? g.title : "—"}</span>
+        {dir === "next" && <Icon name="chevron" size={14} color={g?.color || HX.text3} />}
+      </span>
+    </button>
+  )
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -1026,7 +1078,7 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
       <div
         style={{
           borderRadius: 18,
-          padding: isMobile ? "20px 18px" : "26px 28px",
+          padding: isMobile ? "20px 18px" : "22px 28px",
           background: `linear-gradient(135deg, rgba(6,214,160,0.16) 0%, rgba(255,90,31,0.10) 100%)`,
           border: `1px solid ${HX.hairlineStrong}`,
           display: "flex",
@@ -1052,8 +1104,8 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
             Hướng dẫn sử dụng ứng dụng
           </div>
           <div style={{ fontSize: 13.5, color: HX.text2, marginTop: 6, lineHeight: 1.55 }}>
-            {GUIDES.length} mục · {totalTasks} thao tác hướng dẫn từng bước theo đúng nút bấm trên màn hình.
-            Chữ trong khung màu là tên nút hoặc nhãn bạn sẽ thấy trong ứng dụng.
+            {GUIDES.length} mục · {totalTasks} thao tác. Chọn một mục ở {isMobile ? "dải bên dưới" : "mục lục bên trái"} để xem hướng dẫn
+            từng bước ngay bên cạnh. Chữ trong khung màu là tên nút hoặc nhãn bạn sẽ thấy trong ứng dụng.
           </div>
         </div>
         <div
@@ -1158,13 +1210,15 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
         </section>
       )}
 
-      {/* Mục lục + nội dung */}
+      {/* Mục lục ↔ nội dung */}
       <div
+        ref={layoutRef}
         style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "240px minmax(0, 1fr)",
+          gridTemplateColumns: isMobile ? "1fr" : "248px minmax(0, 1fr)",
           gap: 22,
           alignItems: "start",
+          scrollMarginTop: 80,
         }}
       >
         {/* Mục lục */}
@@ -1175,8 +1229,9 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
               return (
                 <button
                   key={g.id}
+                  id={`hd-chip-${g.id}`}
                   type="button"
-                  onClick={() => jumpTo(g.id)}
+                  onClick={() => select(g.id)}
                   style={{
                     flexShrink: 0,
                     display: "inline-flex",
@@ -1220,17 +1275,22 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 padding: "6px 10px 8px",
+                display: "flex",
+                justifyContent: "space-between",
               }}
             >
-              Mục lục
+              <span>Mục lục</span>
+              <span className="hx-num" style={{ letterSpacing: 0 }}>
+                {activeIndex >= 0 ? `${activeIndex + 1}/${filtered.length}` : `${filtered.length}`}
+              </span>
             </div>
-            {filtered.map((g) => {
+            {filtered.map((g, i) => {
               const isActive = active === g.id
               return (
                 <button
                   key={g.id}
                   type="button"
-                  onClick={() => jumpTo(g.id)}
+                  onClick={() => select(g.id)}
                   className="hxw-press"
                   style={{
                     display: "flex",
@@ -1240,29 +1300,39 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
                     borderRadius: 9,
                     cursor: "pointer",
                     textAlign: "left",
-                    border: "none",
+                    border: `1px solid ${isActive ? g.color + "55" : "transparent"}`,
                     background: isActive ? g.color + "1a" : "transparent",
                     color: isActive ? g.color : HX.text2,
                     fontSize: 13.5,
                     fontWeight: isActive ? 600 : 500,
+                    position: "relative",
                   }}
                 >
+                  <span
+                    className="hx-num"
+                    style={{ fontSize: 10.5, color: isActive ? g.color : HX.text3, width: 16, flexShrink: 0, opacity: 0.8 }}
+                  >
+                    {i + 1}
+                  </span>
                   <Icon name={g.icon} size={16} color={isActive ? g.color : HX.text3} strokeWidth={isActive ? 2 : 1.7} />
                   <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {g.title}
                   </span>
-                  <span className="hx-num" style={{ fontSize: 11, color: HX.text3 }}>
+                  <span className="hx-num" style={{ fontSize: 11, color: isActive ? g.color : HX.text3 }}>
                     {g.tasks.length}
                   </span>
                 </button>
               )
             })}
+            {filtered.length === 0 && (
+              <div style={{ padding: "10px 10px 6px", fontSize: 12.5, color: HX.text3 }}>Không có mục nào khớp.</div>
+            )}
           </nav>
         )}
 
-        {/* Nội dung */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 28, minWidth: 0 }}>
-          {filtered.length === 0 && (
+        {/* Nội dung mục đang chọn */}
+        <div ref={panelRef} style={{ minWidth: 0 }}>
+          {!current && (
             <div
               style={{
                 padding: 40,
@@ -1278,23 +1348,27 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
             </div>
           )}
 
-          {filtered.map((g) => {
+          {current && (() => {
+            const g = current
             const allOpen = g.tasks.every((t) => openTasks[t.id] || q.length > 0)
             return (
-              <section key={g.id} id={`hd-sec-${g.id}`} style={{ scrollMarginTop: 84 }}>
-                <header
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 14,
-                    marginBottom: 14,
-                    flexWrap: "wrap",
-                  }}
-                >
+              <section
+                key={g.id}
+                style={{
+                  background: HX.bg,
+                  border: `1px solid ${HX.hairline}`,
+                  borderRadius: 16,
+                  padding: isMobile ? 14 : 20,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 14,
+                }}
+              >
+                <header style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
                   <div
                     style={{
-                      width: 42,
-                      height: 42,
+                      width: 44,
+                      height: 44,
                       borderRadius: 12,
                       background: g.color + "22",
                       display: "flex",
@@ -1303,10 +1377,14 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
                       flexShrink: 0,
                     }}
                   >
-                    <Icon name={g.icon} size={20} color={g.color} />
+                    <Icon name={g.icon} size={22} color={g.color} />
                   </div>
                   <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: HX.text, letterSpacing: "-0.015em" }}>
+                    <div style={{ fontSize: 11, color: HX.text3, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                      Mục {activeIndex + 1} / {filtered.length}
+                      {q ? ` · ${g.tasks.length} thao tác khớp “${query.trim()}”` : ""}
+                    </div>
+                    <div style={{ fontSize: 19, fontWeight: 700, color: HX.text, letterSpacing: "-0.015em", marginTop: 2 }}>
                       {g.title}
                     </div>
                     <div style={{ fontSize: 13, color: HX.text3, marginTop: 2 }}>{g.sub}</div>
@@ -1357,7 +1435,7 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
                   </div>
                 </header>
 
-                <p style={{ fontSize: 14, lineHeight: 1.65, color: HX.text2, margin: "0 0 14px" }}>
+                <p style={{ fontSize: 14, lineHeight: 1.65, color: HX.text2, margin: 0 }}>
                   <Rich text={g.intro} color={g.color} />
                 </p>
 
@@ -1372,9 +1450,15 @@ export function HuongDanContent({ onNavigate }: HuongDanContentProps) {
                     />
                   ))}
                 </div>
+
+                {/* Chuyển mục trước / sau */}
+                <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                  {navBtn("Mục trước", prevGuide, "prev")}
+                  {navBtn("Mục tiếp theo", nextGuide, "next")}
+                </div>
               </section>
             )
-          })}
+          })()}
         </div>
       </div>
     </div>
