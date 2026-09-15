@@ -41,6 +41,7 @@ const NAV_OPERATIONS: NavEntry[] = [
 
 const NAV_SYSTEM: NavEntry[] = [
   { id: "gia", label: "Đơn Giá", icon: "chart", action: "price" },
+  { id: "huongdan", label: "Hướng Dẫn", icon: "help" },
 ]
 
 function GroupLabel({ children }: { children: React.ReactNode }) {

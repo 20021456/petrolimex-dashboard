@@ -14,7 +14,7 @@ interface MobileTabBarProps {
   onPriceClick?: () => void
 }
 
-type IconName = "home" | "fuel" | "receipt" | "user" | "chart" | "refresh" | "plus" | "alert" | "clock"
+type IconName = "home" | "fuel" | "receipt" | "user" | "chart" | "refresh" | "plus" | "alert" | "clock" | "help"
 
 interface Slot {
   k: string
@@ -31,7 +31,7 @@ const SLOTS: Slot[] = [
   { k: "more", icon: "home", label: "Khác" },
 ]
 
-const MORE_KEYS = ["tx", "chitiet", "giaoca", "gia", "nhap"]
+const MORE_KEYS = ["tx", "chitiet", "giaoca", "gia", "nhap", "huongdan"]
 
 interface MoreItem {
   k: string
@@ -48,6 +48,7 @@ const MORE_ITEMS: MoreItem[] = [
   { k: "giaoca", icon: "clock", label: "Ca bán hàng", sub: "Mở / đóng ca làm việc", color: HX.accent },
   { k: "nhap", icon: "plus", label: "Nhập kho", sub: "Xăng dầu · Bán lẻ", color: HX.good },
   { k: "gia", icon: "chart", label: "Đơn giá", sub: "Cập nhật giá bán", color: HX.doPlus, action: "price" },
+  { k: "huongdan", icon: "help", label: "Hướng dẫn", sub: "Cách dùng từng chức năng", color: HX.warn },
 ]
 
 function DotsIcon({ color }: { color: string }) {

@@ -52,7 +52,7 @@ export type IconName =
   | "home" | "fuel" | "chart" | "receipt" | "bell" | "user"
   | "chevron" | "chevronDown" | "refresh" | "plus" | "clock"
   | "alert" | "search" | "download" | "filter" | "drop" | "settings"
-  | "calendar"
+  | "calendar" | "help" | "book"
 
 const ICON_PATHS: Record<IconName, React.ReactNode> = {
   home: <path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-8.5Z" />,
@@ -72,6 +72,8 @@ const ICON_PATHS: Record<IconName, React.ReactNode> = {
   filter: <path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z" />,
   calendar: <g><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></g>,
   drop: <path d="M12 3s-7 8-7 12a7 7 0 0 0 14 0c0-4-7-12-7-12Z" />,
+  help: <g><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" /><path d="M12 17h.01" /></g>,
+  book: <g><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5v-16Z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v4H6.5A2.5 2.5 0 0 1 4 20.5Z" /><path d="M9 7h7" /></g>,
   settings: (
     <g>
       <circle cx="12" cy="12" r="3" />
