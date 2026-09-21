@@ -41,53 +41,61 @@ export async function GET(request: Request) {
       )
     }
 
-    // Build WHERE clause for date filtering
+    // Build WHERE clause for date filtering — tham số hoá (chống SQL injection),
+    // mọi giá trị từ URL đi qua placeholder "?" chứ không nối vào chuỗi SQL.
     let dateWhere = ''
     let searchWhere = ''
     const conditions: string[] = []
+    const dateParams: any[] = []
+    const searchParamsSql: any[] = []
 
     if (from) {
       // Sử dụng local format từ client (YYYY-MM-DD HH:MM:SS)
-      conditions.push(`ket_thuc_bom >= '${from}'`)
+      conditions.push('ket_thuc_bom >= ?')
+      dateParams.push(from)
     }
     if (to) {
       // Sử dụng local format từ client (YYYY-MM-DD HH:MM:SS)
-      conditions.push(`ket_thuc_bom <= '${to}'`)
+      conditions.push('ket_thuc_bom <= ?')
+      dateParams.push(to)
     }
-    
+
     if (conditions.length > 0) {
       dateWhere = 'WHERE ' + conditions.join(' AND ')
     }
 
     // Add search filter
     if (search) {
-      searchWhere = dateWhere 
-        ? ` AND (ma_bom LIKE '%${search}%' OR nhien_lieu LIKE '%${search}%' OR khach_hang LIKE '%${search}%')`
-        : ` WHERE (ma_bom LIKE '%${search}%' OR nhien_lieu LIKE '%${search}%' OR khach_hang LIKE '%${search}%')`
+      const like = `%${search}%`
+      const cond = '(ma_bom LIKE ? OR nhien_lieu LIKE ? OR khach_hang LIKE ?)'
+      searchWhere = dateWhere ? ` AND ${cond}` : ` WHERE ${cond}`
+      searchParamsSql.push(like, like, like)
     }
 
     const fullWhere = dateWhere + searchWhere
+    const fullParams = [...dateParams, ...searchParamsSql]
 
     // Tổng số giao dịch
-    const [totalResult] = await query<any[]>(`SELECT COUNT(*) as total FROM fuel_pump ${fullWhere}`);
+    const [totalResult] = await query<any[]>(`SELECT COUNT(*) as total FROM fuel_pump ${fullWhere}`, fullParams);
     const total = totalResult.total;
 
     // Tổng doanh thu
-    const [revenueResult] = await query<any[]>(`SELECT SUM(tien) as total FROM fuel_pump ${fullWhere}`);
+    const [revenueResult] = await query<any[]>(`SELECT SUM(tien) as total FROM fuel_pump ${fullWhere}`, fullParams);
     const totalRevenue = revenueResult.total || 0;
 
     // Tổng lít
-    const [litersResult] = await query<any[]>(`SELECT SUM(lit) as total FROM fuel_pump ${fullWhere}`);
+    const [litersResult] = await query<any[]>(`SELECT SUM(lit) as total FROM fuel_pump ${fullWhere}`, fullParams);
     const totalLiters = litersResult.total || 0;
 
     // Ngày cập nhật cuối
-    const [lastUpdateResult] = await query<any[]>(`SELECT MAX(ket_thuc_bom) as last_date FROM fuel_pump ${fullWhere}`);
+    const [lastUpdateResult] = await query<any[]>(`SELECT MAX(ket_thuc_bom) as last_date FROM fuel_pump ${fullWhere}`, fullParams);
     const lastUpdate = lastUpdateResult.last_date;
 
     // ⚡ FIX: Tất cả biểu đồ phải dùng CÙNG filter để đồng bộ
     // Nếu có date filter → dùng filter, nếu không → lấy 30 ngày mặc định
     const chartWhere = dateWhere || 'WHERE ket_thuc_bom >= DATE_SUB(NOW(), INTERVAL 30 DAY)'
     const chartFullWhere = chartWhere + searchWhere
+    const chartParams = [...(dateWhere ? dateParams : []), ...searchParamsSql]
     
     // Doanh thu theo ngày (30 ngày gần nhất hoặc trong khoảng được chọn)
     // ⚡ FIX: Format date rõ ràng thành YYYY-MM-DD để tránh timezone issues
@@ -103,7 +111,7 @@ export async function GET(request: Request) {
       ${chartFullWhere}
       GROUP BY DATE_FORMAT(DATE(ket_thuc_bom), '%Y-%m-%d'), ${FUEL_BY_COT_BOM_SQL}
       ORDER BY date ASC, fuelType ASC
-    `);
+    `, chartParams);
     
     // DEBUG: Log để kiểm tra duplicate
     console.log('📊 Chart data count:', chartData.length);
@@ -132,7 +140,7 @@ export async function GET(request: Request) {
       ${chartFullWhere}
       GROUP BY ${FUEL_BY_COT_BOM_SQL}
       ORDER BY revenue DESC
-    `);
+    `, chartParams);
 
     // Doanh thu theo giờ trong ngày - ⚡ FIX: Dùng chartFullWhere thay vì fullWhere
     // Gộp theo (giờ, cột) — fuel suy ra từ cot_bom nên 1 cột chỉ có 1 fuel.
@@ -148,7 +156,7 @@ export async function GET(request: Request) {
       ${chartFullWhere}
       GROUP BY HOUR(ket_thuc_bom), cot_bom
       ORDER BY hour ASC, cot_bom ASC
-    `);
+    `, chartParams);
 
     // Doanh thu theo cột bơm — gộp theo cot_bom (fuel suy từ cot_bom)
     const byPump = await query<any[]>(`
@@ -162,14 +170,14 @@ export async function GET(request: Request) {
       ${chartFullWhere}
       GROUP BY cot_bom
       ORDER BY revenue DESC
-    `);
+    `, chartParams);
 
     // Count unique days for average calculation - ⚡ FIX: Dùng chartFullWhere
     const [uniqueDaysResult] = await query<any[]>(`
       SELECT COUNT(DISTINCT DATE(ket_thuc_bom)) as uniqueDays
       FROM fuel_pump
       ${chartFullWhere}
-    `);
+    `, chartParams);
     const uniqueDays = uniqueDaysResult?.uniqueDays || 1;
 
     // Top 30 giao dịch gần nhất — fuelType suy từ cot_bom, kèm id để PATCH
@@ -189,7 +197,7 @@ export async function GET(request: Request) {
       ${fullWhere}
       ORDER BY ket_thuc_bom DESC
       LIMIT 30
-    `);
+    `, fullParams);
 
     const data = {
       overview: {

@@ -11,8 +11,9 @@ WORKDIR /app
 # Copy UI source code
 COPY ui/ ./
 
-# Install dependencies
-RUN npm install --legacy-peer-deps
+# Install dependencies — dùng đúng phiên bản trong package-lock.json
+# (npm ci), không để npm tự nâng/hạ gói lúc build.
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
 
 # Build Next.js
 RUN npm run build
@@ -20,6 +21,11 @@ RUN npm run build
 # Copy entrypoint script
 COPY docker/nextjs/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Chạy bằng user thường (node, uid 1000) thay vì root: nếu tiến trình Next bị
+# khai thác, mã độc không có quyền root trong container.
+RUN chown -R node:node /app
+USER node
 
 # Expose port
 EXPOSE 3000
