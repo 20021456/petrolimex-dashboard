@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS fuel_pump (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY unique_ma_bom (ma_bom),
     KEY idx_ket_thuc_bom (ket_thuc_bom),
+    KEY idx_khach_hang_time (khach_hang, ket_thuc_bom),
     KEY idx_created_at (created_at),
     KEY idx_nhien_lieu (nhien_lieu)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -22,7 +22,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.ingestion.fuel_api import FuelAPI
+from src.ingestion.fuel_api import FuelAPI, DATA_RETENTION_MONTHS
 from src.utils.proc_guard import reap_stale_browsers
 
 try:
@@ -48,7 +48,7 @@ def run_auto_update(api, max_days=90):
     print("  ✓ Chỉ lấy dữ liệu mới từ ngày cuối đến hôm nay")
     print("  ✓ Không lấy lại dữ liệu đã có")
     print("  ✓ Update dữ liệu nếu có thay đổi")
-    print("  ✓ Tự động cleanup dữ liệu cũ > 3 tháng")
+    print(f"  ✓ Tự động cleanup dữ liệu cũ > {DATA_RETENTION_MONTHS} tháng")
     print("  ✓ Cập nhật dữ liệu bồn bể")
     print()
     
