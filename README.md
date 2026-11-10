@@ -313,6 +313,7 @@ docker exec -i fuel_mysql mysql -uroot -p[PASSWORD] petrolimex < backup.sql
 | **ModuleNotFoundError: database.config** | Pull code mới và rebuild: `docker-compose build --no-cache` |
 | **GROUP BY error / ONLY_FULL_GROUP_BY** | **Đã fix trong v6.7.2** - Pull code mới và rebuild dashboard |
 | **Client-side exception occurred** | **Đã fix trong v6.8.0** - Database connection được tối ưu. Pull code mới và rebuild |
+| **Schedule lỗi `BrowserType.launch: Target page, context or browser has been closed` / `signal=SIGTRAP`** | Container Python cạn giới hạn tiến trình do zombie Chromium tích tụ. Xử lý ngay: **Restart/Redeploy service `python`**. Image mới dùng `tini` làm PID 1 nên không tích tụ lại; log của schedule in thêm dòng `📊 Tiến trình trong container` để kiểm tra |
 
 ### 🔧 Khởi tạo Database Tables
 
