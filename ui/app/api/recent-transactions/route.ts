@@ -48,14 +48,23 @@ export async function GET(request: Request) {
       )
     }
 
+    // Mọi giá trị lấy từ URL đi qua placeholder "?" + params (prepared
+    // statement), KHÔNG nối vào chuỗi SQL — chống SQL injection. Cách tự
+    // nhân đôi dấu nháy trước đây vẫn bị vượt qua bằng ký tự gạch chéo ngược.
     const conditions: string[] = []
-    const escape = (s: string) => s.replace(/'/g, "''")
+    const params: any[] = []
 
     // Phạm vi ngày: ưu tiên from/to, nếu không có → mặc định hôm nay
     let scope: 'today' | 'range' = 'range'
     if (from || to) {
-      if (from) conditions.push(`ket_thuc_bom >= '${escape(from)}'`)
-      if (to) conditions.push(`ket_thuc_bom <= '${escape(to)}'`)
+      if (from) {
+        conditions.push('ket_thuc_bom >= ?')
+        params.push(from)
+      }
+      if (to) {
+        conditions.push('ket_thuc_bom <= ?')
+        params.push(to)
+      }
     } else {
       conditions.push(todayRange('ket_thuc_bom'))
       scope = 'today'
@@ -65,37 +74,45 @@ export async function GET(request: Request) {
     if (hourFrom !== null && hourFrom !== '') {
       const h = parseInt(hourFrom, 10)
       if (Number.isFinite(h)) {
-        conditions.push(`HOUR(ket_thuc_bom) >= ${Math.max(0, Math.min(23, h))}`)
+        conditions.push('HOUR(ket_thuc_bom) >= ?')
+        params.push(Math.max(0, Math.min(23, h)))
       }
     }
     if (hourTo !== null && hourTo !== '') {
       const h = parseInt(hourTo, 10)
       if (Number.isFinite(h)) {
-        conditions.push(`HOUR(ket_thuc_bom) <= ${Math.max(0, Math.min(23, h))}`)
+        conditions.push('HOUR(ket_thuc_bom) <= ?')
+        params.push(Math.max(0, Math.min(23, h)))
       }
     }
 
     // Filter số tiền (VND)
     if (amountMin) {
       const v = parseFloat(amountMin)
-      if (Number.isFinite(v)) conditions.push(`tien >= ${v}`)
+      if (Number.isFinite(v)) {
+        conditions.push('tien >= ?')
+        params.push(v)
+      }
     }
     if (amountMax) {
       const v = parseFloat(amountMax)
-      if (Number.isFinite(v)) conditions.push(`tien <= ${v}`)
+      if (Number.isFinite(v)) {
+        conditions.push('tien <= ?')
+        params.push(v)
+      }
     }
 
     // Filter loại nhiên liệu (exact match)
     if (fuelType) {
-      conditions.push(`nhien_lieu = '${escape(fuelType)}'`)
+      conditions.push('nhien_lieu = ?')
+      params.push(fuelType)
     }
 
     // Tìm kiếm
     if (search) {
-      const s = escape(search)
-      conditions.push(
-        `(ma_bom LIKE '%${s}%' OR nhien_lieu LIKE '%${s}%' OR khach_hang LIKE '%${s}%')`
-      )
+      const like = `%${search}%`
+      conditions.push('(ma_bom LIKE ? OR nhien_lieu LIKE ? OR khach_hang LIKE ?)')
+      params.push(like, like, like)
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -110,7 +127,7 @@ export async function GET(request: Request) {
         MAX(ket_thuc_bom)      AS lastAt
       FROM fuel_pump
       ${where}
-    `)
+    `, params)
 
     // Danh sách loại nhiên liệu trong phạm vi (cho dropdown filter)
     const fuelTypesRows = await query<any[]>(`
@@ -118,7 +135,7 @@ export async function GET(request: Request) {
       FROM fuel_pump
       ${where}
       ORDER BY nhien_lieu ASC
-    `)
+    `, params)
 
     // Giao dịch (mới nhất trước) — include id để có thể PATCH; fuelType suy từ cot_bom
     const transactions = await query<any[]>(`
@@ -144,7 +161,7 @@ export async function GET(request: Request) {
       ${where}
       ORDER BY ket_thuc_bom DESC
       LIMIT ${limit}
-    `)
+    `, params)
 
     return NextResponse.json({
       success: true,
