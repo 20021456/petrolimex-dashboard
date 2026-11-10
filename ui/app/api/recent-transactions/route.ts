@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { todayRange } from '@/lib/sql-day'
 import { ensureKhachHangPaidColumn } from '@/lib/fuel-pump-schema'
 
 /**
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
       if (from) conditions.push(`ket_thuc_bom >= '${escape(from)}'`)
       if (to) conditions.push(`ket_thuc_bom <= '${escape(to)}'`)
     } else {
-      conditions.push(`DATE(ket_thuc_bom) = CURDATE()`)
+      conditions.push(todayRange('ket_thuc_bom'))
       scope = 'today'
     }
 

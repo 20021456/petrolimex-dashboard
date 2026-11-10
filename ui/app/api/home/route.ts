@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { todayRange } from '@/lib/sql-day'
 import { ensureKhachHangPaidColumn } from '@/lib/fuel-pump-schema'
 
 // Suy nhiên liệu từ cot_bom theo bố trí bồn-cột (đồng bộ /api/stats).
@@ -39,13 +40,13 @@ export async function GET() {
     const [ft] = await query<any[]>(
       `SELECT COALESCE(SUM(tien),0) rev, COALESCE(SUM(lit),0) lit, COUNT(*) cnt,
               ${khachleExpr} khachle
-       FROM fuel_pump WHERE DATE(ket_thuc_bom) = CURDATE()`,
+       FROM fuel_pump WHERE ${todayRange('ket_thuc_bom')}`,
       regularNames
     )
     const [fy] = await query<any[]>(
       `SELECT COALESCE(SUM(tien),0) rev, COALESCE(SUM(lit),0) lit, COUNT(*) cnt,
               ${khachleExpr} khachle
-       FROM fuel_pump WHERE DATE(ket_thuc_bom) = CURDATE() - INTERVAL 1 DAY`,
+       FROM fuel_pump WHERE ${todayRange('ket_thuc_bom', 1)}`,
       regularNames
     )
 
@@ -75,7 +76,7 @@ export async function GET() {
     // ── Doanh thu theo giờ (xăng dầu, hôm nay) ──
     const hourRows = await query<any[]>(`
       SELECT HOUR(ket_thuc_bom) h, COALESCE(SUM(tien),0) rev
-      FROM fuel_pump WHERE DATE(ket_thuc_bom) = CURDATE()
+      FROM fuel_pump WHERE ${todayRange('ket_thuc_bom')}
       GROUP BY HOUR(ket_thuc_bom)`)
     const byHour = new Array(24).fill(0)
     hourRows.forEach((r: any) => {
@@ -88,7 +89,7 @@ export async function GET() {
       SELECT ${FUEL_CASE} fuelType,
              COALESCE(SUM(tien),0) revenue,
              COALESCE(SUM(lit),0) liters
-      FROM fuel_pump WHERE DATE(ket_thuc_bom) = CURDATE()
+      FROM fuel_pump WHERE ${todayRange('ket_thuc_bom')}
       GROUP BY ${FUEL_CASE}
       ORDER BY revenue DESC`)
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { dayRange } from '@/lib/sql-day'
 
 // ════════════════════════════════════════════════════════════════
 // /api/pump-totals — sản lượng thực tế trong ngày từ pump_total_log
@@ -74,8 +75,8 @@ export async function GET(request: Request) {
     const dateParam = searchParams.get('date')
     const validDate =
       dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null
-    const dateSql = validDate ? '?' : 'CURDATE()'
-    const dParams = validDate ? [validDate] : []
+    // Lọc theo khoảng (không bọc cột trong DATE()) để dùng được idx_logged_at
+    const { sql: logDay, params: dParams } = dayRange('logged_at', validDate)
 
     // Sản lượng số máy = total cuối ngày − total đầu ngày (lấy cột `total`
     // trong pump_total_log như cũ). Lọc `total > 0` để bỏ snapshot đọc lỗi
@@ -87,7 +88,7 @@ export async function GET(request: Request) {
        INNER JOIN (
          SELECT cot_bom, MIN(logged_at) AS min_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = ${dateSql} AND total > 0
+         WHERE ${logDay} AND total > 0
          GROUP BY cot_bom
        ) m ON m.cot_bom = t1.cot_bom AND m.min_at = t1.logged_at`,
       dParams
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
        INNER JOIN (
          SELECT cot_bom, MAX(logged_at) AS max_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = ${dateSql} AND total > 0
+         WHERE ${logDay} AND total > 0
          GROUP BY cot_bom
        ) m ON m.cot_bom = t1.cot_bom AND m.max_at = t1.logged_at`,
       dParams
