@@ -1,24 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+// Font Inter tự host qua gói @fontsource-variable/inter (file .woff2 nằm sẵn
+// trong node_modules, có đủ subset latin + vietnamese, weight 100–900).
+// KHÔNG dùng next/font/google: nó tải font từ Google ngay lúc `next build`,
+// nên build/deploy hỏng mỗi khi Google trả về định dạng khác hoặc mạng chập
+// chờn ("An error occurred in `next/font`"). Biến --font-inter khai báo trong
+// globals.css.
+import "@fontsource-variable/inter";
 import "./globals.css";
 import { PriceDialogProvider } from "@/components/global-price-dialog";
 import { SuppressHydrationWarning } from "./suppress-hydration";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700", "800"],
-});
 
 export const metadata: Metadata = {
   title: "Fuel Dashboard",
@@ -44,7 +34,7 @@ export default function RootLayout({
         <meta name="darkreader-lock" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} antialiased`}
+        className="antialiased"
         suppressHydrationWarning
       >
         <SuppressHydrationWarning />
