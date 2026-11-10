@@ -52,6 +52,10 @@ svg[data-darkreader-inline-stroke],
 }
 
 @layer base {
+  :root {
+    /* Inter tự host — import "@fontsource-variable/inter" trong app/layout.tsx */
+    --font-inter: "Inter Variable";
+  }
   * {
     @apply border-border;
   }
