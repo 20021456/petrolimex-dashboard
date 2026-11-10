@@ -7,7 +7,7 @@ Script Python tự động lấy dữ liệu từ http://fuel.net và import và
 - ✅ **Auto-Update Thông Minh**: Tự động phát hiện ngày cuối, xóa cache và update dữ liệu mới
 - ✅ **MySQL Integration**: Tự động import và update database
 - ✅ **Scheduler**: Chạy định kỳ tự động (mỗi 6 giờ)
-- ✅ **Smart Cleanup**: Tự động xóa dữ liệu cũ > 3 tháng
+- ✅ **Smart Cleanup**: Tự động xóa dữ liệu cũ > 12 tháng (đổi bằng biến môi trường `DATA_RETENTION_MONTHS`)
 - ⭐ **Modern Dashboard**: Giao diện web hiện đại với Next.js + shadcn/ui + Tailwind CSS
 - 📱 **Responsive Design**: Tối ưu hoàn toàn cho mobile và desktop
 - 📊 **Quản lý kho**: QR Code scanning, inventory tracking

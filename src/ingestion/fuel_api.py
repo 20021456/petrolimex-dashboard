@@ -24,6 +24,26 @@ from mysql.connector import Error
 
 from src.utils.proc_guard import reap_stale_browsers, print_process_pressure
 
+
+def _retention_months() -> int:
+    """Số tháng dữ liệu fuel_pump được giữ lại (env DATA_RETENTION_MONTHS, mặc định 12)."""
+    try:
+        return max(1, int(os.getenv('DATA_RETENTION_MONTHS', '12')))
+    except ValueError:
+        return 12
+
+
+# Dữ liệu fuel_pump cũ hơn số tháng này sẽ bị xoá mỗi lần ETL chạy
+DATA_RETENTION_MONTHS = _retention_months()
+
+# Index cho fuel_pump. Dashboard lọc gần như mọi truy vấn theo ket_thuc_bom;
+# thiếu index thì mỗi truy vấn quét cả bảng và chậm dần theo lượng dữ liệu giữ lại.
+FUEL_PUMP_INDEXES = {
+    'idx_ket_thuc_bom': '(ket_thuc_bom)',                 # lọc theo ngày/khoảng thời gian
+    'idx_cot_bom_time': '(cot_bom, ket_thuc_bom)',        # giá mới nhất / lượng bán theo cột bơm
+    'idx_khach_hang_time': '(khach_hang, ket_thuc_bom)',  # lịch sử theo khách quen
+}
+
 # Fix encoding for Windows console
 if sys.platform == 'win32':
     try:
@@ -532,6 +552,8 @@ class FuelAPI:
             except:
                 pass  # Cột đã tồn tại hoặc không hỗ trợ IF NOT EXISTS
             
+            self._ensure_fuel_pump_indexes(cursor)
+
             print("✓ Tạo/kiểm tra bảng 'fuel_pump' thành công")
             cursor.close()
             return True
@@ -540,6 +562,46 @@ class FuelAPI:
             print(f"✗ Lỗi khi tạo bảng: {e}")
             return False
     
+    def _ensure_fuel_pump_indexes(self, cursor) -> None:
+        """
+        Thêm các index còn thiếu cho fuel_pump (idempotent, chạy mỗi lần ETL).
+
+        Bảng tạo từ bản cũ của hàm create_mysql_table không có index theo
+        thời gian. Lỗi ở đây không được làm hỏng ETL — index chỉ để tăng tốc.
+        """
+        try:
+            cursor.execute("""
+                SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fuel_pump'
+            """)
+            existing = {row[0] for row in cursor.fetchall()}
+        except Error as e:
+            print(f"⚠️  Không đọc được danh sách index của fuel_pump: {e}")
+            return
+        missing = {n: c for n, c in FUEL_PUMP_INDEXES.items() if n not in existing}
+        if not missing:
+            return
+        # ALTER TABLE phải chờ nếu có kết nối khác đang giữ transaction trên bảng;
+        # mặc định MySQL chờ tới 1 năm → giới hạn 20s để ETL không bao giờ treo
+        # ở đây. Không thêm được lần này thì lần chạy sau thử lại.
+        try:
+            cursor.execute("SET SESSION lock_wait_timeout = 20")
+        except Error:
+            pass
+        for name, columns in missing.items():
+            try:
+                cursor.execute(f"ALTER TABLE fuel_pump ADD INDEX {name} {columns}")
+                self.mysql_connection.commit()
+                print(f"✓ Đã thêm index {name} {columns} cho fuel_pump")
+            except Error as e:
+                print(f"⚠️  Chưa thêm được index {name} (sẽ thử lại lần chạy sau): {e}")
+                if getattr(e, 'errno', None) == 1205:  # bảng đang bị khoá → khỏi chờ thêm
+                    break
+        try:
+            cursor.execute("SET SESSION lock_wait_timeout = DEFAULT")
+        except Error:
+            pass
+
     def create_tanks_table(self) -> bool:
         """
         Tạo bảng fuel_tanks trong MySQL nếu chưa tồn tại
@@ -1033,12 +1095,13 @@ class FuelAPI:
             print(f"✗ Lỗi khi đếm bản ghi: {e}")
             return 0
     
-    def cleanup_old_data(self, months: int = 3) -> int:
+    def cleanup_old_data(self, months: int = DATA_RETENTION_MONTHS) -> int:
         """
         Xóa các bản ghi có thời gian kết thúc bơm quá N tháng
         
         Args:
-            months: Số tháng (mặc định 3 tháng)
+            months: Số tháng giữ lại (mặc định DATA_RETENTION_MONTHS = 12 tháng,
+                    đổi bằng biến môi trường DATA_RETENTION_MONTHS)
         
         Returns:
             Số bản ghi đã xóa
@@ -1092,10 +1155,10 @@ class FuelAPI:
             # Xóa tất cả bản ghi trong ngày đó
             delete_query = """
             DELETE FROM fuel_pump 
-            WHERE DATE(ket_thuc_bom) = %s
+            WHERE ket_thuc_bom >= %s AND ket_thuc_bom < DATE_ADD(%s, INTERVAL 1 DAY)
             """
             
-            cursor.execute(delete_query, (date_str,))
+            cursor.execute(delete_query, (date_str, date_str))
             deleted_count = cursor.rowcount
             self.mysql_connection.commit()
             cursor.close()
@@ -1173,12 +1236,12 @@ class FuelAPI:
             print(f"   - Đến ngày: {today.strftime('%Y-%m-%d')}")
             print(f"   - Số ngày: {max_days_back}")
         
-        # Xóa dữ liệu cũ quá 3 tháng (nếu có)
+        # Xóa dữ liệu cũ quá thời hạn giữ (mặc định 12 tháng), nếu có
         if current_count > 0:
             print("\n" + "-"*70)
             print("🧹 CLEANUP DỮ LIỆU CŨ")
             print("-"*70)
-            self.cleanup_old_data(months=3)
+            self.cleanup_old_data()
             print("-"*70)
         
         # Lấy dữ liệu từng ngày
@@ -1208,9 +1271,9 @@ class FuelAPI:
                         cursor = self.mysql_connection.cursor()
                         delete_query = """
                         DELETE FROM fuel_pump 
-                        WHERE DATE(ket_thuc_bom) = %s
+                        WHERE ket_thuc_bom >= %s AND ket_thuc_bom < DATE_ADD(%s, INTERVAL 1 DAY)
                         """
-                        cursor.execute(delete_query, (date_str,))
+                        cursor.execute(delete_query, (date_str, date_str))
                         self.mysql_connection.commit()
                         deleted_rows = cursor.rowcount
                         cursor.close()
@@ -1298,11 +1361,11 @@ class FuelAPI:
             self.close_mysql()
             return 0
         
-        # Xóa dữ liệu cũ quá 3 tháng
+        # Xóa dữ liệu cũ quá thời hạn giữ (mặc định 12 tháng)
         print("\n" + "-"*70)
         print("🧹 CLEANUP DỮ LIỆU CŨ")
         print("-"*70)
-        self.cleanup_old_data(months=3)
+        self.cleanup_old_data()
         print("-"*70)
         
         # Loop qua từng ngày

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { dayRange } from '@/lib/sql-day'
 
 // ════════════════════════════════════════════════════════════════
 // /api/pump-totals/reconcile — đối chiếu SỐ MÁY (đồng hồ tổng,
@@ -32,21 +33,22 @@ export async function GET(request: Request) {
     const dateParam = searchParams.get('date')
     const validDate =
       dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null
-    const dateSql = validDate ? '?' : 'CURDATE()'
-    const p = validDate ? [validDate] : []
+    // Lọc theo khoảng (không bọc cột trong DATE()) để dùng được index
+    const logDay = dayRange('logged_at', validDate)
+    const txDay = dayRange('ket_thuc_bom', validDate)
 
     // SỐ MÁY (ĐH) lấy từ cột `total` trong pump_total_log (như cũ). Lọc
     // `total > 0` để bỏ snapshot đọc lỗi (rỗng → total=0) làm hỏng delta.
     const snaps = await query<any[]>(
       `SELECT cot_bom, total, DATE_FORMAT(logged_at,'%Y-%m-%d %H:%i:%s') ts
-       FROM pump_total_log WHERE DATE(logged_at) = ${dateSql} AND total > 0
+       FROM pump_total_log WHERE ${logDay.sql} AND total > 0
        ORDER BY cot_bom, logged_at`,
-      p
+      logDay.params
     )
     const txs = await query<any[]>(
       `SELECT COALESCE(cot_bom,0) cot_bom, lit, DATE_FORMAT(ket_thuc_bom,'%Y-%m-%d %H:%i:%s') ts
-       FROM fuel_pump WHERE DATE(ket_thuc_bom) = ${dateSql}`,
-      p
+       FROM fuel_pump WHERE ${txDay.sql}`,
+      txDay.params
     )
 
     const snapByCot = new Map<number, Array<{ total: number; ts: string }>>()

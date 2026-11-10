@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { todayRange } from '@/lib/sql-day'
 
 // ════════════════════════════════════════════════════════════════
 // /api/pump-totals/hourly — chỉ số TOTAL của các cột bơm theo từng giờ
@@ -41,7 +42,7 @@ export async function GET() {
        INNER JOIN (
          SELECT cot_bom, HOUR(logged_at) AS h, MAX(logged_at) AS max_at
          FROM pump_total_log
-         WHERE DATE(logged_at) = CURDATE() AND total > 0
+         WHERE ${todayRange('logged_at')} AND total > 0
          GROUP BY cot_bom, HOUR(logged_at)
        ) m ON m.cot_bom = t1.cot_bom AND m.h = HOUR(t1.logged_at)
               AND m.max_at = t1.logged_at

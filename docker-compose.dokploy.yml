@@ -46,6 +46,8 @@ services:
       # Fuel Credentials
       FUEL_USERNAME: ${FUEL_USERNAME}
       FUEL_PASSWORD: ${FUEL_PASSWORD}
+      # Số tháng dữ liệu giao dịch được giữ lại (cũ hơn sẽ bị xoá khi ETL chạy)
+      DATA_RETENTION_MONTHS: ${DATA_RETENTION_MONTHS:-12}
       # API Server
       API_PORT: 5000
       # Timezone

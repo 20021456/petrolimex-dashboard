@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { dayRange } from '@/lib/sql-day'
 
 // ════════════════════════════════════════════════════════════════
 // /api/pump-totals/discrepancy — chênh lệch giữa sản lượng GHI NHẬN
@@ -29,7 +30,9 @@ export async function GET(request: Request) {
     const dateParam = searchParams.get('date')
     const validDate =
       dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null
-    const dateSql = validDate ? '?' : 'CURDATE()'
+    // Lọc theo khoảng (không bọc cột trong DATE()) để dùng được index
+    const logDay = dayRange('logged_at', validDate)
+    const txDay = dayRange('ket_thuc_bom', validDate)
 
     // Format thẳng về chuỗi 'YYYY-MM-DD HH:MM:SS' để so sánh theo thứ tự
     // chữ, tránh lệ thuộc cách driver quy đổi Date/timezone.
@@ -37,16 +40,16 @@ export async function GET(request: Request) {
       `SELECT cot_bom, total,
               DATE_FORMAT(logged_at, '%Y-%m-%d %H:%i:%s') ts
        FROM pump_total_log
-       WHERE DATE(logged_at) = ${dateSql}
+       WHERE ${logDay.sql}
        ORDER BY cot_bom, logged_at`,
-      validDate ? [validDate] : []
+      logDay.params
     )
     const txs = await query<any[]>(
       `SELECT COALESCE(cot_bom, 0) cot_bom, lit,
               DATE_FORMAT(ket_thuc_bom, '%Y-%m-%d %H:%i:%s') ts
        FROM fuel_pump
-       WHERE DATE(ket_thuc_bom) = ${dateSql}`,
-      validDate ? [validDate] : []
+       WHERE ${txDay.sql}`,
+      txDay.params
     )
 
     const snapByCot = new Map<number, Array<{ total: number; ts: string }>>()
