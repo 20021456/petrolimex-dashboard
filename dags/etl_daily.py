@@ -23,6 +23,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from src.ingestion.fuel_api import FuelAPI
+from src.utils.proc_guard import reap_stale_browsers
 
 try:
     from src.utils.config import FUEL_USERNAME, FUEL_PASSWORD, MYSQL_CONFIG
@@ -224,42 +225,6 @@ def run_reload_days(api, days):
     print(f"   - Đã thêm: {total_success:,} bản ghi mới")
 
 
-def reap_stale_browsers(max_age_seconds=5400):
-    """
-    Dọn các tiến trình Chromium/headless_shell mồ côi còn sót từ những lần
-    chạy trước bị ngắt giữa chừng (timeout của scheduler → cleanup() không
-    kịp chạy). Tích tụ lâu ngày sẽ làm container cạn pids limit và crash
-    ngay từ lúc import pandas. Chỉ kill tiến trình chạy lâu hơn
-    max_age_seconds (mặc định 90 phút) để không đụng run đang chạy song song.
-    """
-    import signal
-    import subprocess
-    try:
-        out = subprocess.run(
-            ["ps", "-eo", "pid,etimes,comm"],
-            capture_output=True, text=True, timeout=10
-        ).stdout
-    except Exception:
-        return
-    killed = 0
-    for line in out.splitlines()[1:]:
-        parts = line.split()
-        if len(parts) < 3:
-            continue
-        pid_s, etimes_s, comm = parts[0], parts[1], " ".join(parts[2:])
-        if not any(k in comm.lower() for k in ("chrom", "headless_shell")):
-            continue
-        try:
-            if int(etimes_s) < max_age_seconds:
-                continue
-            os.kill(int(pid_s), signal.SIGKILL)
-            killed += 1
-        except (ValueError, ProcessLookupError, PermissionError):
-            continue
-    if killed:
-        print(f"🧹 Đã dọn {killed} tiến trình browser mồ côi (chạy > {max_age_seconds // 60} phút)")
-
-
 def main():
     """Main function với argument parsing"""
     parser = argparse.ArgumentParser(description='Fuel Auto Update với options')
@@ -281,11 +246,15 @@ def main():
         mysql_config=MYSQL_CONFIG
     )
     
+    exit_code = 0
     try:
         # Đăng nhập
         if not api.login():
-            print("\n✗ Không thể đăng nhập. Vui lòng kiểm tra lại thông tin.")
-            return
+            print("\n✗ Không thể đăng nhập (xem lỗi phía trên: browser không khởi động"
+                  " được hay sai tài khoản/mật khẩu).")
+            # Thoát mã lỗi để scheduler (Dokploy) đánh dấu run thất bại thay vì
+            # báo "Command executed successfully"
+            sys.exit(1)
         
         # Chạy mode tương ứng
         if args.mode == 1:
@@ -303,9 +272,13 @@ def main():
         print(f"\n✗ Lỗi: {e}")
         import traceback
         traceback.print_exc()
-        
+        exit_code = 1
+
     finally:
         api.cleanup()
+
+    if exit_code:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

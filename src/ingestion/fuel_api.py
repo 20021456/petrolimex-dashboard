@@ -22,6 +22,8 @@ from typing import Dict, List, Optional
 import mysql.connector
 from mysql.connector import Error
 
+from src.utils.proc_guard import reap_stale_browsers, print_process_pressure
+
 # Fix encoding for Windows console
 if sys.platform == 'win32':
     try:
@@ -69,8 +71,7 @@ class FuelAPI:
         """
         try:
             print("🌐 Đang khởi động browser...")
-            self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(headless=self.headless)
+            self._launch_browser()
             self.context = self.browser.new_context()
             self.page = self.context.new_page()
             
@@ -130,19 +131,52 @@ class FuelAPI:
             self.cleanup()
             return False
     
+    def _launch_browser(self, attempts: int = 3):
+        """
+        Khởi động Playwright + Chromium, có thử lại.
+
+        Chromium chết ngay lúc launch (signal=SIGTRAP, "Target page, context or
+        browser has been closed") gần như luôn do container cạn giới hạn tiến
+        trình. Mỗi lần thất bại: in chẩn đoán, dọn browser còn sót rồi thử lại.
+        """
+        last_error = None
+        for attempt in range(1, attempts + 1):
+            try:
+                self.playwright = sync_playwright().start()
+                self.browser = self.playwright.chromium.launch(headless=self.headless)
+                return
+            except Exception as e:
+                last_error = e
+                self.cleanup()
+                first_line = (str(e).strip().splitlines() or [repr(e)])[0]
+                print(f"⚠️  Không khởi động được browser (lần {attempt}/{attempts}): {first_line}")
+                print_process_pressure()
+                # max_age nhỏ hơn mặc định: đã thiếu tài nguyên thì dọn mạnh tay hơn,
+                # nhưng vẫn chừa các run song song mới bắt đầu
+                reap_stale_browsers(max_age_seconds=1800)
+                if attempt < attempts:
+                    time.sleep(3 * attempt)
+        raise last_error
+
     def cleanup(self):
-        """Đóng browser và dọn dẹp"""
-        try:
-            if self.page:
-                self.page.close()
-            if self.context:
-                self.context.close()
-            if self.browser:
-                self.browser.close()
-            if self.playwright:
-                self.playwright.stop()
-        except:
-            pass
+        """
+        Đóng browser và dọn dẹp.
+
+        Mỗi bước đóng độc lập: page/context đã chết (browser crash) không được
+        phép chặn playwright.stop() — nếu không, tiến trình driver + Chromium
+        sẽ sống mãi trong API server chạy lâu ngày và ngốn dần pids của container.
+        """
+        for name, closer in (("page", "close"), ("context", "close"),
+                             ("browser", "close"), ("playwright", "stop")):
+            obj = getattr(self, name, None)
+            if obj is None:
+                continue
+            try:
+                getattr(obj, closer)()
+            except Exception:
+                pass
+            setattr(self, name, None)
+        self.is_logged_in = False
     
     def get_pump_data(
         self,
